@@ -1,0 +1,94 @@
+{
+  "users": [
+    {
+      "name": "Marcos Uriel Flores Gomez",
+      "username": "mflores",
+      "password": "kzqrv",
+      "role": "admin"
+    },
+    {
+      "name": "Mario Terrez Gonzalez",
+      "username": "mterrez",
+      "password": "mbyht",
+      "role": "admin"
+    },
+    {
+      "name": "Arturo Flores Gómez",
+      "username": "aflores",
+      "password": "plxwn",
+      "role": "admin"
+    },
+    {
+      "name": "Arturo Ivan Cortes Flores",
+      "username": "acortes",
+      "password": "fudqs",
+      "role": "admin"
+    },
+    {
+      "name": "Imelda Vieyra Peralta",
+      "username": "ivieyra",
+      "password": "nvbgt",
+      "role": "admin"
+    },
+    {
+      "name": "Francisco Javier Frias Jimenez",
+      "username": "ffrias",
+      "password": "hyzjc",
+      "role": "admin"
+    },
+    {
+      "name": "Efrain Morales Zamarrón",
+      "username": "emorales",
+      "password": "wocem",
+      "role": "admin"
+    },
+    {
+      "name": "Celeste Zamarrón Cid",
+      "username": "czamarron",
+      "password": "qilux",
+      "role": "admin"
+    },
+    {
+      "name": "Laura Rodriguez Monroy",
+      "username": "lrodriguez",
+      "password": "zarvm",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Hephzibah Nicole Martínez Hernández",
+      "username": "nmartinez",
+      "password": "xedop",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Estefany Castillo Paz",
+      "username": "ecastillo",
+      "password": "tukal",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Vanessa Hernández Hernández",
+      "username": "vhernandez",
+      "password": "senvy",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Fabiola Flores Guzman",
+      "username": "fflores",
+      "password": "bopik",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Edgar Ivan Cedillo Ramirez",
+      "username": "ecedillo",
+      "password": "gtrfz",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Brenda Abigail Velázquez Cisneros",
+      "username": "bvelazquez",
+      "password": "yjmqc",
+      "role": "ejecutivo"
+    }
+  ]
+}
