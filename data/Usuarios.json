@@ -25,63 +25,105 @@
       "role": "admin"
     },
     {
-      "name": "Imelda Vieyra Peralta",
-      "username": "ivieyra",
-      "password": "nvbgt",
-      "role": "admin"
-    },
-    {
-      "name": "Francisco Javier Frias Jimenez",
-      "username": "ffrias",
-      "password": "hyzjc",
-      "role": "admin"
-    },
-    {
       "name": "Efrain Morales Zamarrón",
       "username": "emorales",
       "password": "wocem",
       "role": "admin"
     },
     {
-      "name": "Celeste Zamarrón Cid",
-      "username": "czamarron",
-      "password": "qilux",
-      "role": "admin"
-    },
-    {
-      "name": "Laura Rodriguez Monroy",
-      "username": "lrodriguez",
+      "name": "Aitana Yolitzin Sanchez Tenorio",
+      "username": "asanchez",
       "password": "zarvm",
       "role": "ejecutivo"
     },
     {
-      "name": "Hephzibah Nicole Martínez Hernández",
-      "username": "nmartinez",
-      "password": "xedop",
+      "name": "Amanda Merlin Juan",
+      "username": "amerlin",
+      "password": "",
       "role": "ejecutivo"
     },
     {
-      "name": "Estefany Castillo Paz",
-      "username": "ecastillo",
-      "password": "tukal",
+      "name": "Saul Ivan Madrid Santiago",
+      "username": "smadrid",
+      "password": "",
       "role": "ejecutivo"
     },
     {
-      "name": "Vanessa Hernández Hernández",
-      "username": "vhernandez",
-      "password": "senvy",
+      "name": "Alberto Martinez Guzman",
+      "username": "amartinez",
+      "password": "",
       "role": "ejecutivo"
     },
     {
-      "name": "Fabiola Flores Guzman",
-      "username": "fflores",
+      "name": "Alejandro Fernando Moreno Valdovinos",
+      "username": "amoreno",
       "password": "bopik",
       "role": "ejecutivo"
     },
     {
-      "name": "Edgar Ivan Cedillo Ramirez",
-      "username": "ecedillo",
-      "password": "gtrfz",
+      "name": "Andrea Paola Ramos Santos",
+      "username": "aramos",
+      "password": "qvljn",
+      "role": "admin"
+    },
+    {
+      "name": "Angel Imanol Pozos Zertuche",
+      "username": "apozos",
+      "password": "zqvhd",
+      "role": "admin"
+    },
+    {
+      "name": "Braulio Saul Garcia Maganda",
+      "username": "bgarcia",
+      "password": "lqvhd",
+      "role": "admin"
+    },
+    {
+      "name": "David Garcia Alcantara",
+      "username": "dgarcia",
+      "password": "lqvhd",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Edvin Zaid Ornelas Hernandez",
+      "username": "eornelas",
+      "password": "",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Flor Selenia Marquez Rivera",
+      "username": "fmarquez",
+      "password": "",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Gabriel Ramirez Castillo",
+      "username": "gramirez",
+      "password": "",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Jesus Eduardo Reyes Lozano",
+      "username": "jreyes",
+      "password": "",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Jose Alberto Zuñiga Estrada",
+      "username": "jzuñiga",
+      "password": "",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Oscar Perez Ramirez",
+      "username": "operez",
+      "password": "",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Jose Maria Barron Santander",
+      "username": "jbarron",
+      "password": "",
       "role": "ejecutivo"
     },
     {
@@ -90,5 +132,6 @@
       "password": "yjmqc",
       "role": "ejecutivo"
     }
+
   ]
 }
