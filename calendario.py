@@ -166,15 +166,14 @@ class CalendarView(ctk.CTkFrame):
                 text=day_name,
                 font=self.fonts["small_bold"],
                 text_color="#6D7480",
-            ).grid(row=0, column=idx, padx=2, pady=(0, 2), sticky="ew")
+            ).grid(row=0, column=idx, padx=2, pady=(0, 2), sticky="nsew")
 
         self.calendar_grid_frame = ctk.CTkFrame(calendar_panel, fg_color="transparent")
-        self.calendar_grid_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="w")
+        self.calendar_grid_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="ew")
 
         # Leyenda de estados
         legend = ctk.CTkFrame(calendar_panel, fg_color="transparent")
         legend.grid(row=3, column=0, padx=10, pady=(6, 10), sticky="w")
-        legend.grid_columnconfigure(1, weight=1)
 
         for col, (label, color) in enumerate([
             ("Asignada", "#FFFFFF"),
@@ -440,49 +439,58 @@ class CalendarView(ctk.CTkFrame):
 
         button_row = ctk.CTkFrame(fields, fg_color="transparent")
         button_row.grid(row=22, column=0, sticky="ew", pady=(16, 0))
-        for col in range(5):
-            button_row.grid_columnconfigure(col, weight=1)
 
         self._form_buttons.clear()
         self._action_buttons: list[ctk.CTkButton] = []
         
         if self.can_edit:
+            primary_row = ctk.CTkFrame(button_row, fg_color="transparent")
+            primary_row.grid(row=0, column=0, sticky="ew")
+            primary_row.grid_columnconfigure(0, weight=1)
+            primary_row.grid_columnconfigure(1, weight=1)
+
+            danger_row = ctk.CTkFrame(button_row, fg_color="transparent")
+            danger_row.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+            for col in range(3):
+                danger_row.grid_columnconfigure(col, weight=1)
+
             btn_clear = ctk.CTkButton(
-                button_row, text="Limpiar", command=self.clear_form,
+                primary_row, text="Limpiar", command=self.clear_form,
                 fg_color=self.style["fondo"], text_color=self.style["texto_oscuro"], hover_color="#E9ECEF",
             )
-            btn_clear.grid(row=0, column=0, padx=(0, 3), sticky="ew")
+            btn_clear.grid(row=0, column=0, padx=(0, 6), sticky="ew")
             self._form_buttons.append(btn_clear)
 
             btn_save = ctk.CTkButton(
-                button_row, text="Guardar", command=self.save_visit,
+                primary_row, text="Guardar", command=self.save_visit,
                 fg_color=self.style["secundario"], hover_color="#1D1D1D",
             )
-            btn_save.grid(row=0, column=1, padx=3, sticky="ew")
+            btn_save.grid(row=0, column=1, padx=(6, 0), sticky="ew")
             self._form_buttons.append(btn_save)
             
             btn_cancel = ctk.CTkButton(
-                button_row, text="Cancelar visita", command=self._cancel_visit_action,
+                danger_row, text="Cancelar visita", command=self._cancel_visit_action,
                 fg_color="#F7D1D1", text_color="#D1534E", hover_color="#F0B8B4",
             )
-            btn_cancel.grid(row=0, column=2, padx=3, sticky="ew")
+            btn_cancel.grid(row=0, column=0, padx=(0, 4), sticky="ew")
             self._form_buttons.append(btn_cancel)
             self._action_buttons.append(btn_cancel)
             
             btn_reassign = ctk.CTkButton(
-                button_row, text="Reasignar ejecutivo", command=self._reassign_visit_action,
+                danger_row, text="Reasignar ejecutivo", command=self._reassign_visit_action,
                 fg_color="#FFFFFF", text_color="#282828", hover_color="#F5F5F5",
             )
-            btn_reassign.grid(row=0, column=3, padx=3, sticky="ew")
+            btn_reassign.grid(row=0, column=1, padx=4, sticky="ew")
             self._form_buttons.append(btn_reassign)
             self._action_buttons.append(btn_reassign)
 
             btn_delete = ctk.CTkButton(
-                button_row, text="Eliminar", command=self.delete_selected_visit,
+                danger_row, text="Eliminar", command=self.delete_selected_visit,
                 fg_color=self.style["peligro"], hover_color="#B43C31",
             )
-            btn_delete.grid(row=0, column=4, padx=(3, 0), sticky="ew")
+            btn_delete.grid(row=0, column=2, padx=(4, 0), sticky="ew")
             self._form_buttons.append(btn_delete)
+            self._action_buttons.append(btn_delete)
         else:
             btn_accept = ctk.CTkButton(
                 button_row, text="Aceptar visita", command=self._accept_visit_action,
@@ -841,7 +849,7 @@ class CalendarView(ctk.CTkFrame):
                 )
                 if state == "disabled":
                     cell.configure(hover=False)
-                cell.grid(row=row, column=col, padx=2, pady=1, sticky="ew")
+                cell.grid(row=row, column=col, padx=2, pady=1, sticky="nsew")
 
     def _select_calendar_date(self, iso_date: str) -> None:
         today_iso = date.today().strftime("%Y-%m-%d")
