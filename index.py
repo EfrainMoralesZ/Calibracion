@@ -1460,7 +1460,7 @@ class CalibrationController:
 				old_inspectors = _normalize_visit_inspectors(_existing.get("inspectors"), "")
 				_existing["inspectors"] = new_inspectors
 				_existing["inspector"] = new_inspectors[0]
-				_existing["acceptance_status"] = "asignada"
+				_existing["acceptance_status"] = "reasignada"
 				_existing["reassigned_from"] = old_inspectors
 				_existing["reassigned_by"] = (self.current_user or {}).get("name", "Sistema")
 				_existing["updated_at"] = _timestamp()

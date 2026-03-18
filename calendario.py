@@ -178,6 +178,7 @@ class CalendarView(ctk.CTkFrame):
         for col, (label, color) in enumerate([
             ("Asignada", "#FFFFFF"),
             ("Aceptada", "#ECD925"),
+            ("Reasignada", "#E4E7EB"),
             ("Finalizada", "#D1F7D1"),
             ("Cancelada", "#F7D1D1"),
         ]):
@@ -788,6 +789,11 @@ class CalendarView(ctk.CTkFrame):
                 has_cancelled = any(v.get("acceptance_status") == "cancelada" for v in day_visits)
                 has_finalizada = any(v.get("acceptance_status") == "finalizada" for v in day_visits)
                 has_aceptada = any(v.get("acceptance_status") == "aceptada" for v in day_visits)
+                has_reasignada = any(
+                    v.get("acceptance_status") == "reasignada"
+                    or (v.get("acceptance_status") == "asignada" and v.get("reassigned_from"))
+                    for v in day_visits
+                )
                 has_assigned = any(v.get("acceptance_status") == "asignada" for v in day_visits)
 
                 if (is_past_day and not has_past_visits) or (is_sunday and not count):
@@ -810,6 +816,11 @@ class CalendarView(ctk.CTkFrame):
                     text_color = "#282828"
                     state = "normal"
                     hover_color = "#D8C220"
+                elif has_reasignada:
+                    fg_color = "#E4E7EB"
+                    text_color = "#3C4657"
+                    state = "normal"
+                    hover_color = "#D6DBE2"
                 elif has_assigned:
                     fg_color = "#FFFFFF"
                     text_color = "#282828"
@@ -1149,7 +1160,7 @@ class CalendarView(ctk.CTkFrame):
             return
 
         status = str(visit.get("acceptance_status", "asignada")).strip().lower() or "asignada"
-        if status == "asignada":
+        if status in {"asignada", "reasignada"}:
             self.accept_visit_button.configure(state="normal", text="Aceptar visita")
         elif status == "aceptada":
             self.accept_visit_button.configure(state="disabled", text="Visita confirmada")
@@ -1177,6 +1188,7 @@ class CalendarView(ctk.CTkFrame):
 
         confirmation_map = {
             "asignada": "Asignada",
+            "reasignada": "Reasignada",
             "aceptada": "Confirmada",
             "finalizada": "Finalizada",
             "cancelada": "Cancelada",

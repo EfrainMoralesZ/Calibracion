@@ -73,7 +73,14 @@
     "status": "Programada",
     "notes": "Reunir toda la documentación requerida para la visita",
     "assigned_by": "Efrain Morales Zamarrón",
-    "updated_at": "2026-03-18 16:25",
-    "acceptance_status": "aceptada"
+    "updated_at": "2026-03-18 17:51",
+    "acceptance_status": "cancelada",
+    "reassigned_from": [
+      "David Garcia Alcantara",
+      "Edvin Zaid Ornelas Hernandez"
+    ],
+    "reassigned_by": "Efrain Morales Zamarrón",
+    "cancellation_reason": "",
+    "cancelled_by": "Efrain Morales Zamarrón"
   }
 ]

@@ -63,8 +63,8 @@ class TrimestralView(ctk.CTkFrame):
 		self.tabview = ctk.CTkTabview(
 			self,
 			fg_color=self.style["surface"],
-			segmented_button_selected_color=self.style["primario"],
-			segmented_button_selected_hover_color="#D8C220",
+			segmented_button_selected_color=self.style["secundario"],
+			segmented_button_selected_hover_color="#1D1D1D",
 			segmented_button_unselected_color=self.style["fondo"],
 			segmented_button_unselected_hover_color="#E9ECEF",
 		)
