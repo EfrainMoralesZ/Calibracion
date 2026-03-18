@@ -143,7 +143,7 @@ class InspectorEditDialog(ctk.CTkToplevel):
         ).grid(row=1, column=0, padx=20, sticky="w")
 
         ctk.CTkLabel(wrapper, text="Nombre del ejecutivo tecnico", font=FONTS["label"], text_color=STYLE["texto_oscuro"]).grid(row=2, column=0, padx=20, pady=(20, 8), sticky="w")
-        name_entry = ctk.CTkEntry(wrapper, textvariable=self.name_var, height=40, border_color="#D5D8DC")
+        name_entry = ctk.CTkEntry(wrapper, textvariable=self.name_var, height=40, border_color="#94A3B8")
         name_entry.grid(row=3, column=0, padx=20, sticky="ew")
 
         ctk.CTkLabel(wrapper, text="Normas acreditadas", font=FONTS["label"], text_color=STYLE["texto_oscuro"]).grid(row=4, column=0, padx=20, pady=(18, 8), sticky="w")
@@ -582,7 +582,7 @@ class EvaluationDialog(ctk.CTkToplevel):
         self.technical_rows: list[dict[str, object]] = []
 
         self.title(f"Acciones - {inspector_name}")
-        self.geometry("1080x780")
+        self.geometry("960x660")
         self.configure(fg_color=STYLE["fondo"])
         self.transient(master)
         self.grab_set()
@@ -590,6 +590,13 @@ class EvaluationDialog(ctk.CTkToplevel):
         self._build_ui()
         self._configure_form_state_tracking()
         self._load_latest(preload_saved=False)
+
+        # Centre on screen so nothing is clipped on smaller displays
+        self.update_idletasks()
+        _w, _h = 960, 660
+        _x = max(0, (self.winfo_screenwidth() - _w) // 2)
+        _y = max(30, (self.winfo_screenheight() - _h) // 2)
+        self.geometry(f"{_w}x{_h}+{_x}+{_y}")
 
     def _build_ui(self) -> None:
         wrapper = ctk.CTkFrame(self, fg_color=STYLE["surface"], corner_radius=24)
@@ -694,7 +701,7 @@ class EvaluationDialog(ctk.CTkToplevel):
             values=options,
             height=38,
             fg_color="#FFFFFF",
-            border_color="#D5D8DC",
+            border_color="#94A3B8",
             button_color=STYLE["primario"],
             dropdown_hover_color=STYLE["primario"],
             command=lambda _value: self._on_norm_change(),
@@ -706,7 +713,7 @@ class EvaluationDialog(ctk.CTkToplevel):
             form_scroll,
             row,
             "Fecha de supervisión",
-            ctk.CTkEntry(form_scroll, textvariable=self.date_var, height=38, border_color="#D5D8DC", state="readonly"),
+            ctk.CTkEntry(form_scroll, textvariable=self.date_var, height=38, border_color="#94A3B8", state="readonly"),
         )
 
         row += 1
@@ -716,7 +723,7 @@ class EvaluationDialog(ctk.CTkToplevel):
             values=clients,
             height=38,
             fg_color="#FFFFFF",
-            border_color="#D5D8DC",
+            border_color="#94A3B8",
             button_color=STYLE["primario"],
             dropdown_hover_color=STYLE["primario"],
         )
@@ -727,11 +734,11 @@ class EvaluationDialog(ctk.CTkToplevel):
             form_scroll,
             row,
             "Ejecutivo supervisado",
-            ctk.CTkEntry(form_scroll, height=38, border_color="#D5D8DC", state="readonly", textvariable=self.inspector_var),
+            ctk.CTkEntry(form_scroll, height=38, border_color="#94A3B8", state="readonly", textvariable=self.inspector_var),
         )
 
         row += 1
-        self.supervisor_entry = ctk.CTkEntry(form_scroll, textvariable=self.supervisor_var, height=38, border_color="#D5D8DC")
+        self.supervisor_entry = ctk.CTkEntry(form_scroll, textvariable=self.supervisor_var, height=38, border_color="#94A3B8")
         self._add_field(form_scroll, row, "Nombre del supervisor", self.supervisor_entry)
 
         ctk.CTkLabel(
@@ -828,7 +835,7 @@ class EvaluationDialog(ctk.CTkToplevel):
                 observations_cell,
                 textvariable=obs_var,
                 height=32,
-                border_color="#D5D8DC",
+                border_color="#94A3B8",
                 placeholder_text="Observaciones",
             )
             obs_entry.pack(fill="x", padx=8, pady=(0, 6))
@@ -935,7 +942,7 @@ class EvaluationDialog(ctk.CTkToplevel):
         result_var = ctk.StringVar(value=c_nc_value)
         observations_var = ctk.StringVar(value=(initial_values or {}).get("observations", ""))
 
-        sku_entry = ctk.CTkEntry(row_frame, textvariable=sku_var, height=34, border_color="#D5D8DC")
+        sku_entry = ctk.CTkEntry(row_frame, textvariable=sku_var, height=34, border_color="#94A3B8", placeholder_text="SKU / Código / UPC")
         sku_entry.grid(row=0, column=0, padx=8, pady=8, sticky="ew")
 
         norm_values = self.applicable_norm_values or [default_norm_label]
@@ -945,7 +952,7 @@ class EvaluationDialog(ctk.CTkToplevel):
             values=norm_values,
             height=34,
             fg_color="#FFFFFF",
-            border_color="#D5D8DC",
+            border_color="#94A3B8",
             button_color=STYLE["primario"],
             dropdown_hover_color=STYLE["primario"],
             state="readonly",
@@ -959,14 +966,14 @@ class EvaluationDialog(ctk.CTkToplevel):
             width=90,
             height=34,
             fg_color="#FFFFFF",
-            border_color="#D5D8DC",
+            border_color="#94A3B8",
             button_color=STYLE["primario"],
             dropdown_hover_color=STYLE["primario"],
             state="readonly",
         )
         result_combo.grid(row=0, column=2, padx=8, pady=8)
 
-        obs_entry = ctk.CTkEntry(row_frame, textvariable=observations_var, height=34, border_color="#D5D8DC")
+        obs_entry = ctk.CTkEntry(row_frame, textvariable=observations_var, height=34, border_color="#94A3B8", placeholder_text="Observaciones")
         obs_entry.grid(row=0, column=3, padx=8, pady=8, sticky="ew")
 
         remove_button = ctk.CTkButton(
@@ -1579,7 +1586,7 @@ class PrincipalView(ctk.CTkFrame):
             toolbar,
             textvariable=self.search_var,
             height=38,
-            border_color="#D5D8DC",
+            border_color="#94A3B8",
         )
         search_entry.grid(row=0, column=1, padx=(0, 10), pady=(16, 6), sticky="ew")
 
@@ -1612,7 +1619,7 @@ class PrincipalView(ctk.CTkFrame):
             width=170,
             height=38,
             fg_color="#FFFFFF",
-            border_color="#D5D8DC",
+            border_color="#94A3B8",
             button_color=STYLE["primario"],
             dropdown_hover_color=STYLE["primario"],
         ).grid(row=0, column=1, sticky="ew")

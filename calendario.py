@@ -701,8 +701,9 @@ class CalendarView(ctk.CTkFrame):
                 label = f"{day}\n{count} visita(s)" if count else str(day)
                 is_past_day = day_iso < today_iso
                 has_past_visits = is_past_day and count > 0
+                is_sunday = (col == 6)
 
-                if is_past_day and not has_past_visits:
+                if (is_past_day and not has_past_visits) or (is_sunday and not count):
                     fg_color = "#EEF0F2"
                     text_color = "#9AA0A8"
                     state = "disabled"
@@ -750,6 +751,33 @@ class CalendarView(ctk.CTkFrame):
         self.date_var.set(iso_date)
         self._render_month_grid()
         self._refresh_exec_options()
+
+        if is_past and self.can_edit:
+            visits_on_date = [
+                v for v in self.controller.list_visits()
+                if self._normalize_date(v.get("visit_date", "")) == iso_date
+            ]
+            if visits_on_date:
+                visit = visits_on_date[0]
+                self.selected_visit_id = visit["id"]
+                inspectors = list(visit.get("inspectors", []))
+                # Write to notes_box before locking it
+                if self.notes_box is not None:
+                    self.notes_box.configure(state="normal")
+                    self.notes_box.delete("1.0", "end")
+                    self.notes_box.insert("1.0", visit.get("notes", ""))
+                self.inspector_var.set(inspectors[0] if inspectors else "")
+                self.exec2_var.set(inspectors[1] if len(inspectors) > 1 else self._NO_EXEC2)
+                self.client_var.set(visit.get("client", ""))
+                self._on_client_change(visit.get("client", ""))
+                self.address_var.set(visit.get("address", ""))
+                self.service_var.set(visit.get("service", "Sin servicio"))
+                self.assignment_time_var.set(visit.get("assignment_time", ""))
+                self.departure_time_var.set(visit.get("departure_time", ""))
+                self.status_var.set(visit.get("status", "Programada"))
+            else:
+                self.selected_visit_id = None
+
         self._set_form_editable(not is_past)
         # Scroll form panel to top so fields are immediately visible
         if self.side_panel is not None:
