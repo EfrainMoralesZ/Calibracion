@@ -8,7 +8,7 @@ import customtkinter as ctk
 
 class TrimestralView(ctk.CTkFrame):
 	def __init__(self, master, controller, style: dict, fonts: dict, can_edit: bool) -> None:
-		super().__init__(master, fg_color="transparent")
+		super().__init__(master, fg_color=style["fondo"])
 		self.controller = controller
 		self.style = style
 		self.fonts = fonts
@@ -73,7 +73,7 @@ class TrimestralView(ctk.CTkFrame):
 		scrollbar.grid(row=0, column=1, sticky="ns")
 		self.tree.configure(yscrollcommand=scrollbar.set)
 
-		self.tree.heading("inspector", text="Ejecutivo")
+		self.tree.heading("inspector", text="Ejecutivo Tecnico")
 		self.tree.heading("periodo", text="Periodo")
 		self.tree.heading("calificacion", text="Calificacion")
 		self.tree.heading("evaluator", text="Evaluador")
@@ -117,7 +117,7 @@ class TrimestralView(ctk.CTkFrame):
 			button_color=self.style["primario"],
 			dropdown_hover_color=self.style["primario"],
 		)
-		self._field(form_panel, 1, "Ejecutivo", self.inspector_selector)
+		self._field(form_panel, 1, "Ejecutivo Tecnico", self.inspector_selector)
 		self._field(form_panel, 2, "Anio", ctk.CTkEntry(form_panel, textvariable=self.year_var, height=38, border_color="#D5D8DC"))
 		self._field(
 			form_panel,
@@ -150,10 +150,9 @@ class TrimestralView(ctk.CTkFrame):
 		actions.grid_columnconfigure(0, weight=1)
 		actions.grid_columnconfigure(1, weight=1)
 		actions.grid_columnconfigure(2, weight=1)
-
 		ctk.CTkButton(
 			actions,
-			text="Nuevo",
+			text="Limpiar",
 			fg_color=self.style["fondo"],
 			text_color=self.style["texto_oscuro"],
 			hover_color="#E9ECEF",

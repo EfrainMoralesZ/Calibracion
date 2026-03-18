@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from statistics import mean
 import tkinter as tk
 
 import customtkinter as ctk
@@ -7,63 +9,46 @@ import customtkinter as ctk
 
 class DashboardView(ctk.CTkFrame):
     def __init__(self, master, controller, style: dict, fonts: dict) -> None:
-        super().__init__(master, fg_color="transparent")
+        super().__init__(master, fg_color=style["fondo"])
         self.controller = controller
         self.style = style
         self.fonts = fonts
-        self.all_inspectors_label = "Todos los inspectores"
+        self.all_inspectors_label = "Todos los ejecutivos tecnicos"
+
         self._resize_job: str | None = None
+        self._last_canvas_size: tuple[int, int] = (0, 0)
+
         self._last_norm_metrics: list[dict] = []
-        self._current_history: list[dict] = []
-        self._last_bar_size: tuple[int, int] = (0, 0)
-        self._last_line_size: tuple[int, int] = (0, 0)
+        self._norm_snapshots: list[dict] = []
+        self._learning_history: list[dict] = []
+        self._recent_visits: list[dict] = []
+        self._active_inspector_name: str | None = None
+        self.selected_norm_token: str | None = None
 
         self.executive_var = ctk.StringVar()
-        self.latest_var = ctk.StringVar(value="--")
-        self.average_var = ctk.StringVar(value="--")
         self.focus_var = ctk.StringVar(value="Sin seguimiento")
         self.norm_context_var = ctk.StringVar(value="Vista general de cobertura por norma.")
+        self.chart_title_var = ctk.StringVar(value="Curva de aprendizaje general")
+        self.visits_mode_var = ctk.StringVar(value="Visitas asignadas")
 
         self.cards_frame: ctk.CTkScrollableFrame | None = None
-        self.accredited_box: ctk.CTkTextbox | None = None
         self.visits_box: ctk.CTkTextbox | None = None
-        self.bar_canvas: tk.Canvas | None = None
-        self.line_canvas: tk.Canvas | None = None
+        self.learning_canvas: tk.Canvas | None = None
         self.executive_selector: ctk.CTkComboBox | None = None
+        self.visits_mode_selector: ctk.CTkOptionMenu | None = None
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(2, weight=1)
+        self.grid_rowconfigure(1, weight=1)
         self._build_ui()
 
     def _build_ui(self) -> None:
-        header = ctk.CTkFrame(self, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 20))
-        header.grid_columnconfigure(0, weight=1)
-
-        ctk.CTkLabel(
-            header,
-            text="Dashboard operativo",
-            font=self.fonts["subtitle"],
-            text_color=self.style["texto_oscuro"],
-        ).grid(row=0, column=0, sticky="w")
-
-        ctk.CTkLabel(
-            header,
-            text=(
-                "Consulta la distribucion de inspectores acreditados por norma y el seguimiento individual "
-                "para identificar desempenos por debajo del 90%."
-            ),
-            font=self.fonts["small"],
-            text_color="#6D7480",
-        ).grid(row=1, column=0, sticky="w", pady=(6, 0))
-
         cards_wrapper = ctk.CTkFrame(self, fg_color=self.style["surface"], corner_radius=22)
-        cards_wrapper.grid(row=1, column=0, sticky="ew")
+        cards_wrapper.grid(row=0, column=0, sticky="ew")
         cards_wrapper.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             cards_wrapper,
-            text="Normas acreditadas y cobertura",
+            text="Normas acreditadas",
             font=self.fonts["label_bold"],
             text_color=self.style["texto_oscuro"],
         ).grid(row=0, column=0, padx=18, pady=(14, 4), sticky="w")
@@ -78,19 +63,19 @@ class DashboardView(ctk.CTkFrame):
         self.cards_frame = ctk.CTkScrollableFrame(
             cards_wrapper,
             fg_color="transparent",
-            height=92,
+            height=148,
             orientation="horizontal",
         )
-        self.cards_frame.grid(row=2, column=0, padx=12, pady=(0, 8), sticky="ew")
+        self.cards_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="ew")
 
         content = ctk.CTkFrame(self, fg_color="transparent")
-        content.grid(row=2, column=0, sticky="nsew", pady=(10, 0))
+        content.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
         content.grid_columnconfigure(0, weight=3)
         content.grid_columnconfigure(1, weight=2)
-        content.grid_rowconfigure(1, weight=1)
+        content.grid_rowconfigure(0, weight=1)
 
         overview_panel = ctk.CTkFrame(content, fg_color=self.style["surface"], corner_radius=22)
-        overview_panel.grid(row=0, column=0, rowspan=2, sticky="nsew", padx=(0, 12))
+        overview_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
         overview_panel.grid_columnconfigure(0, weight=1)
         overview_panel.grid_rowconfigure(3, weight=1)
 
@@ -100,117 +85,107 @@ class DashboardView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             top_filter,
-            text="Inspector a analizar",
+            text="Ejecutivo Tecnico a analizar",
             font=self.fonts["label_bold"],
             text_color=self.style["texto_oscuro"],
         ).grid(row=0, column=0, sticky="w")
 
+        filter_controls = ctk.CTkFrame(top_filter, fg_color="transparent")
+        filter_controls.grid(row=1, column=0, pady=(8, 0), sticky="w")
+
         self.executive_selector = ctk.CTkComboBox(
-            top_filter,
+            filter_controls,
             variable=self.executive_var,
             values=[self.all_inspectors_label],
             height=38,
+            width=300,
             button_color=self.style["primario"],
             dropdown_hover_color=self.style["primario"],
             fg_color="#FFFFFF",
             border_color="#D5D8DC",
             command=lambda _value: self._update_profile(),
         )
-        self.executive_selector.grid(row=1, column=0, pady=(8, 0), sticky="ew")
+        self.executive_selector.grid(row=0, column=0, sticky="w")
 
-        metrics_row = ctk.CTkFrame(overview_panel, fg_color="transparent")
-        metrics_row.grid(row=1, column=0, padx=18, pady=(18, 12), sticky="ew")
-        metrics_row.grid_columnconfigure(0, weight=1)
-        metrics_row.grid_columnconfigure(1, weight=1)
-        metrics_row.grid_columnconfigure(2, weight=1)
+        ctk.CTkButton(
+            filter_controls,
+            text="Limpiar",
+            width=92,
+            fg_color=self.style["fondo"],
+            text_color=self.style["texto_oscuro"],
+            hover_color="#E9ECEF",
+            command=self._clear_inspector_filter,
+        ).grid(row=0, column=1, padx=(8, 0), sticky="w")
 
-        for index, item in enumerate(
-            [
-                ("Ultimo puntaje", self.latest_var),
-                ("Promedio", self.average_var),
-                ("Estado", self.focus_var),
-            ]
-        ):
-            card = ctk.CTkFrame(metrics_row, fg_color=self.style["fondo"], corner_radius=18)
-            card.grid(row=0, column=index, padx=(0 if index == 0 else 8, 0), sticky="ew")
-            ctk.CTkLabel(
-                card,
-                text=item[0],
-                font=self.fonts["small_bold"],
-                text_color="#6D7480",
-            ).pack(anchor="w", padx=14, pady=(14, 2))
-            ctk.CTkLabel(
-                card,
-                textvariable=item[1],
-                font=self.fonts["subtitle"],
-                text_color=self.style["texto_oscuro"],
-            ).pack(anchor="w", padx=14, pady=(0, 14))
+        state_card = ctk.CTkFrame(filter_controls, fg_color=self.style["fondo"], corner_radius=14)
+        state_card.grid(row=0, column=2, padx=(12, 0), sticky="w")
+        ctk.CTkLabel(
+            state_card,
+            text="Estado",
+            font=self.fonts["small_bold"],
+            text_color="#6D7480",
+        ).grid(row=0, column=0, padx=(10, 6), pady=8, sticky="w")
+        ctk.CTkLabel(
+            state_card,
+            textvariable=self.focus_var,
+            font=self.fonts["small_bold"],
+            text_color=self.style["texto_oscuro"],
+        ).grid(row=0, column=1, padx=(0, 10), pady=8, sticky="w")
 
         ctk.CTkLabel(
             overview_panel,
-            text="Cobertura por norma",
+            textvariable=self.chart_title_var,
             font=self.fonts["label_bold"],
             text_color=self.style["texto_oscuro"],
         ).grid(row=2, column=0, padx=18, sticky="w")
 
-        self.bar_canvas = tk.Canvas(
+        self.learning_canvas = tk.Canvas(
             overview_panel,
-            height=185,
+            height=300,
             bg=self.style["surface"],
             highlightthickness=0,
         )
-        self.bar_canvas.grid(row=3, column=0, padx=18, pady=(10, 18), sticky="nsew")
+        self.learning_canvas.grid(row=3, column=0, padx=18, pady=(8, 18), sticky="nsew")
 
         detail_panel = ctk.CTkFrame(content, fg_color=self.style["surface"], corner_radius=22)
         detail_panel.grid(row=0, column=1, sticky="nsew")
         detail_panel.grid_columnconfigure(0, weight=1)
+        detail_panel.grid_rowconfigure(3, weight=1)
 
         ctk.CTkLabel(
             detail_panel,
-            text="Normas del inspector",
+            text="Visitas del ejecutivo tecnico",
             font=self.fonts["label_bold"],
             text_color=self.style["texto_oscuro"],
         ).grid(row=0, column=0, padx=18, pady=(16, 8), sticky="w")
 
-        self.accredited_box = ctk.CTkTextbox(detail_panel, height=155, corner_radius=18)
-        self.accredited_box.grid(row=1, column=0, padx=18, pady=(0, 16), sticky="ew")
-        self.accredited_box.configure(state="disabled")
-
         ctk.CTkLabel(
             detail_panel,
-            text="Visitas recientes",
-            font=self.fonts["label_bold"],
-            text_color=self.style["texto_oscuro"],
-        ).grid(row=2, column=0, padx=18, pady=(0, 8), sticky="w")
+            text="Selecciona el tipo de consulta para las visitas del ejecutivo tecnico elegido.",
+            font=self.fonts["small"],
+            text_color="#6D7480",
+            wraplength=320,
+            justify="left",
+        ).grid(row=1, column=0, padx=18, sticky="w")
 
-        self.visits_box = ctk.CTkTextbox(detail_panel, height=130, corner_radius=18)
-        self.visits_box.grid(row=3, column=0, padx=18, pady=(0, 18), sticky="ew")
+        self.visits_mode_selector = ctk.CTkOptionMenu(
+            detail_panel,
+            values=["Visitas asignadas", "Recientes"],
+            variable=self.visits_mode_var,
+            fg_color=self.style["fondo"],
+            text_color=self.style["texto_oscuro"],
+            button_color=self.style["primario"],
+            button_hover_color="#D8C220",
+            command=lambda _value: self._refresh_visits_panel(),
+        )
+        self.visits_mode_selector.grid(row=2, column=0, padx=18, pady=(10, 10), sticky="w")
+
+        self.visits_box = ctk.CTkTextbox(detail_panel, corner_radius=18)
+        self.visits_box.grid(row=3, column=0, padx=18, pady=(0, 18), sticky="nsew")
         self.visits_box.configure(state="disabled")
 
-        trend_panel = ctk.CTkFrame(content, fg_color=self.style["surface"], corner_radius=22)
-        trend_panel.grid(row=1, column=1, sticky="nsew", pady=(12, 0))
-        trend_panel.grid_columnconfigure(0, weight=1)
-        trend_panel.grid_rowconfigure(1, weight=1)
-
-        ctk.CTkLabel(
-            trend_panel,
-            text="Curva de desempeno",
-            font=self.fonts["label_bold"],
-            text_color=self.style["texto_oscuro"],
-        ).grid(row=0, column=0, padx=18, pady=(16, 8), sticky="w")
-
-        self.line_canvas = tk.Canvas(
-            trend_panel,
-            height=180,
-            bg=self.style["surface"],
-            highlightthickness=0,
-        )
-        self.line_canvas.grid(row=1, column=0, padx=18, pady=(0, 18), sticky="nsew")
-
-        if self.bar_canvas is not None:
-            self.bar_canvas.bind("<Configure>", self._on_chart_resize)
-        if self.line_canvas is not None:
-            self.line_canvas.bind("<Configure>", self._on_chart_resize)
+        if self.learning_canvas is not None:
+            self.learning_canvas.bind("<Configure>", self._on_chart_resize)
 
     def refresh(self) -> None:
         people = [self.all_inspectors_label] + self.controller.get_assignable_inspectors()
@@ -221,7 +196,7 @@ class DashboardView(ctk.CTkFrame):
             self.executive_selector.configure(values=people)
         self._update_profile()
 
-    def _render_cards(self, metrics: list[dict]) -> None:
+    def _render_cards(self, metrics: list[dict], inspector_mode: bool) -> None:
         if self.cards_frame is None:
             return
 
@@ -238,34 +213,86 @@ class DashboardView(ctk.CTkFrame):
             return
 
         for index, item in enumerate(metrics):
+            token = str(item.get("token", "Sin norma")).strip() or "Sin norma"
+            full_nom = str(item.get("full_nom") or item.get("label") or token)
+            description = self._compact_description(item.get("description", "Catalogo no definido"), limit=102)
+            is_selected = inspector_mode and token == self.selected_norm_token
+
+            if inspector_mode:
+                average = item.get("average_score")
+                evaluations = int(item.get("evaluations", 0))
+                if average is None:
+                    card_color = "#F4F6F8"
+                    accent_color = "#6D7480"
+                    summary_text = f"Sin evaluaciones | {evaluations} captura(s)"
+                elif average < 90:
+                    card_color = "#FFF2F0"
+                    accent_color = self.style["peligro"]
+                    summary_text = f"Promedio {average:.1f}% | {evaluations} captura(s)"
+                else:
+                    card_color = "#EAF7EF"
+                    accent_color = self.style["exito"]
+                    summary_text = f"Promedio {average:.1f}% | {evaluations} captura(s)"
+            else:
+                card_color = self.style["fondo"]
+                accent_color = self.style["texto_oscuro"]
+                summary_text = f"{item.get('count', 0)} ejecutivos tecnicos acreditados"
+
             card = ctk.CTkFrame(
                 self.cards_frame,
-                fg_color=self.style["fondo"],
+                fg_color=card_color,
                 corner_radius=18,
-                width=210,
-                height=74,
+                width=290,
+                height=124,
+                border_width=2 if is_selected else 1,
+                border_color=self.style["secundario"] if is_selected else "#DCE0E5",
             )
-            card.grid(row=0, column=index, padx=(0 if index == 0 else 8, 0), pady=4, sticky="n")
+            card.grid(row=0, column=index, padx=(0 if index == 0 else 8, 0), pady=6, sticky="n")
             card.grid_propagate(False)
             card.grid_columnconfigure(0, weight=1)
-            ctk.CTkLabel(
+
+            nom_label = ctk.CTkLabel(
                 card,
-                text=item["token"],
-                font=self.fonts["label_bold"],
-                text_color=self.style["texto_oscuro"],
-            ).grid(row=0, column=0, padx=12, pady=(8, 0), sticky="w")
-            ctk.CTkLabel(
-                card,
-                text=f"{item['count']} inspectores acreditados",
+                text=full_nom,
                 font=self.fonts["small_bold"],
-                text_color=self.style["exito"],
-            ).grid(row=1, column=0, padx=12, pady=(1, 0), sticky="w")
-            ctk.CTkLabel(
+                text_color=self.style["texto_oscuro"],
+                justify="left",
+                wraplength=266,
+            )
+            nom_label.grid(row=0, column=0, padx=12, pady=(8, 0), sticky="w")
+
+            desc_label = ctk.CTkLabel(
                 card,
-                text=self._compact_description(item["description"]),
+                text=description,
                 font=self.fonts["small"],
-                text_color="#6D7480",
-            ).grid(row=2, column=0, padx=12, pady=(2, 8), sticky="w")
+                text_color="#545B64",
+                wraplength=266,
+                justify="left",
+            )
+            desc_label.grid(row=1, column=0, padx=12, pady=(1, 0), sticky="w")
+
+            summary_label = ctk.CTkLabel(
+                card,
+                text=summary_text,
+                font=self.fonts["small_bold"],
+                text_color=accent_color,
+            )
+            summary_label.grid(row=2, column=0, padx=12, pady=(2, 0), sticky="w")
+
+            if inspector_mode:
+                hint_label = ctk.CTkLabel(
+                    card,
+                    text="Doble clic para vista por norma",
+                    font=self.fonts["small"],
+                    text_color="#6D7480",
+                )
+                hint_label.grid(row=3, column=0, padx=12, pady=(0, 6), sticky="w")
+
+                for widget in (card, nom_label, desc_label, summary_label, hint_label):
+                    widget.bind(
+                        "<Double-Button-1>",
+                        lambda _event, norm_token=token: self._open_norm_detail(norm_token),
+                    )
 
     @staticmethod
     def _compact_description(text: str, limit: int = 42) -> str:
@@ -275,88 +302,323 @@ class DashboardView(ctk.CTkFrame):
         return f"{compact_text[: limit - 3].rstrip()}..."
 
     def _update_profile(self) -> None:
-        name = self.executive_var.get().strip()
-        if not name or name == self.all_inspectors_label:
+        selected_name = self.executive_var.get().strip()
+        if not selected_name or selected_name == self.all_inspectors_label:
+            self._active_inspector_name = None
+            self.selected_norm_token = None
+            self._norm_snapshots = []
+            self._recent_visits = []
+
             self._last_norm_metrics = self.controller.get_norm_card_metrics()
             self.norm_context_var.set("Vista general: todas las normas acreditadas registradas.")
-            self._render_cards(self._last_norm_metrics)
-            self._draw_bar_chart(self._last_norm_metrics)
-            self.latest_var.set("--")
-            self.average_var.set("--")
-            self.focus_var.set("Vista global")
-            self._set_textbox(self.accredited_box, "Selecciona un inspector para ver sus normas acreditadas.")
-            self._set_textbox(self.visits_box, "Selecciona un inspector para revisar sus visitas recientes.")
-            self._current_history = []
-            self._draw_line_chart([])
+            self._render_cards(self._last_norm_metrics, inspector_mode=False)
+
+            overview = self.controller.get_overview_metrics()
+            self.focus_var.set(self._state_label(overview.get("average_score")))
+            self.chart_title_var.set("Curva de aprendizaje general (todos los ejecutivos tecnicos)")
+            self._learning_history = self._build_global_history()
+            self._draw_learning_curve()
+            self._refresh_visits_panel()
             return
 
-        profile = self.controller.get_executive_profile(name)
-
+        profile = self.controller.get_executive_profile(selected_name)
         if not profile:
+            self._active_inspector_name = selected_name
+            self._recent_visits = []
+            self._norm_snapshots = []
+            self.selected_norm_token = None
+
             self._last_norm_metrics = self.controller.get_norm_card_metrics()
-            self.norm_context_var.set("Vista general: todas las normas acreditadas registradas.")
-            self._render_cards(self._last_norm_metrics)
-            self._draw_bar_chart(self._last_norm_metrics)
-            self.latest_var.set("--")
-            self.average_var.set("--")
-            self.focus_var.set("Sin seguimiento")
-            self._set_textbox(self.accredited_box, "No hay informacion del inspector seleccionado.")
-            self._set_textbox(self.visits_box, "No hay visitas registradas.")
-            self._current_history = []
-            self._draw_line_chart([])
+            self.norm_context_var.set("No hay informacion disponible para el ejecutivo tecnico seleccionado.")
+            self._render_cards(self._last_norm_metrics, inspector_mode=False)
+
+            self.focus_var.set("Sin capturas")
+            self.chart_title_var.set(f"Curva de aprendizaje general - {selected_name}")
+            self._learning_history = []
+            self._draw_learning_curve()
+            self._refresh_visits_panel()
             return
 
-        self._last_norm_metrics = self._metrics_for_inspector(profile.get("accredited_norms", []))
-        self.norm_context_var.set(f"Mostrando cobertura para las normas de {name}.")
-        self._render_cards(self._last_norm_metrics)
-        self._draw_bar_chart(self._last_norm_metrics)
+        self._active_inspector_name = selected_name
+        self._recent_visits = list(profile.get("recent_visits", []))
+        self._norm_snapshots = self._build_norm_snapshots(selected_name, profile.get("accredited_norms", []))
 
-        latest_score = profile.get("latest_score")
-        average_score = profile.get("average_score")
-        focus_required = profile.get("focus_required")
-        self.latest_var.set(f"{latest_score:.1f}%" if latest_score is not None else "--")
-        self.average_var.set(f"{average_score:.1f}%" if average_score is not None else "--")
-        self.focus_var.set("Mayor enfoque" if focus_required else "Operacion estable")
+        self.norm_context_var.set(
+            f"Doble clic en una card para abrir la vista por norma de {selected_name}."
+        )
+        self._render_cards(self._norm_snapshots, inspector_mode=True)
 
-        accredited_text = "\n".join(
-            f"- {token}" for token in profile.get("accredited_norms", [])
-        ) or "Sin normas acreditadas en el registro actual."
-        self._set_textbox(self.accredited_box, accredited_text)
+        self.focus_var.set(self._state_label(profile.get("average_score")))
+        self.chart_title_var.set(f"Curva de aprendizaje general - {selected_name}")
+        self._learning_history = self._normalize_history(profile.get("history", []))
+        self._draw_learning_curve()
+        self._refresh_visits_panel()
 
-        recent_visits = profile.get("recent_visits", [])
-        visits_text = "\n".join(
-            f"- {visit.get('visit_date', '--')} | {visit.get('client', 'Sin cliente')} | {visit.get('status', 'Sin estado')}"
-            for visit in recent_visits
-        ) or "Sin visitas registradas para este inspector."
-        self._set_textbox(self.visits_box, visits_text)
-        self._current_history = profile.get("history", [])
-        self._draw_line_chart(self._current_history)
+    @staticmethod
+    def _state_label(average_score) -> str:
+        if average_score is None:
+            return "Sin capturas"
+        score = float(average_score)
+        if score >= 90:
+            return "Por arriba del 90%"
+        if score >= 80:
+            return "Estable"
+        return "Bajo del promedio"
 
-    def _metrics_for_inspector(self, accredited_norms: list[str]) -> list[dict]:
-        if not accredited_norms:
-            return []
-        allowed = set(accredited_norms)
-        return [item for item in self.controller.get_norm_card_metrics() if item["token"] in allowed]
+    def _clear_inspector_filter(self) -> None:
+        self.selected_norm_token = None
+        self.executive_var.set(self.all_inspectors_label)
+        self._update_profile()
+
+    def _refresh_visits_panel(self) -> None:
+        mode = self.visits_mode_var.get().strip() or "Visitas asignadas"
+        if not self._active_inspector_name:
+            if mode == "Visitas asignadas":
+                self._set_textbox(
+                    self.visits_box,
+                    "Selecciona un ejecutivo tecnico para ver sus visitas asignadas.",
+                )
+            else:
+                self._set_textbox(
+                    self.visits_box,
+                    "Selecciona un ejecutivo tecnico para ver sus visitas recientes.",
+                )
+            return
+
+        if mode == "Recientes":
+            visits = list(self._recent_visits)
+            title = f"Visitas recientes de {self._active_inspector_name}"
+        else:
+            visits = self.controller.list_visits(name=self._active_inspector_name)
+            title = f"Visitas asignadas de {self._active_inspector_name}"
+
+        if not visits:
+            self._set_textbox(self.visits_box, f"{title}\n\nSin visitas registradas.")
+            return
+
+        lines = [title, ""]
+        for visit in visits:
+            lines.append(
+                "- "
+                f"{visit.get('visit_date', '--')} | "
+                f"{visit.get('client', 'Sin cliente')} | "
+                f"{visit.get('service', 'Sin servicio')} | "
+                f"{visit.get('status', 'Sin estado')}"
+            )
+        self._set_textbox(self.visits_box, "\n".join(lines))
+
+    def _open_norm_detail(self, token: str) -> None:
+        if not self._active_inspector_name:
+            return
+
+        snapshot = next((item for item in self._norm_snapshots if item.get("token") == token), None)
+        if snapshot is None:
+            return
+
+        self.selected_norm_token = token
+        self._render_cards(self._norm_snapshots, inspector_mode=True)
+
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(f"Vista por norma - {snapshot.get('full_nom', token)}")
+        dialog.geometry("980x620")
+        dialog.minsize(860, 540)
+        dialog.configure(fg_color=self.style["fondo"])
+        dialog.transient(self.winfo_toplevel())
+        dialog.grab_set()
+
+        wrapper = ctk.CTkFrame(dialog, fg_color=self.style["surface"], corner_radius=20)
+        wrapper.pack(fill="both", expand=True, padx=18, pady=18)
+        wrapper.grid_columnconfigure(0, weight=3)
+        wrapper.grid_columnconfigure(1, weight=2)
+        wrapper.grid_rowconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            wrapper,
+            text=f"Vista por norma: {snapshot.get('full_nom', token)}",
+            font=self.fonts["label_bold"],
+            text_color=self.style["texto_oscuro"],
+            justify="left",
+            wraplength=640,
+        ).grid(row=0, column=0, columnspan=2, padx=18, pady=(16, 10), sticky="w")
+
+        curve_canvas = tk.Canvas(
+            wrapper,
+            bg=self.style["surface"],
+            highlightthickness=0,
+            height=380,
+        )
+        curve_canvas.grid(row=1, column=0, padx=(18, 10), pady=(0, 16), sticky="nsew")
+
+        info_box = ctk.CTkTextbox(wrapper, corner_radius=16)
+        info_box.grid(row=1, column=1, padx=(10, 18), pady=(0, 16), sticky="nsew")
+
+        average_score = snapshot.get("average_score")
+        latest_score = snapshot.get("latest_score")
+        summary_lines = [
+            "Vista por norma",
+            "",
+            f"Ejecutivo Tecnico: {self._active_inspector_name}",
+            f"NOM completa: {snapshot.get('full_nom', token)}",
+            f"Token: {snapshot.get('token', token)}",
+            f"Nombre: {snapshot.get('description', 'Catalogo no definido')}",
+            f"Promedio: {average_score:.1f}%" if average_score is not None else "Promedio: Sin evaluaciones",
+            f"Ultima captura: {latest_score:.1f}%" if latest_score is not None else "Ultima captura: --",
+            f"Evaluaciones capturadas: {snapshot.get('evaluations', 0)}",
+            f"Estado: {self._state_label(average_score)}",
+        ]
+        info_box.insert("1.0", "\n".join(summary_lines))
+        info_box.configure(state="disabled")
+
+        def _redraw_norm_curve(_event=None) -> None:
+            self._draw_curve_on_canvas(
+                curve_canvas,
+                list(snapshot.get("history", [])),
+                "Sin historial para esta norma.",
+            )
+
+        curve_canvas.bind("<Configure>", _redraw_norm_curve)
+        dialog.after(80, _redraw_norm_curve)
+
+    def _build_norm_snapshots(self, inspector_name: str, accredited_norms: list[str]) -> list[dict]:
+        catalog = {item["token"]: item for item in self.controller.get_norm_card_metrics()}
+        snapshots: dict[str, dict] = {}
+
+        for token in accredited_norms:
+            catalog_item = catalog.get(token, {})
+            snapshots[token] = {
+                "token": token,
+                "full_nom": catalog_item.get("label", token),
+                "description": catalog_item.get("description", "Catalogo no definido"),
+                "count": catalog_item.get("count", 0),
+                "history": [],
+                "average_score": None,
+                "latest_score": None,
+                "evaluations": 0,
+            }
+
+        for entry in self.controller.get_history(inspector_name):
+            norm_token = self._extract_norm_token(entry.get("selected_norm", ""))
+            if not norm_token:
+                continue
+
+            if norm_token not in snapshots:
+                catalog_item = catalog.get(norm_token, {})
+                snapshots[norm_token] = {
+                    "token": norm_token,
+                    "full_nom": catalog_item.get("label", norm_token),
+                    "description": catalog_item.get("description", "Catalogo no definido"),
+                    "count": catalog_item.get("count", 0),
+                    "history": [],
+                    "average_score": None,
+                    "latest_score": None,
+                    "evaluations": 0,
+                }
+
+            score = self._coerce_score(entry.get("score"))
+            if score is None:
+                continue
+
+            label = self._normalize_label(entry.get("visit_date") or entry.get("saved_at", ""))
+            snapshots[norm_token]["history"].append({"label": label, "score": score})
+
+        results: list[dict] = []
+        for token, item in snapshots.items():
+            history = item.get("history", [])
+            scores = [point["score"] for point in history]
+            item["evaluations"] = len(scores)
+            item["latest_score"] = scores[-1] if scores else None
+            item["average_score"] = round(mean(scores), 1) if scores else None
+            item["token"] = token
+            results.append(item)
+
+        return sorted(results, key=lambda value: self._norm_sort_key(value.get("token", "")))
+
+    def _build_global_history(self) -> list[dict]:
+        grouped: dict[str, list[float]] = {}
+        for inspector_name in self.controller.get_assignable_inspectors():
+            for entry in self.controller.get_history(inspector_name):
+                score = self._coerce_score(entry.get("score"))
+                if score is None:
+                    continue
+
+                label = self._normalize_label(entry.get("visit_date") or entry.get("saved_at", ""))
+                if not label:
+                    continue
+                grouped.setdefault(label, []).append(score)
+
+        history: list[dict] = []
+        for label in sorted(grouped.keys()):
+            points = grouped[label]
+            history.append({"label": label, "score": round(mean(points), 1)})
+        return history
+
+    @staticmethod
+    def _normalize_label(value) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return "--"
+        if len(text) >= 10:
+            return text[:10]
+        return text
+
+    def _normalize_history(self, history: list[dict]) -> list[dict]:
+        normalized: list[dict] = []
+        for item in history:
+            score = self._coerce_score(item.get("score"))
+            if score is None:
+                continue
+            normalized.append(
+                {
+                    "label": self._normalize_label(item.get("label", "")),
+                    "score": score,
+                }
+            )
+        return normalized
+
+    @staticmethod
+    def _extract_norm_token(value: str) -> str | None:
+        match = re.search(r"NOM-\d{3}", str(value).upper())
+        return match.group(0) if match else None
+
+    @staticmethod
+    def _coerce_score(value) -> float | None:
+        if value in (None, ""):
+            return None
+        try:
+            return round(float(value), 2)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _norm_sort_key(token: str) -> tuple[int, str]:
+        match = re.search(r"(\d{3})", str(token))
+        if match:
+            return int(match.group(1)), str(token)
+        return 999, str(token)
 
     def _on_chart_resize(self, _event=None) -> None:
-        if not self.winfo_ismapped():
+        if not self.winfo_ismapped() or self.learning_canvas is None:
             return
 
-        current_bar_size = (self.bar_canvas.winfo_width(), self.bar_canvas.winfo_height()) if self.bar_canvas is not None else (0, 0)
-        current_line_size = (self.line_canvas.winfo_width(), self.line_canvas.winfo_height()) if self.line_canvas is not None else (0, 0)
-        if current_bar_size == self._last_bar_size and current_line_size == self._last_line_size:
+        current_size = (self.learning_canvas.winfo_width(), self.learning_canvas.winfo_height())
+        if current_size == self._last_canvas_size:
             return
 
-        self._last_bar_size = current_bar_size
-        self._last_line_size = current_line_size
+        self._last_canvas_size = current_size
         if self._resize_job is not None:
             self.after_cancel(self._resize_job)
-        self._resize_job = self.after(180, self._redraw_charts)
+        self._resize_job = self.after(180, self._redraw_learning_curve)
 
-    def _redraw_charts(self) -> None:
+    def _redraw_learning_curve(self) -> None:
         self._resize_job = None
-        self._draw_bar_chart(self._last_norm_metrics)
-        self._draw_line_chart(self._current_history)
+        self._draw_learning_curve()
+
+    def _draw_learning_curve(self) -> None:
+        self._draw_curve_on_canvas(
+            self.learning_canvas,
+            self._learning_history,
+            "Sin historial general disponible.",
+        )
 
     def _set_textbox(self, textbox: ctk.CTkTextbox | None, value: str) -> None:
         if textbox is None:
@@ -366,69 +628,38 @@ class DashboardView(ctk.CTkFrame):
         textbox.insert("1.0", value)
         textbox.configure(state="disabled")
 
-    def _draw_bar_chart(self, metrics: list[dict]) -> None:
-        if self.bar_canvas is None:
+    def _draw_curve_on_canvas(self, canvas: tk.Canvas | None, history: list[dict], empty_message: str) -> None:
+        if canvas is None:
             return
 
-        canvas = self.bar_canvas
         canvas.delete("all")
-        width = max(canvas.winfo_width(), 720)
-        height = max(canvas.winfo_height(), 185)
-        canvas.configure(width=width, height=height)
-
-        if not metrics:
-            canvas.create_text(width / 2, height / 2, text="Sin datos de normas", fill="#6D7480", font=("Arial", 12))
-            return
-
-        max_count = max(item["count"] for item in metrics) or 1
-        left_margin = 34
-        bottom = height - 30
-        usable_width = width - 54
-        spacing = 12
-        bar_width = max(24, usable_width / max(len(metrics), 1) - spacing)
-
-        for index, item in enumerate(metrics):
-            x0 = left_margin + index * (bar_width + spacing)
-            x1 = x0 + bar_width
-            bar_height = (item["count"] / max_count) * (height - 64)
-            y0 = bottom - bar_height
-            canvas.create_rectangle(x0, y0, x1, bottom, fill=self.style["primario"], outline="")
-            canvas.create_text((x0 + x1) / 2, y0 - 10, text=str(item["count"]), fill=self.style["texto_oscuro"], font=("Arial", 10, "bold"))
-            canvas.create_text((x0 + x1) / 2, bottom + 12, text=item["token"], fill="#6D7480", font=("Arial", 9))
-
-    def _draw_line_chart(self, history: list[dict]) -> None:
-        if self.line_canvas is None:
-            return
-
-        canvas = self.line_canvas
-        canvas.delete("all")
-        width = max(canvas.winfo_width(), 420)
+        width = max(canvas.winfo_width(), 320)
         height = max(canvas.winfo_height(), 180)
-        canvas.configure(width=width, height=height)
 
-        left = 40
+        left = 42
         right = width - 20
         top = 18
-        bottom = height - 28
+        bottom = height - 30
 
         for axis_score in [0, 50, 90, 100]:
             y = bottom - ((axis_score / 100) * (bottom - top))
-            color = self.style["advertencia"] if axis_score == 90 else "#D5D8DC"
-            canvas.create_line(left, y, right, y, fill=color, dash=(4, 4) if axis_score != 100 else ())
+            axis_color = self.style["advertencia"] if axis_score == 90 else "#D5D8DC"
+            canvas.create_line(left, y, right, y, fill=axis_color, dash=(4, 4) if axis_score != 100 else ())
             canvas.create_text(left - 18, y, text=str(axis_score), fill="#6D7480", font=("Arial", 9))
 
         if not history:
-            canvas.create_text(width / 2, height / 2, text="Sin historial capturado", fill="#6D7480", font=("Arial", 12))
+            canvas.create_text(width / 2, height / 2, text=empty_message, fill="#6D7480", font=("Arial", 12))
             return
 
-        usable_width = right - left
+        usable_width = max(30, right - left)
         step = usable_width / max(len(history) - 1, 1)
         points = []
         for index, item in enumerate(history):
             x = left + index * step
             score = max(0, min(100, float(item.get("score", 0))))
             y = bottom - ((score / 100) * (bottom - top))
-            points.append((x, y, item.get("label", ""), score))
+            label = self._normalize_label(item.get("label", ""))
+            points.append((x, y, label, score, index))
 
         for point_index in range(len(points) - 1):
             canvas.create_line(
@@ -441,9 +672,10 @@ class DashboardView(ctk.CTkFrame):
                 smooth=True,
             )
 
-        for x, y, label, score in points:
+        label_step = max(1, len(points) // 7)
+        for x, y, label, score, point_index in points:
             fill = self.style["exito"] if score >= 90 else self.style["advertencia"]
             canvas.create_oval(x - 5, y - 5, x + 5, y + 5, fill=fill, outline="")
             canvas.create_text(x, y - 12, text=f"{score:.0f}", fill=self.style["texto_oscuro"], font=("Arial", 9, "bold"))
-            canvas.create_text(x, bottom + 14, text=label[:10], fill="#6D7480", font=("Arial", 8))
-
+            if point_index == 0 or point_index == len(points) - 1 or point_index % label_step == 0:
+                canvas.create_text(x, bottom + 14, text=label, fill="#6D7480", font=("Arial", 8))

@@ -3,8 +3,9 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import shutil
 import unicodedata
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from statistics import mean
@@ -20,6 +21,8 @@ NORMS_FILE = DATA_DIR / "Normas.json"
 USERS_FILE = DATA_DIR / "Usuarios.json"
 STATE_FILE = DATA_DIR / "app_state.json"
 HISTORY_DIR = DATA_DIR / "historico"
+VISITS_DIR = DATA_DIR / "visitas"
+TRIMESTRAL_DIR = DATA_DIR / "trimestral"
 DOCUMENT_MODULE_DIR = ROOT_DIR / "Documentos PDF.py"
 
 
@@ -42,6 +45,118 @@ def _safe_slug(value: str) -> str:
 	return slug.strip("_") or "sin_nombre"
 
 
+def _safe_folder_name(value: str) -> str:
+	text = str(value or "").strip()
+	if not text:
+		return "sin_nombre"
+
+	text = re.sub(r"[<>:\"/\\|?*]", "", text)
+	text = re.sub(r"\s+", "_", text)
+	text = text.strip("._")
+	return text or "sin_nombre"
+
+
+def _folder_identity(value: str) -> str:
+	return _normalize_person_name(str(value or "").replace("_", " "))
+
+
+def _history_folder_matches_identity(folder_path: Path, target_identity: str) -> bool:
+	if not target_identity:
+		return False
+
+	if _folder_identity(folder_path.name) == target_identity:
+		return True
+
+	history_payload = _read_json(folder_path / "historico.json", [])
+	if isinstance(history_payload, list):
+		for entry in history_payload:
+			if not isinstance(entry, dict):
+				continue
+			inspector_name = _normalize_person_name(str(entry.get("inspector_name", "")))
+			inspector_supervised = _normalize_person_name(str(entry.get("inspector_supervised", "")))
+			if inspector_name == target_identity or inspector_supervised == target_identity:
+				return True
+
+	visits_payload = _read_json(folder_path / "visitas.json", [])
+	if isinstance(visits_payload, list):
+		for entry in visits_payload:
+			if not isinstance(entry, dict):
+				continue
+			inspectors = _normalize_visit_inspectors(entry.get("inspectors"), str(entry.get("inspector", "")))
+			for inspector_name in inspectors:
+				if _normalize_person_name(inspector_name) == target_identity:
+					return True
+
+	return False
+
+
+def _merge_json_list_file(target_path: Path, source_path: Path) -> None:
+	target_data = _read_json(target_path, [])
+	source_data = _read_json(source_path, [])
+	if not isinstance(target_data, list):
+		target_data = []
+	if not isinstance(source_data, list):
+		source_data = []
+
+	seen: set[str] = set()
+	merged: list[Any] = []
+	for item in [*target_data, *source_data]:
+		try:
+			key = json.dumps(item, ensure_ascii=False, sort_keys=True)
+		except TypeError:
+			key = str(item)
+		if key in seen:
+			continue
+		seen.add(key)
+		merged.append(item)
+
+	if merged != target_data:
+		_write_json(target_path, merged)
+
+
+def _move_file_with_suffix(source_file: Path, target_dir: Path) -> None:
+	target_dir.mkdir(parents=True, exist_ok=True)
+	destination = target_dir / source_file.name
+	if destination.exists():
+		stem = source_file.stem
+		suffix = source_file.suffix
+		counter = 1
+		while True:
+			candidate = target_dir / f"{stem}_migrado_{counter}{suffix}"
+			if not candidate.exists():
+				destination = candidate
+				break
+			counter += 1
+
+	source_file.replace(destination)
+
+
+def _merge_history_directories(target_dir: Path, source_dir: Path) -> None:
+	if not source_dir.exists() or source_dir.resolve() == target_dir.resolve():
+		return
+
+	target_dir.mkdir(parents=True, exist_ok=True)
+	_merge_json_list_file(target_dir / "historico.json", source_dir / "historico.json")
+	_merge_json_list_file(target_dir / "visitas.json", source_dir / "visitas.json")
+
+	for child in list(source_dir.iterdir()):
+		if child.name in {"historico.json", "visitas.json"}:
+			continue
+		if child.is_file():
+			_move_file_with_suffix(child, target_dir)
+			continue
+
+		if child.is_dir():
+			target_base = target_dir / child.name
+			for nested in child.rglob("*"):
+				if not nested.is_file():
+					continue
+				relative = nested.relative_to(child)
+				_move_file_with_suffix(nested, target_base / relative.parent)
+
+	shutil.rmtree(source_dir, ignore_errors=True)
+
+
 def _normalize_person_name(value: str) -> str:
 	text = str(value or "").strip().lower()
 	if not text:
@@ -58,6 +173,19 @@ def _extract_norm_token(value: str) -> str | None:
 	return match.group(0) if match else None
 
 
+def _normalize_norm_key(value: str | None) -> str:
+	raw_value = str(value or "").strip()
+	if not raw_value:
+		return "SIN_NORMA"
+
+	token = _extract_norm_token(raw_value)
+	if token:
+		return token
+
+	compact = re.sub(r"\s+", " ", raw_value.upper())
+	return compact or "SIN_NORMA"
+
+
 def _coerce_score(value: Any) -> float | None:
 	if value in (None, ""):
 		return None
@@ -68,12 +196,249 @@ def _coerce_score(value: Any) -> float | None:
 		return None
 
 
+def _normalize_supervision_answers(raw_answers: Any) -> list[dict[str, str]]:
+	normalized: list[dict[str, str]] = []
+	if not isinstance(raw_answers, list):
+		return normalized
+
+	for item in raw_answers:
+		if not isinstance(item, dict):
+			continue
+
+		activity = str(item.get("activity", "")).strip()
+		if not activity:
+			continue
+
+		result = str(item.get("result", "")).strip().lower()
+		if result not in {"conforme", "no_conforme", "no_aplica"}:
+			result = ""
+
+		normalized.append(
+			{
+				"activity": activity,
+				"result": result,
+				"observations": str(item.get("observations", "")).strip(),
+			}
+		)
+
+	return normalized
+
+
+def _normalize_technical_normative_rows(raw_rows: Any) -> list[dict[str, str]]:
+	normalized: list[dict[str, str]] = []
+	if not isinstance(raw_rows, list):
+		return normalized
+
+	for item in raw_rows:
+		if not isinstance(item, dict):
+			continue
+
+		sku = str(item.get("sku", "")).strip()
+		applicable_norm = str(item.get("applicable_norm", "")).strip()
+		observations = str(item.get("observations", "")).strip()
+		result = str(item.get("result", "")).strip().lower()
+		c_nc = str(item.get("c_nc", "")).strip().upper()
+
+		if result not in {"conforme", "no_conforme"}:
+			if c_nc == "C":
+				result = "conforme"
+			elif c_nc == "NC":
+				result = "no_conforme"
+			else:
+				result = ""
+
+		if not c_nc:
+			if result == "conforme":
+				c_nc = "C"
+			elif result == "no_conforme":
+				c_nc = "NC"
+
+		has_any_value = bool(sku or applicable_norm or result or c_nc or observations)
+		if not has_any_value:
+			continue
+
+		normalized.append(
+			{
+				"sku": sku,
+				"applicable_norm": applicable_norm,
+				"result": result,
+				"c_nc": c_nc,
+				"observations": observations,
+			}
+		)
+
+	return normalized
+
+
 def _timestamp() -> str:
 	return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
+def _normalize_visit_date(raw_value: str) -> str:
+	value = str(raw_value or "").strip()
+	if not value:
+		return ""
+
+	for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d"):
+		try:
+			return datetime.strptime(value, fmt).strftime("%Y-%m-%d")
+		except ValueError:
+			continue
+	return ""
+
+
+def _normalize_visit_time(raw_value: str) -> str:
+	value = str(raw_value or "").strip().upper().replace(".", "")
+	if not value:
+		return ""
+
+	for fmt in ("%H:%M", "%H%M", "%I:%M %p", "%I:%M%p", "%I %p"):
+		try:
+			return datetime.strptime(value, fmt).strftime("%H:%M")
+		except ValueError:
+			continue
+	return ""
+
+
+def _normalize_visit_inspectors(raw_values: Any, fallback: str = "") -> list[str]:
+	entries: list[Any] = []
+	if fallback:
+		entries.append(fallback)
+	if isinstance(raw_values, list):
+		entries.extend(raw_values)
+	elif raw_values not in (None, ""):
+		entries.append(raw_values)
+
+	normalized: list[str] = []
+	seen: set[str] = set()
+	for entry in entries:
+		name = str(entry or "").strip()
+		if not name:
+			continue
+		key = name.lower()
+		if key in seen:
+			continue
+		normalized.append(name)
+		seen.add(key)
+	return normalized
+
+
+def _normalize_visit_record(raw_visit: dict[str, Any], include_display: bool = False) -> dict[str, Any]:
+	visit = dict(raw_visit)
+	normalized_date = _normalize_visit_date(str(visit.get("visit_date", "")))
+	if normalized_date:
+		visit["visit_date"] = normalized_date
+
+	assignment_time = _normalize_visit_time(str(visit.get("assignment_time", "")))
+	departure_time = _normalize_visit_time(str(visit.get("departure_time", "")))
+	visit["assignment_time"] = assignment_time
+	visit["departure_time"] = departure_time
+
+	status = str(visit.get("status", "")).strip() or "Programada"
+	visit["status"] = "Programada" if status == "En ruta" else status
+
+	inspectors = _normalize_visit_inspectors(
+		visit.get("inspectors"),
+		str(visit.get("inspector", "")),
+	)
+	visit["inspectors"] = inspectors
+	visit["inspector"] = inspectors[0] if inspectors else ""
+	visit["group_id"] = str(visit.get("group_id", "")).strip()
+	if include_display:
+		visit["inspectors_text"] = ", ".join(inspectors) if inspectors else "--"
+		if assignment_time and departure_time:
+			visit["schedule_text"] = f"{assignment_time} - {departure_time}"
+		elif assignment_time:
+			visit["schedule_text"] = f"{assignment_time} - --"
+		elif departure_time:
+			visit["schedule_text"] = f"-- - {departure_time}"
+		else:
+			visit["schedule_text"] = "--"
+	return visit
+
+
+def _visit_group_key(visit: dict[str, Any]) -> tuple[Any, ...]:
+	group_id = str(visit.get("group_id", "")).strip()
+	if group_id and len(visit.get("inspectors", [])) > 1:
+		return ("group", group_id)
+	return (
+		"legacy",
+		visit.get("visit_date", ""),
+		visit.get("assignment_time", ""),
+		visit.get("departure_time", ""),
+		str(visit.get("client", "")).strip().casefold(),
+		str(visit.get("address", "")).strip().casefold(),
+		str(visit.get("service", "")).strip().casefold(),
+		str(visit.get("status", "")).strip().casefold(),
+		str(visit.get("notes", "")).strip().casefold(),
+		str(visit.get("assigned_by", "")).strip().casefold(),
+	)
+
+
+def _merge_visit_records(raw_visits: list[dict[str, Any]], include_display: bool = False) -> list[dict[str, Any]]:
+	grouped: dict[tuple[Any, ...], dict[str, Any]] = {}
+	for raw_visit in raw_visits:
+		visit = _normalize_visit_record(raw_visit)
+		key = _visit_group_key(visit)
+		existing = grouped.get(key)
+		if existing is None:
+			grouped[key] = visit
+			continue
+
+		merged_inspectors = list(existing.get("inspectors", []))
+		existing_keys = {name.lower() for name in merged_inspectors}
+		for inspector_name in visit.get("inspectors", []):
+			key_name = inspector_name.lower()
+			if key_name in existing_keys:
+				continue
+			merged_inspectors.append(inspector_name)
+			existing_keys.add(key_name)
+
+		existing["inspectors"] = merged_inspectors
+		existing["inspector"] = merged_inspectors[0] if merged_inspectors else ""
+
+	return [_normalize_visit_record(visit, include_display=include_display) for visit in grouped.values()]
+
+
+def _visit_week_dir(date_iso: str) -> Path:
+	"""Returns the weekly folder path (semana_YYYY-MM-DD, Monday-based) for a visit date."""
+	try:
+		d = datetime.strptime(date_iso, "%Y-%m-%d").date()
+	except ValueError:
+		d = date.today()
+	monday = d - timedelta(days=d.weekday())
+	return VISITS_DIR / f"semana_{monday.strftime('%Y-%m-%d')}"
+
+
+def _quarter_dir(quarter: str, year: int) -> Path:
+	"""Returns the folder path for a given quarter+year (e.g. T1_2026)."""
+	return TRIMESTRAL_DIR / f"{quarter}_{year}"
+
+
+def _read_all_visits() -> list[dict[str, Any]]:
+	"""Read all visits from all weekly folders in VISITS_DIR."""
+	if not VISITS_DIR.exists():
+		return []
+	visits: list[dict[str, Any]] = []
+	for folder in sorted(VISITS_DIR.iterdir()):
+		if folder.is_dir():
+			visits.extend(_read_json(folder / "visitas.json", []))
+	return _merge_visit_records(visits)
+
+
+def _read_all_quarterly_scores() -> list[dict[str, Any]]:
+	"""Read all quarterly scores from all quarter folders in TRIMESTRAL_DIR."""
+	if not TRIMESTRAL_DIR.exists():
+		return []
+	scores: list[dict[str, Any]] = []
+	for folder in sorted(TRIMESTRAL_DIR.iterdir()):
+		if folder.is_dir():
+			scores.extend(_read_json(folder / "trimestral.json", []))
+	return scores
+
+
 def _default_state() -> dict[str, Any]:
-	return {"evaluations": {}, "visits": [], "quarterly_scores": []}
+	return {"evaluations": {}}
 
 
 @lru_cache(maxsize=4)
@@ -97,6 +462,8 @@ class CalibrationController:
 		self.users_catalog: list[dict[str, Any]] = []
 		self.clients_catalog: list[dict[str, Any]] = []
 		self.app_state: dict[str, Any] = _default_state()
+		self._consolidation_done: bool = False
+		self._visits_normalized: bool = False
 		self.reload()
 
 	def reload(self) -> None:
@@ -109,9 +476,108 @@ class CalibrationController:
 
 		self.app_state = _read_json(STATE_FILE, _default_state())
 		self.app_state.setdefault("evaluations", {})
-		self.app_state.setdefault("visits", [])
-		self.app_state.setdefault("quarterly_scores", [])
 		HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+		VISITS_DIR.mkdir(parents=True, exist_ok=True)
+		TRIMESTRAL_DIR.mkdir(parents=True, exist_ok=True)
+		self._migrate_legacy_state()
+		if not self._visits_normalized:
+			self._normalize_visit_storage()
+			self._visits_normalized = True
+		if not self._consolidation_done:
+			self._consolidate_history_storage()
+			self._consolidation_done = True
+
+	def _migrate_legacy_state(self) -> None:
+		"""One-time migration: moves visits and quarterly_scores from app_state.json
+		to separate weekly/quarterly JSON files."""
+		dirty = False
+
+		old_visits = self.app_state.pop("visits", None)
+		if old_visits:
+			for visit in old_visits:
+				date_iso = (
+					_normalize_visit_date(str(visit.get("visit_date", "")))
+					or date.today().strftime("%Y-%m-%d")
+				)
+				week_dir = _visit_week_dir(date_iso)
+				existing = _read_json(week_dir / "visitas.json", [])
+				vid = visit.get("id")
+				if vid and not any(v.get("id") == vid for v in existing):
+					existing.append(visit)
+					_write_json(week_dir / "visitas.json", existing)
+			dirty = True
+
+		old_scores = self.app_state.pop("quarterly_scores", None)
+		if old_scores:
+			for score in old_scores:
+				q = str(score.get("quarter", "T1")).upper()
+				y = int(score.get("year", date.today().year))
+				q_dir = _quarter_dir(q, y)
+				existing = _read_json(q_dir / "trimestral.json", [])
+				sid = score.get("id")
+				if sid and not any(s.get("id") == sid for s in existing):
+					existing.append(score)
+					_write_json(q_dir / "trimestral.json", existing)
+			dirty = True
+
+		if dirty:
+			_write_json(STATE_FILE, self.app_state)
+
+	def _normalize_visit_storage(self) -> None:
+		if not VISITS_DIR.exists():
+			return
+
+		for week_dir in VISITS_DIR.iterdir():
+			if not week_dir.is_dir():
+				continue
+			visits_path = week_dir / "visitas.json"
+			raw_visits = _read_json(visits_path, [])
+			normalized_visits = _merge_visit_records(raw_visits)
+			if normalized_visits != raw_visits:
+				_write_json(visits_path, normalized_visits)
+
+	def _consolidate_history_storage(self) -> None:
+		if not HISTORY_DIR.exists():
+			return
+
+		# Build identity → folders map in one pass (name-based, no JSON reads)
+		existing_dirs = [child for child in HISTORY_DIR.iterdir() if child.is_dir()]
+		identity_map: dict[str, list[Path]] = {}
+		for child in existing_dirs:
+			ident = _folder_identity(child.name)
+			if ident:
+				identity_map.setdefault(ident, []).append(child)
+
+		candidate_names: set[str] = {
+			str(record.get("NOMBRE", "")).strip()
+			for record in self.raw_records
+			if str(record.get("NOMBRE", "")).strip()
+		}
+		candidate_names.update(
+			str(user.get("name", "")).strip()
+			for user in self.users_catalog
+			if str(user.get("name", "")).strip()
+		)
+		candidate_names.update(
+			child.name.replace("_", " ").strip()
+			for child in existing_dirs
+			if child.name.strip()
+		)
+
+		for name in sorted(candidate_names):
+			if not name:
+				continue
+			preferred = HISTORY_DIR / _safe_folder_name(name)
+			ident = _folder_identity(name)
+			folders_for_ident = identity_map.get(ident, [])
+			# Skip if preferred folder already exists and is the only match — nothing to merge
+			if (
+				preferred.exists()
+				and len(folders_for_ident) == 1
+				and folders_for_ident[0].resolve() == preferred.resolve()
+			):
+				continue
+			self._history_dir(name)
 
 	def authenticate(self, username: str, password: str) -> dict[str, Any] | None:
 		normalized_user = username.strip().lower()
@@ -240,6 +706,21 @@ class CalibrationController:
 		)
 		return executives or self.get_dashboard_people()
 
+	def get_busy_executives(self, date_iso: str, exclude_visit_id: str | None = None) -> set[str]:
+		"""Returns names of executives who already have a visit assigned on date_iso."""
+		busy: set[str] = set()
+		for visit in _read_all_visits():
+			if exclude_visit_id and visit.get("id") == exclude_visit_id:
+				continue
+			if _normalize_visit_date(str(visit.get("visit_date", ""))) == date_iso:
+				busy.update(visit.get("inspectors", []))
+		return busy
+
+	def get_available_executives(self, date_iso: str, exclude_visit_id: str | None = None) -> list[str]:
+		"""Returns executives not yet assigned to any visit on date_iso."""
+		busy = self.get_busy_executives(date_iso, exclude_visit_id)
+		return [e for e in self.get_assignable_inspectors() if e not in busy]
+
 	def get_client_names(self) -> list[str]:
 		names = {
 			str(client.get("CLIENTE", "")).strip()
@@ -324,7 +805,7 @@ class CalibrationController:
 				"latest_score_text": f"{latest_score:.1f}%" if latest_score is not None else "--",
 				"status": status,
 				"form_completed": form_completed,
-				"actions_text": "Formulario / PDFs",
+				"actions_text": "Formulario",
 			}
 
 			searchable_blob = f"{name} {row['norms_text']} {status}".lower()
@@ -411,7 +892,7 @@ class CalibrationController:
 	) -> dict[str, Any]:
 		clean_name = name.strip()
 		if not clean_name:
-			raise ValueError("El nombre del inspector es obligatorio.")
+			raise ValueError("El nombre del ejecutivo tecnico es obligatorio.")
 
 		if original_name:
 			record = self.get_record(original_name)
@@ -422,7 +903,7 @@ class CalibrationController:
 
 		duplicate = self.get_record(clean_name)
 		if duplicate and clean_name != original_name:
-			raise ValueError("Ya existe un inspector con ese nombre.")
+			raise ValueError("Ya existe un ejecutivo tecnico con ese nombre.")
 
 		updated_record = dict(record or {})
 		updated_record["NOMBRE"] = clean_name
@@ -472,10 +953,29 @@ class CalibrationController:
 		clean_observations = str(payload.get("observations", "")).strip()
 		clean_actions = str(payload.get("corrective_actions", "")).strip()
 		evaluator = str(payload.get("evaluator", "")).strip()
+		inspector_supervised = str(payload.get("inspector_supervised", inspector_name)).strip() or inspector_name
+		protocol_answers = _normalize_supervision_answers(payload.get("protocol_answers"))
+		process_answers = _normalize_supervision_answers(payload.get("process_answers"))
+		technical_normative_rows = _normalize_technical_normative_rows(payload.get("technical_normative_rows"))
+		score_breakdown = payload.get("score_breakdown", {})
+		if not isinstance(score_breakdown, dict):
+			score_breakdown = {}
+		score_by_norm = payload.get("score_by_norm", {})
+		if not isinstance(score_by_norm, dict):
+			score_by_norm = {}
+		normalized_score_by_norm: dict[str, float] = {}
+		for norm_name, raw_score in score_by_norm.items():
+			clean_norm_name = str(norm_name).strip()
+			numeric_score = _coerce_score(raw_score)
+			if not clean_norm_name or numeric_score is None:
+				continue
+			normalized_score_by_norm[clean_norm_name] = numeric_score
 		score = _coerce_score(payload.get("score"))
 
 		if not clean_date:
 			raise ValueError("La fecha de seguimiento es obligatoria.")
+		if not clean_client:
+			raise ValueError("Debes seleccionar cliente o almacen.")
 		if score is None:
 			raise ValueError("El puntaje debe ser numerico.")
 		if score < 0 or score > 100:
@@ -483,14 +983,21 @@ class CalibrationController:
 
 		evaluation = {
 			"inspector_name": inspector_name,
+			"inspector_supervised": inspector_supervised,
 			"selected_norm": clean_norm or "Sin norma",
-			"client": clean_client or "Sin cliente",
+			"client": clean_client,
 			"visit_date": clean_date,
 			"score": score,
 			"status": clean_status,
 			"observations": clean_observations,
 			"corrective_actions": clean_actions,
 			"evaluator": evaluator or (self.current_user or {}).get("name", "Sin evaluador"),
+			"protocol_answers": protocol_answers,
+			"process_answers": process_answers,
+			"technical_normative_rows": technical_normative_rows,
+			"score_breakdown": score_breakdown,
+			"score_by_norm": normalized_score_by_norm,
+			"form_structure": "supervision_v2",
 			"saved_at": _timestamp(),
 			"form_completed": True,
 		}
@@ -509,15 +1016,22 @@ class CalibrationController:
 		current_user: dict[str, Any] | None = None,
 		name: str | None = None,
 	) -> list[dict[str, Any]]:
-		visits = list(self.app_state.get("visits", []))
+		visits = [_normalize_visit_record(visit, include_display=True) for visit in _read_all_visits()]
 		if name:
-			visits = [visit for visit in visits if visit.get("inspector") == name]
+			visits = [visit for visit in visits if name in visit.get("inspectors", [])]
 
 		candidate = current_user or self.current_user
 		if candidate and candidate.get("role") == "ejecutivo":
-			visits = [visit for visit in visits if visit.get("inspector") == candidate.get("name")]
+			visits = [visit for visit in visits if candidate.get("name") in visit.get("inspectors", [])]
 
-		visits.sort(key=lambda item: (item.get("visit_date", ""), item.get("updated_at", "")), reverse=True)
+		visits.sort(
+			key=lambda item: (
+				item.get("visit_date", ""),
+				item.get("assignment_time", ""),
+				item.get("updated_at", ""),
+			),
+			reverse=True,
+		)
 		return visits
 
 	def list_trimestral_scores(
@@ -526,7 +1040,7 @@ class CalibrationController:
 		year: int | None = None,
 		quarter: str | None = None,
 	) -> list[dict[str, Any]]:
-		scores = list(self.app_state.get("quarterly_scores", []))
+		scores = _read_all_quarterly_scores()
 		if inspector_name:
 			target = str(inspector_name).strip()
 			scores = [item for item in scores if str(item.get("inspector", "")).strip() == target]
@@ -555,7 +1069,7 @@ class CalibrationController:
 		score = _coerce_score(payload.get("score"))
 
 		if not inspector:
-			raise ValueError("Debes seleccionar un ejecutivo.")
+			raise ValueError("Debes seleccionar un ejecutivo tecnico.")
 		if quarter not in {"T1", "T2", "T3", "T4"}:
 			raise ValueError("El trimestre debe ser T1, T2, T3 o T4.")
 		if not year_value.isdigit():
@@ -568,10 +1082,19 @@ class CalibrationController:
 		if score < 0 or score > 100:
 			raise ValueError("La calificacion debe estar entre 0 y 100.")
 
-		scores = list(self.app_state.get("quarterly_scores", []))
+		# Find and remove existing score from whichever quarter folder it lives in
 		existing = None
-		if score_id:
-			existing = next((item for item in scores if item.get("id") == score_id), None)
+		if score_id and TRIMESTRAL_DIR.exists():
+			for _folder in TRIMESTRAL_DIR.iterdir():
+				if not _folder.is_dir():
+					continue
+				_fscores = _read_json(_folder / "trimestral.json", [])
+				_found = next((s for s in _fscores if s.get("id") == score_id), None)
+				if _found:
+					existing = _found
+					_fscores = [s for s in _fscores if s.get("id") != score_id]
+					_write_json(_folder / "trimestral.json", _fscores)
+					break
 
 		record = dict(existing or {})
 		record["id"] = record.get("id") or uuid4().hex
@@ -583,88 +1106,147 @@ class CalibrationController:
 		record["evaluator"] = (self.current_user or {}).get("name", "Sistema")
 		record["updated_at"] = _timestamp()
 
-		if existing is None:
-			scores.append(record)
-		else:
-			index = scores.index(existing)
-			scores[index] = record
-
-		self.app_state["quarterly_scores"] = scores
-		_write_json(STATE_FILE, self.app_state)
+		q_dir = _quarter_dir(quarter, year)
+		q_scores = _read_json(q_dir / "trimestral.json", [])
+		q_scores.append(record)
+		_write_json(q_dir / "trimestral.json", q_scores)
 		self.reload()
 		return record
 
 	def delete_trimestral_score(self, score_id: str) -> None:
-		scores = list(self.app_state.get("quarterly_scores", []))
-		existing = next((item for item in scores if item.get("id") == score_id), None)
-		if existing is None:
+		if not TRIMESTRAL_DIR.exists():
 			return
-
-		scores.remove(existing)
-		self.app_state["quarterly_scores"] = scores
-		_write_json(STATE_FILE, self.app_state)
-		self.reload()
+		for _folder in TRIMESTRAL_DIR.iterdir():
+			if not _folder.is_dir():
+				continue
+			_scores = _read_json(_folder / "trimestral.json", [])
+			_existing = next((s for s in _scores if s.get("id") == score_id), None)
+			if _existing:
+				_scores = [s for s in _scores if s.get("id") != score_id]
+				_write_json(_folder / "trimestral.json", _scores)
+				self.reload()
+				return
 
 	def save_visit(self, payload: dict[str, Any], visit_id: str | None = None) -> dict[str, Any]:
-		inspector = str(payload.get("inspector", "")).strip()
+		inspectors = _normalize_visit_inspectors(
+			payload.get("inspectors"),
+			str(payload.get("inspector", "")),
+		)
 		client = str(payload.get("client", "")).strip()
 		address = str(payload.get("address", "")).strip()
 		service = str(payload.get("service", "")).strip()
-		visit_date = str(payload.get("visit_date", "")).strip()
+		visit_date = _normalize_visit_date(str(payload.get("visit_date", "")))
+		assignment_time = _normalize_visit_time(str(payload.get("assignment_time", "")))
+		departure_time = _normalize_visit_time(str(payload.get("departure_time", "")))
 		status = str(payload.get("status", "")).strip() or "Programada"
+		if status == "En ruta":
+			status = "Programada"
 		notes = str(payload.get("notes", "")).strip()
 
-		if not inspector:
-			raise ValueError("Debes seleccionar un inspector.")
+		if not inspectors:
+			raise ValueError("Debes seleccionar un ejecutivo tecnico.")
 		if not client:
 			raise ValueError("Debes seleccionar un cliente.")
 		if not address:
 			raise ValueError("Debes seleccionar una direccion.")
 		if not visit_date:
-			raise ValueError("La fecha de visita es obligatoria.")
+			raise ValueError("La fecha de visita es obligatoria y debe tener formato YYYY-MM-DD.")
+		if not assignment_time:
+			raise ValueError("Debes capturar la hora de asignacion al almacen con formato HH:MM.")
+		if not departure_time:
+			raise ValueError("Debes capturar la hora de salida con formato HH:MM.")
+		if departure_time <= assignment_time:
+			raise ValueError("La hora de salida debe ser posterior a la hora de asignacion al almacen.")
 
-		visits = list(self.app_state.get("visits", []))
+		# Find existing visit across all week folders
 		existing = None
-		if visit_id:
-			existing = next((item for item in visits if item.get("id") == visit_id), None)
+		existing_week_dir: Path | None = None
+		if visit_id and VISITS_DIR.exists():
+			for _wfolder in VISITS_DIR.iterdir():
+				if not _wfolder.is_dir():
+					continue
+				_wvisits = _read_json(_wfolder / "visitas.json", [])
+				_found = next((v for v in _wvisits if v.get("id") == visit_id), None)
+				if _found:
+					existing = _found
+					existing_week_dir = _wfolder
+					break
+
+		today_iso = date.today().strftime("%Y-%m-%d")
+		existing_date = _normalize_visit_date(str(existing.get("visit_date", ""))) if existing else ""
+		if visit_date < today_iso and (existing is None or existing_date != visit_date):
+			raise ValueError("No puedes agendar visitas en fechas anteriores al dia de hoy.")
+
+		for scheduled_visit in self.list_visits():
+			if visit_id and scheduled_visit.get("id") == visit_id:
+				continue
+			if _normalize_visit_date(str(scheduled_visit.get("visit_date", ""))) != visit_date:
+				continue
+			overlap = sorted(set(inspectors) & set(scheduled_visit.get("inspectors", [])))
+			if overlap:
+				names_text = ", ".join(overlap)
+				raise ValueError(
+					f"Los siguientes ejecutivos tecnicos ya tienen una visita asignada para {visit_date}: {names_text}"
+				)
+
+		existing_inspectors = _normalize_visit_inspectors(
+			existing.get("inspectors") if existing else [],
+			str(existing.get("inspector", "")) if existing else "",
+		)
 
 		visit = dict(existing or {})
 		visit["id"] = visit.get("id") or uuid4().hex
-		visit["inspector"] = inspector
+		visit["group_id"] = str(visit.get("group_id", "")).strip() or visit["id"]
+		visit["inspectors"] = inspectors
+		visit["inspector"] = inspectors[0]
 		visit["client"] = client
 		visit["address"] = address
 		visit["service"] = service or "Sin servicio"
 		visit["visit_date"] = visit_date
+		visit["assignment_time"] = assignment_time
+		visit["departure_time"] = departure_time
 		visit["status"] = status
 		visit["notes"] = notes
 		visit["assigned_by"] = (self.current_user or {}).get("name", "Sistema")
 		visit["updated_at"] = _timestamp()
 
-		if existing is None:
-			visits.append(visit)
-		else:
-			index = visits.index(existing)
-			visits[index] = visit
+		# Remove from old week folder (handles date change between weeks)
+		if existing_week_dir is not None:
+			_old_list = _read_json(existing_week_dir / "visitas.json", [])
+			_old_list = [v for v in _old_list if v.get("id") != visit["id"]]
+			_write_json(existing_week_dir / "visitas.json", _old_list)
 
-		self.app_state["visits"] = visits
-		_write_json(STATE_FILE, self.app_state)
-		self._sync_visit_history(inspector)
+		# Write to (possibly new) week folder
+		new_week_dir = _visit_week_dir(visit_date)
+		new_list = _read_json(new_week_dir / "visitas.json", [])
+		new_list.append(visit)
+		_write_json(new_week_dir / "visitas.json", _merge_visit_records(new_list))
+
+		affected_inspectors = set(existing_inspectors) | set(inspectors)
+		for inspector_name in affected_inspectors:
+			self._sync_visit_history(inspector_name)
 		self.reload()
 		return visit
 
 	def delete_visit(self, visit_id: str) -> None:
-		visits = list(self.app_state.get("visits", []))
-		existing = next((item for item in visits if item.get("id") == visit_id), None)
-		if existing is None:
+		if not VISITS_DIR.exists():
 			return
-
-		affected_inspector = existing.get("inspector")
-		visits.remove(existing)
-		self.app_state["visits"] = visits
-		_write_json(STATE_FILE, self.app_state)
-		if affected_inspector:
-			self._sync_visit_history(affected_inspector)
-		self.reload()
+		for _wfolder in VISITS_DIR.iterdir():
+			if not _wfolder.is_dir():
+				continue
+			_wvisits = _read_json(_wfolder / "visitas.json", [])
+			_existing = next((v for v in _wvisits if v.get("id") == visit_id), None)
+			if _existing:
+				affected_inspectors = _normalize_visit_inspectors(
+					_existing.get("inspectors"),
+					str(_existing.get("inspector", "")),
+				)
+				_wvisits = [v for v in _wvisits if v.get("id") != visit_id]
+				_write_json(_wfolder / "visitas.json", _wvisits)
+				for inspector_name in affected_inspectors:
+					self._sync_visit_history(inspector_name)
+				self.reload()
+				return
 
 	def save_norm(self, payload: dict[str, Any], original_nom: str | None = None) -> dict[str, Any]:
 		nom = str(payload.get("NOM", "")).strip()
@@ -772,7 +1354,7 @@ class CalibrationController:
 		payload["accredited_norms"] = self.get_accredited_norms(inspector_name)
 
 		if document_kind == "formato":
-			module = _load_module(str(DOCUMENT_MODULE_DIR / "FormatoSupervicion.py"))
+			module = _load_module(str(DOCUMENT_MODULE_DIR / "FormatoSupervision.py"))
 			builder = getattr(module, "build_formato_supervision_pdf")
 		elif document_kind == "criterio":
 			module = _load_module(str(DOCUMENT_MODULE_DIR / "CriterioEvaluacionTecnica.py"))
@@ -784,9 +1366,28 @@ class CalibrationController:
 		return output_path
 
 	def _history_dir(self, inspector_name: str) -> Path:
-		path = HISTORY_DIR / _safe_slug(inspector_name)
-		path.mkdir(parents=True, exist_ok=True)
-		return path
+		preferred_path = HISTORY_DIR / _safe_folder_name(inspector_name)
+		preferred_path.mkdir(parents=True, exist_ok=True)
+
+		target_identity = _folder_identity(inspector_name)
+		if target_identity and HISTORY_DIR.exists():
+			candidates: list[Path] = []
+			for child in HISTORY_DIR.iterdir():
+				if not child.is_dir():
+					continue
+				if _history_folder_matches_identity(child, target_identity):
+					candidates.append(child)
+
+			legacy_path = HISTORY_DIR / _safe_slug(inspector_name)
+			if legacy_path.exists() and legacy_path.is_dir() and legacy_path not in candidates:
+				candidates.append(legacy_path)
+
+			for source in candidates:
+				if source.resolve() == preferred_path.resolve():
+					continue
+				_merge_history_directories(preferred_path, source)
+
+		return preferred_path
 
 	def _history_file(self, inspector_name: str) -> Path:
 		return self._history_dir(inspector_name) / "historico.json"
@@ -804,8 +1405,81 @@ class CalibrationController:
 
 
 def _controller_evaluation_key(inspector_name: str, norm_token: str | None = None) -> str:
-	normalized_norm = str(norm_token or "SIN_NORMA").strip().upper() or "SIN_NORMA"
+	normalized_norm = _normalize_norm_key(norm_token)
 	return f"{inspector_name}::{normalized_norm}"
+
+
+def _controller_get_norm_display_name(self, norm_value: str | None) -> str:
+	clean_value = str(norm_value or "").strip()
+	if not clean_value:
+		return "Sin norma"
+
+	token = _extract_norm_token(clean_value)
+	if token:
+		for item in self.get_catalog_norms():
+			if str(item.get("token", "")).strip() != token:
+				continue
+			nom_value = " ".join(str(item.get("nom", token)).split())
+			return nom_value
+
+	return " ".join(clean_value.split())
+
+
+def _controller_get_norm_score_history(
+	self,
+	inspector_name: str,
+	norm_token: str | None = None,
+) -> list[dict[str, Any]]:
+	target_norm_key = _normalize_norm_key(norm_token) if norm_token else ""
+	history = self.get_history(inspector_name)
+	rows: list[dict[str, Any]] = []
+
+	for entry in history:
+		visit_date = str(entry.get("visit_date", "")).strip()
+		saved_at = str(entry.get("saved_at", "")).strip()
+		status = str(entry.get("status", "")).strip() or "Sin estatus"
+		evaluator = str(entry.get("evaluator", "")).strip() or "Sin supervisor"
+
+		raw_scores = entry.get("score_by_norm", {})
+		score_rows: list[tuple[str, float]] = []
+		if isinstance(raw_scores, dict):
+			for raw_norm, raw_score in raw_scores.items():
+				norm_name = str(raw_norm).strip()
+				score = _coerce_score(raw_score)
+				if not norm_name or score is None:
+					continue
+				score_rows.append((norm_name, score))
+
+		if not score_rows:
+			norm_name = str(entry.get("selected_norm", "")).strip() or "Sin norma"
+			score = _coerce_score(entry.get("score"))
+			if score is not None:
+				score_rows.append((norm_name, score))
+
+		for raw_norm_name, score in score_rows:
+			norm_key = _normalize_norm_key(raw_norm_name)
+			if target_norm_key and norm_key != target_norm_key:
+				continue
+
+			rows.append(
+				{
+					"norm": self.get_norm_display_name(raw_norm_name),
+					"score": score,
+					"status": status,
+					"evaluator": evaluator,
+					"visit_date": visit_date,
+					"saved_at": saved_at,
+				}
+			)
+
+	rows.sort(
+		key=lambda item: (
+			str(item.get("visit_date", "")),
+			str(item.get("saved_at", "")),
+		),
+		reverse=True,
+	)
+	return rows
 
 
 def _controller_rename_related_history(self, original_name: str, new_name: str) -> None:
@@ -825,14 +1499,30 @@ def _controller_rename_related_history(self, original_name: str, new_name: str) 
 		if new_key != key:
 			evaluations.pop(key, None)
 
-	for visit in self.app_state.get("visits", []):
-		if visit.get("inspector") == original_name:
-			visit["inspector"] = new_name
+	if VISITS_DIR.exists():
+		for week_dir in VISITS_DIR.iterdir():
+			if not week_dir.is_dir():
+				continue
+			visits_path = week_dir / "visitas.json"
+			raw_visits = _read_json(visits_path, [])
+			changed = False
+			for visit in raw_visits:
+				inspectors = _normalize_visit_inspectors(visit.get("inspectors"), str(visit.get("inspector", "")))
+				renamed = [new_name if name == original_name else name for name in inspectors]
+				if renamed != inspectors:
+					visit["inspectors"] = renamed
+					visit["inspector"] = renamed[0] if renamed else ""
+					changed = True
+			if changed:
+				_write_json(visits_path, _merge_visit_records(raw_visits))
 
-	original_dir = HISTORY_DIR / _safe_slug(original_name)
-	target_dir = HISTORY_DIR / _safe_slug(new_name)
-	if original_dir.exists() and not target_dir.exists():
-		original_dir.rename(target_dir)
+	original_dir = self._history_dir(original_name)
+	target_dir = HISTORY_DIR / _safe_folder_name(new_name)
+	target_dir.mkdir(parents=True, exist_ok=True)
+	if original_dir.exists() and original_dir.resolve() != target_dir.resolve():
+		_merge_history_directories(target_dir, original_dir)
+
+	self._history_dir(new_name)
 
 	_write_json(STATE_FILE, self.app_state)
 	self._sync_visit_history(new_name)
@@ -851,13 +1541,16 @@ def _controller_get_latest_evaluation(self, inspector_name: str, norm_token: str
 	if norm_token:
 		key = _controller_evaluation_key(inspector_name, norm_token)
 		latest = evaluations.get(key)
+		if not latest:
+			legacy_key = f"{inspector_name}::{str(norm_token).strip().upper()}"
+			latest = evaluations.get(legacy_key)
 		if latest:
 			return latest
 
 		history = self.get_history(inspector_name)
-		normalized_norm = str(norm_token).strip().upper()
+		normalized_norm = _normalize_norm_key(norm_token)
 		for entry in reversed(history):
-			current_norm = str(entry.get("selected_norm", "")).strip().upper()
+			current_norm = _normalize_norm_key(str(entry.get("selected_norm", "")).strip())
 			if current_norm == normalized_norm:
 				return entry
 		return {}
@@ -897,10 +1590,7 @@ def _controller_get_principal_rows(self, search_text: str = "", status_filter: s
 		else:
 			status = "Estable"
 
-		if self.is_admin():
-			actions_text = "Formulario | Editar | Borrar"
-		else:
-			actions_text = "Formulario"
+		actions_text = "Formulario"
 
 		norms_text = ", ".join(accredited_norms) if accredited_norms else "Sin acreditacion"
 		row = {
@@ -966,10 +1656,29 @@ def _controller_save_evaluation(self, inspector_name: str, payload: dict[str, An
 	clean_observations = str(payload.get("observations", "")).strip()
 	clean_actions = str(payload.get("corrective_actions", "")).strip()
 	evaluator = str(payload.get("evaluator", "")).strip()
+	inspector_supervised = str(payload.get("inspector_supervised", inspector_name)).strip() or inspector_name
+	protocol_answers = _normalize_supervision_answers(payload.get("protocol_answers"))
+	process_answers = _normalize_supervision_answers(payload.get("process_answers"))
+	technical_normative_rows = _normalize_technical_normative_rows(payload.get("technical_normative_rows"))
+	score_breakdown = payload.get("score_breakdown", {})
+	if not isinstance(score_breakdown, dict):
+		score_breakdown = {}
+	score_by_norm = payload.get("score_by_norm", {})
+	if not isinstance(score_by_norm, dict):
+		score_by_norm = {}
+	normalized_score_by_norm: dict[str, float] = {}
+	for norm_name, raw_score in score_by_norm.items():
+		clean_norm_name = str(norm_name).strip()
+		numeric_score = _coerce_score(raw_score)
+		if not clean_norm_name or numeric_score is None:
+			continue
+		normalized_score_by_norm[clean_norm_name] = numeric_score
 	score = _coerce_score(payload.get("score"))
 
 	if not clean_date:
 		raise ValueError("La fecha de seguimiento es obligatoria.")
+	if not clean_client:
+		raise ValueError("Debes seleccionar cliente o almacen.")
 	if score is None:
 		raise ValueError("El puntaje debe ser numerico.")
 	if score < 0 or score > 100:
@@ -977,14 +1686,21 @@ def _controller_save_evaluation(self, inspector_name: str, payload: dict[str, An
 
 	evaluation = {
 		"inspector_name": inspector_name,
+		"inspector_supervised": inspector_supervised,
 		"selected_norm": clean_norm or "Sin norma",
-		"client": clean_client or "Sin cliente",
+		"client": clean_client,
 		"visit_date": clean_date,
 		"score": score,
 		"status": clean_status,
 		"observations": clean_observations,
 		"corrective_actions": clean_actions,
 		"evaluator": evaluator or (self.current_user or {}).get("name", "Sin evaluador"),
+		"protocol_answers": protocol_answers,
+		"process_answers": process_answers,
+		"technical_normative_rows": technical_normative_rows,
+		"score_breakdown": score_breakdown,
+		"score_by_norm": normalized_score_by_norm,
+		"form_structure": "supervision_v2",
 		"saved_at": _timestamp(),
 		"form_completed": True,
 	}
@@ -1011,7 +1727,7 @@ def _controller_get_default_document_path(
 	documents_dir.mkdir(parents=True, exist_ok=True)
 
 	inspector_slug = _safe_slug(inspector_name)
-	norm_slug = _safe_slug(norm_token or "sin_norma")
+	norm_slug = _safe_slug(_normalize_norm_key(norm_token).lower())
 	if document_kind == "formato":
 		filename = f"{inspector_slug}_{norm_slug}_formato_supervision.pdf"
 	else:
@@ -1035,11 +1751,21 @@ def _controller_generate_document(
 
 	payload = dict(latest)
 	payload["inspector_name"] = inspector_name
-	payload["selected_norm"] = str(norm_token or payload.get("selected_norm", "Sin norma"))
+	payload["selected_norm"] = self.get_norm_display_name(payload.get("selected_norm") or norm_token)
+	raw_score_by_norm = payload.get("score_by_norm", {})
+	if isinstance(raw_score_by_norm, dict):
+		normalized_score_by_norm: dict[str, float] = {}
+		for raw_norm, raw_score in raw_score_by_norm.items():
+			numeric_score = _coerce_score(raw_score)
+			if numeric_score is None:
+				continue
+			normalized_score_by_norm[self.get_norm_display_name(str(raw_norm))] = numeric_score
+		if normalized_score_by_norm:
+			payload["score_by_norm"] = normalized_score_by_norm
 	payload["accredited_norms"] = self.get_accredited_norms(inspector_name)
 
 	if document_kind == "formato":
-		module = _load_module(str(DOCUMENT_MODULE_DIR / "FormatoSupervicion.py"))
+		module = _load_module(str(DOCUMENT_MODULE_DIR / "FormatoSupervision.py"))
 		builder = getattr(module, "build_formato_supervision_pdf")
 	elif document_kind == "criterio":
 		module = _load_module(str(DOCUMENT_MODULE_DIR / "CriterioEvaluacionTecnica.py"))
@@ -1052,6 +1778,8 @@ def _controller_generate_document(
 
 
 CalibrationController._evaluation_key = staticmethod(_controller_evaluation_key)
+CalibrationController.get_norm_display_name = _controller_get_norm_display_name
+CalibrationController.get_norm_score_history = _controller_get_norm_score_history
 CalibrationController._rename_related_history = _controller_rename_related_history
 CalibrationController._norm_sort_key = staticmethod(_controller_norm_sort_key)
 CalibrationController.get_latest_evaluation = _controller_get_latest_evaluation

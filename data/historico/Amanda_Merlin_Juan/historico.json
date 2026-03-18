@@ -1,0 +1,179 @@
+[
+  {
+    "inspector_name": "Alberto Martínez Guzmán",
+    "inspector_supervised": "Alberto Martínez Guzmán",
+    "selected_norm": "NOM-004-SE-2021",
+    "client": "BLUE STRIPES S.A. DE C.V.",
+    "visit_date": "2026-03-18",
+    "score": 27.3,
+    "status": "Critico",
+    "observations": "",
+    "corrective_actions": "",
+    "evaluator": "Efrain Morales Zamarrón",
+    "protocol_answers": [
+      {
+        "activity": "¿El ejecutivo cumple con su horario establecido?",
+        "result": "no_conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Se cuenta con cobertura completa durante toda la jornada?",
+        "result": "no_conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Porta chaleco limpio y planchado?",
+        "result": "conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Se encuentra rasurado y con buena presentación personal?",
+        "result": "no_conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Cumple con el protocolo de vestimenta ejecutiva de V&C?",
+        "result": "no_conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Lleva las botas limpias y en buen estado?",
+        "result": "conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Viste la camisa asignada por V&C?",
+        "result": "no_conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Saluda al cliente principal en campo de manera cordial?",
+        "result": "no_conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Se despide del cliente principal en campo de manera cordial? 'Me retiro, algo más que te pueda apoyar'",
+        "result": "conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿El colaborador escucha las necesidades del cliente?",
+        "result": "no_conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Usa un lenguaje claro sin tecnicismos evitando ambigüedades?",
+        "result": "no_conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Personaliza la comunicación de acuerdo con el perfil?",
+        "result": "conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Responde con rapidez, mantiene informado al cliente y responde de manera concisa?",
+        "result": "no_conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Muestra comprensión hacia la situación del cliente?",
+        "result": "no_conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿No espera a que el cliente pregunte, se anticipa?",
+        "result": "conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Es cordial formal, respetuoso, evita hacer comentarios de los proveedores y del cliente?",
+        "result": "no_conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Cierra confirmando acuerdos?",
+        "result": "no_conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿El ejecutivo sabe clasificar entre los diferentes campos de aplicación de las NOMs?",
+        "result": "conforme",
+        "observations": ""
+      },
+      {
+        "activity": "¿Tiene el suficiente conocimiento técnico para evaluar de manera correcta los criterios normativos?",
+        "result": "no_conforme",
+        "observations": ""
+      }
+    ],
+    "process_answers": [
+      {
+        "activity": "¿El ejecutivo realiza muestreo y revisión de mercancías? ¿Si, cuantas veces?",
+        "result": "no_aplica",
+        "observations": ""
+      },
+      {
+        "activity": "¿Se está realizando el escaneo de todas las cajas para la correcta identificación de artículos?",
+        "result": "no_aplica",
+        "observations": ""
+      },
+      {
+        "activity": "¿El ejecutivo valida la correcta colocación de etiquetas en muestreo?",
+        "result": "no_aplica",
+        "observations": ""
+      },
+      {
+        "activity": "¿Se genera de manera completa y precisa la base de etiquetado NOM para el maquilador?",
+        "result": "no_aplica",
+        "observations": ""
+      },
+      {
+        "activity": "¿Se valida que la información entregada esté actualizada y libre de errores?",
+        "result": "no_aplica",
+        "observations": ""
+      },
+      {
+        "activity": "¿Se solicita y archiva la documentación requerida (pedimento y facturas) para cada embarque?",
+        "result": "no_aplica",
+        "observations": ""
+      },
+      {
+        "activity": "¿Se están tomando fotografías claras y suficientes como evidencia del proceso?",
+        "result": "no_aplica",
+        "observations": ""
+      },
+      {
+        "activity": "¿La documentación se cargan a la nube conforme a las reglas establecidas (nomenclatura, carpeta, fecha, evidencia)?",
+        "result": "no_conforme",
+        "observations": ""
+      },
+      {
+        "activity": "Colocar el nombre del técnico que está liberando, así como colocar en el cuerpo del correo el tipo de liberación (preliberación o liberación)",
+        "result": "no_conforme",
+        "observations": ""
+      }
+    ],
+    "technical_normative_rows": [
+      {
+        "sku": "0807803",
+        "applicable_norm": "NOM-004-SE-2021",
+        "result": "no_conforme",
+        "c_nc": "NC",
+        "observations": "fefde"
+      }
+    ],
+    "score_breakdown": {
+      "conforme": 6,
+      "no_conforme": 16,
+      "no_aplica": 7,
+      "aplicables": 22
+    },
+    "score_by_norm": {
+      "NOM-004-SE-2021": 27.3
+    },
+    "form_structure": "supervision_v2",
+    "saved_at": "2026-03-18 13:41",
+    "form_completed": true
+  }
+]

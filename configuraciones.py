@@ -7,7 +7,7 @@ import customtkinter as ctk
 
 class ConfigurationView(ctk.CTkFrame):
     def __init__(self, master, controller, style: dict, fonts: dict, can_edit: bool) -> None:
-        super().__init__(master, fg_color="transparent")
+        super().__init__(master, fg_color=style["fondo"])
         self.controller = controller
         self.style = style
         self.fonts = fonts
@@ -21,7 +21,7 @@ class ConfigurationView(ctk.CTkFrame):
         self.norm_name_var = ctk.StringVar()
         self.norm_section_var = ctk.StringVar()
         self.exec_name_var = ctk.StringVar(value="")
-        self.exec_status_var = ctk.StringVar(value="Selecciona un ejecutivo para actualizar sus normas acreditadas.")
+        self.exec_status_var = ctk.StringVar(value="Selecciona un ejecutivo tecnico para actualizar sus normas acreditadas.")
 
         self.user_name_var = ctk.StringVar()
         self.user_username_var = ctk.StringVar()
@@ -66,11 +66,11 @@ class ConfigurationView(ctk.CTkFrame):
         tabs.grid(row=1, column=0, sticky="nsew")
         tabs.add("Normas")
         tabs.add("Usuarios")
-        tabs.add("Ejecutivos")
+        tabs.add("Ejecutivos Tecnicos")
 
         self._build_norm_tab(tabs.tab("Normas"))
         self._build_user_tab(tabs.tab("Usuarios"))
-        self._build_executive_tab(tabs.tab("Ejecutivos"))
+        self._build_executive_tab(tabs.tab("Ejecutivos Tecnicos"))
 
     def _build_norm_tab(self, tab) -> None:
         tab.grid_columnconfigure(0, weight=3)
@@ -217,7 +217,7 @@ class ConfigurationView(ctk.CTkFrame):
 
         self.exec_tree = ttk.Treeview(table_panel, columns=("name", "norm_count", "norms"), show="headings", height=16)
         self.exec_tree.grid(row=0, column=0, sticky="nsew", padx=16, pady=16)
-        self.exec_tree.heading("name", text="Ejecutivo")
+        self.exec_tree.heading("name", text="Ejecutivo Tecnico")
         self.exec_tree.heading("norm_count", text="Total normas")
         self.exec_tree.heading("norms", text="Normas acreditadas")
         self.exec_tree.column("name", width=240, anchor="w")
@@ -228,10 +228,11 @@ class ConfigurationView(ctk.CTkFrame):
         form_panel = ctk.CTkFrame(tab, fg_color=self.style["fondo"], corner_radius=20)
         form_panel.grid(row=0, column=1, sticky="nsew", pady=12)
         form_panel.grid_columnconfigure(0, weight=1)
+        form_panel.grid_rowconfigure(5, weight=1)
 
         ctk.CTkLabel(
             form_panel,
-            text="Ejecutivo seleccionado",
+            text="Ejecutivo tecnico seleccionado",
             font=self.fonts["label"],
             text_color=self.style["texto_oscuro"],
         ).grid(row=0, column=0, padx=16, pady=(16, 6), sticky="w")
@@ -251,37 +252,45 @@ class ConfigurationView(ctk.CTkFrame):
             justify="left",
         ).grid(row=2, column=0, padx=16, pady=(8, 10), sticky="w")
 
-        ctk.CTkLabel(
-            form_panel,
-            text="Normas acreditadas",
-            font=self.fonts["label"],
-            text_color=self.style["texto_oscuro"],
-        ).grid(row=3, column=0, padx=16, pady=(0, 6), sticky="w")
-
-        self.exec_norm_frame = ctk.CTkScrollableFrame(form_panel, fg_color=self.style["surface"], height=350)
-        self.exec_norm_frame.grid(row=4, column=0, padx=16, sticky="ew")
-        self.exec_norm_frame.grid_columnconfigure(0, weight=1)
-
         actions = ctk.CTkFrame(form_panel, fg_color="transparent")
-        actions.grid(row=5, column=0, padx=16, pady=(14, 16), sticky="ew")
+        actions.grid(row=3, column=0, padx=16, pady=(10, 12), sticky="ew")
         actions.grid_columnconfigure(0, weight=1)
         actions.grid_columnconfigure(1, weight=1)
+        actions.grid_columnconfigure(2, weight=1)
 
         ctk.CTkButton(
             actions,
-            text="Guardar actualizacion",
+            text="Guardar",
             fg_color=self.style["secundario"],
             hover_color="#1D1D1D",
             command=self.save_executive_norms,
         ).grid(row=0, column=0, padx=(0, 6), sticky="ew")
         ctk.CTkButton(
             actions,
-            text="Limpiar seleccion",
+            text="Limpiar",
             fg_color=self.style["fondo"],
             text_color=self.style["texto_oscuro"],
             hover_color="#E9ECEF",
             command=self.clear_executive_selection,
-        ).grid(row=0, column=1, padx=(6, 0), sticky="ew")
+        ).grid(row=0, column=1, padx=3, sticky="ew")
+        ctk.CTkButton(
+            actions,
+            text="Eliminar",
+            fg_color=self.style["peligro"],
+            hover_color="#B43C31",
+            command=self.delete_executive_norms,
+        ).grid(row=0, column=2, padx=(6, 0), sticky="ew")
+
+        ctk.CTkLabel(
+            form_panel,
+            text="Normas acreditadas",
+            font=self.fonts["label"],
+            text_color=self.style["texto_oscuro"],
+        ).grid(row=4, column=0, padx=16, pady=(0, 6), sticky="w")
+
+        self.exec_norm_frame = ctk.CTkScrollableFrame(form_panel, fg_color=self.style["surface"], height=300)
+        self.exec_norm_frame.grid(row=5, column=0, padx=16, pady=(0, 16), sticky="nsew")
+        self.exec_norm_frame.grid_columnconfigure(0, weight=1)
 
         self._render_executive_norms()
 
@@ -297,8 +306,8 @@ class ConfigurationView(ctk.CTkFrame):
         actions.grid_columnconfigure(1, weight=1)
         actions.grid_columnconfigure(2, weight=1)
 
-        ctk.CTkButton(actions, text="Nuevo", command=clear_command, fg_color=self.style["fondo"], text_color=self.style["texto_oscuro"], hover_color="#E9ECEF").grid(row=0, column=0, padx=(0, 6), sticky="ew")
-        ctk.CTkButton(actions, text="Guardar", command=save_command, fg_color=self.style["secundario"], hover_color="#1D1D1D").grid(row=0, column=1, padx=3, sticky="ew")
+        ctk.CTkButton(actions, text="Guardar", command=save_command, fg_color=self.style["secundario"], hover_color="#1D1D1D").grid(row=0, column=0, padx=(0, 6), sticky="ew")
+        ctk.CTkButton(actions, text="Limpiar", command=clear_command, fg_color=self.style["fondo"], text_color=self.style["texto_oscuro"], hover_color="#E9ECEF").grid(row=0, column=1, padx=3, sticky="ew")
         ctk.CTkButton(actions, text="Eliminar", command=delete_command, fg_color=self.style["peligro"], hover_color="#B43C31").grid(row=0, column=2, padx=(6, 0), sticky="ew")
 
     def refresh(self) -> None:
@@ -383,9 +392,14 @@ class ConfigurationView(ctk.CTkFrame):
             token = item["token"]
             variable = ctk.BooleanVar(value=False)
             self.exec_check_vars[token] = variable
+
+            row = ctk.CTkFrame(self.exec_norm_frame, fg_color="transparent")
+            row.grid(row=index, column=0, padx=6, pady=4, sticky="ew")
+            row.grid_columnconfigure(1, weight=1)
+
             checkbox = ctk.CTkCheckBox(
-                self.exec_norm_frame,
-                text=f"{token} | {item['nombre']}",
+                row,
+                text="",
                 variable=variable,
                 font=self.fonts["small"],
                 text_color=self.style["texto_oscuro"],
@@ -393,18 +407,30 @@ class ConfigurationView(ctk.CTkFrame):
                 fg_color=self.style["primario"],
                 hover_color="#D8C220",
             )
-            checkbox.grid(row=index, column=0, padx=6, pady=4, sticky="w")
+            checkbox.grid(row=0, column=0, padx=(0, 8), sticky="nw")
+
+            label = ctk.CTkLabel(
+                row,
+                text=f"{token} | {item['nombre']}",
+                font=self.fonts["small"],
+                text_color=self.style["texto_oscuro"],
+                justify="left",
+                anchor="w",
+                wraplength=420,
+            )
+            label.grid(row=0, column=1, sticky="ew")
+            label.bind("<Button-1>", lambda _event, var=variable: var.set(not var.get()))
 
     def clear_executive_selection(self) -> None:
         self.selected_exec_name = None
         self.exec_name_var.set("")
-        self.exec_status_var.set("Selecciona un ejecutivo para actualizar sus normas acreditadas.")
+        self.exec_status_var.set("Selecciona un ejecutivo tecnico para actualizar sus normas acreditadas.")
         for variable in self.exec_check_vars.values():
             variable.set(False)
 
     def save_executive_norms(self) -> None:
         if not self.selected_exec_name:
-            messagebox.showinfo("Ejecutivos", "Selecciona un ejecutivo para guardar sus normas.")
+            messagebox.showinfo("Ejecutivos", "Selecciona un ejecutivo tecnico para guardar sus normas.")
             return
 
         selected_norms = [token for token, variable in self.exec_check_vars.items() if variable.get()]
@@ -420,6 +446,35 @@ class ConfigurationView(ctk.CTkFrame):
             return
 
         self.exec_status_var.set("Normas acreditadas actualizadas correctamente.")
+        self.refresh()
+
+    def delete_executive_norms(self) -> None:
+        if not self.selected_exec_name:
+            messagebox.showinfo("Ejecutivos", "Selecciona un ejecutivo tecnico para eliminar sus normas.")
+            return
+
+        if not messagebox.askyesno(
+            "Ejecutivos",
+            "Deseas eliminar todas las normas acreditadas del ejecutivo tecnico seleccionado?",
+        ):
+            return
+
+        try:
+            existing = self.controller.get_record(self.selected_exec_name)
+            if existing is None:
+                self.exec_status_var.set("No hay normas acreditadas registradas para este ejecutivo tecnico.")
+                return
+
+            self.controller.save_principal_record(
+                self.selected_exec_name,
+                [],
+                self.selected_exec_name,
+            )
+        except ValueError as error:
+            messagebox.showerror("Ejecutivos", str(error))
+            return
+
+        self.exec_status_var.set("Se eliminaron todas las normas acreditadas del ejecutivo tecnico.")
         self.refresh()
 
     def clear_norm_form(self) -> None:
@@ -529,6 +584,6 @@ class ConfigurationView(ctk.CTkFrame):
             variable.set(token in current_norms)
 
         self.exec_status_var.set(
-            "Actualiza las normas del ejecutivo y guarda para reflejar cambios en Principal y Dashboard."
+            "Actualiza las normas del ejecutivo tecnico y guarda para reflejar cambios en Principal y Dashboard."
         )
 

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+from tkinter import TclError
+
 import customtkinter as ctk
+from PIL import Image
 
 
 class LoginView(ctk.CTkFrame):
@@ -13,17 +17,59 @@ class LoginView(ctk.CTkFrame):
         self.username_var = ctk.StringVar()
         self.password_var = ctk.StringVar()
         self.status_var = ctk.StringVar(value="Ingresa con tu usuario y contrasena asignados.")
+        self.logo_image: ctk.CTkImage | None = self._load_logo_image()
 
         self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
         self._build_ui()
+
+    def _load_logo_image(self) -> ctk.CTkImage | None:
+        image_dir = Path(__file__).resolve().parent / "img"
+        candidates = [image_dir / "logo.png", image_dir / "Logo.png"]
+
+        for image_path in candidates:
+            if not image_path.exists():
+                continue
+            try:
+                source = Image.open(image_path)
+            except OSError:
+                continue
+
+            max_width = 360
+            max_height = 320
+            width, height = source.size
+            ratio = min(max_width / width, max_height / height, 1)
+            target_size = (max(1, int(width * ratio)), max(1, int(height * ratio)))
+            prepared = source.copy()
+            source.close()
+            return ctk.CTkImage(light_image=prepared, dark_image=prepared, size=target_size)
+
+        return None
+
+    def _focus_widget(self, widget) -> None:
+        def _apply_focus() -> None:
+            try:
+                if widget is not None and widget.winfo_exists() and widget.winfo_toplevel().winfo_exists():
+                    widget.focus_set()
+            except TclError:
+                return
+
+        self.after(30, _apply_focus)
 
     def _build_ui(self) -> None:
         content = ctk.CTkFrame(self, fg_color="transparent")
         content.grid(row=0, column=0, padx=42, pady=42, sticky="nsew")
-        content.grid_columnconfigure(0, weight=1)
+        content.grid_columnconfigure(0, weight=5)
+        content.grid_columnconfigure(1, weight=4)
+        content.grid_rowconfigure(0, weight=1)
 
-        badge = ctk.CTkLabel(
-            content,
+        visual_panel = ctk.CTkFrame(content, fg_color="#FFFFFF", corner_radius=24, border_width=1, border_color="#E3E6EA")
+        visual_panel.grid(row=0, column=0, padx=(0, 18), sticky="nsew")
+        visual_panel.grid_columnconfigure(0, weight=1)
+        visual_panel.grid_rowconfigure(3, weight=1)
+
+        ctk.CTkLabel(
+            visual_panel,
             text="V&C CALIBRACION",
             font=self.fonts["small_bold"],
             text_color=self.style["secundario"],
@@ -31,20 +77,19 @@ class LoginView(ctk.CTkFrame):
             corner_radius=18,
             padx=16,
             pady=8,
-        )
-        badge.grid(row=0, column=0, sticky="w")
+        ).grid(row=0, column=0, padx=26, pady=(26, 18), sticky="w")
 
-        title = ctk.CTkLabel(
-            content,
+        ctk.CTkLabel(
+            visual_panel,
             text="Control central de inspecciones y seguimiento",
             font=self.fonts["title"],
             text_color=self.style["texto_oscuro"],
             justify="left",
-        )
-        title.grid(row=1, column=0, pady=(18, 10), sticky="w")
+            wraplength=430,
+        ).grid(row=1, column=0, padx=26, pady=(0, 10), sticky="w")
 
-        subtitle = ctk.CTkLabel(
-            content,
+        ctk.CTkLabel(
+            visual_panel,
             text=(
                 "Accede para consultar la base principal, revisar visitas, mantener catalogos y generar "
                 "documentos despues de completar el formulario de supervision."
@@ -52,70 +97,109 @@ class LoginView(ctk.CTkFrame):
             font=self.fonts["small"],
             text_color="#5B616A",
             justify="left",
-            wraplength=420,
-        )
-        subtitle.grid(row=2, column=0, sticky="w")
+            wraplength=430,
+        ).grid(row=2, column=0, padx=26, sticky="w")
 
-        form = ctk.CTkFrame(content, fg_color=self.style["fondo"], corner_radius=20)
-        form.grid(row=3, column=0, pady=(28, 0), sticky="ew")
-        form.grid_columnconfigure(0, weight=1)
+        if self.logo_image is not None:
+            ctk.CTkLabel(
+                visual_panel,
+                text="",
+                image=self.logo_image,
+                fg_color="transparent",
+            ).grid(row=3, column=0, padx=26, pady=(24, 26), sticky="n")
+        else:
+            ctk.CTkLabel(
+                visual_panel,
+                text="V&C",
+                font=(self.fonts["title"][0], 48, "bold"),
+                text_color=self.style["secundario"],
+                fg_color=self.style["primario"],
+                corner_radius=32,
+                width=240,
+                height=180,
+            ).grid(row=3, column=0, padx=26, pady=(24, 26), sticky="n")
+
+        form_panel = ctk.CTkFrame(content, fg_color=self.style["fondo"], corner_radius=24)
+        form_panel.grid(row=0, column=1, sticky="nsew")
+        form_panel.grid_columnconfigure(0, weight=1)
+        form_panel.grid_rowconfigure(0, weight=1)
+        form_panel.grid_rowconfigure(2, weight=1)
+
+        form_content = ctk.CTkFrame(form_panel, fg_color="transparent")
+        form_content.grid(row=1, column=0, sticky="ew")
+        form_content.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
-            form,
+            form_content,
+            text="Acceso al sistema",
+            font=self.fonts["subtitle"],
+            text_color=self.style["texto_oscuro"],
+        ).grid(row=0, column=0, padx=24, pady=(24, 6), sticky="w")
+
+        ctk.CTkLabel(
+            form_content,
+            text="Ingresa tu usuario y contrasena para continuar.",
+            font=self.fonts["small"],
+            text_color="#6D7480",
+            justify="left",
+            wraplength=340,
+        ).grid(row=1, column=0, padx=24, pady=(0, 18), sticky="w")
+
+        ctk.CTkLabel(
+            form_content,
             text="Usuario",
             font=self.fonts["label"],
             text_color=self.style["texto_oscuro"],
-        ).grid(row=0, column=0, padx=20, pady=(20, 8), sticky="w")
+        ).grid(row=2, column=0, padx=24, pady=(0, 8), sticky="w")
         username_entry = ctk.CTkEntry(
-            form,
+            form_content,
             textvariable=self.username_var,
-            height=42,
+            height=44,
             corner_radius=14,
             border_color="#D5D8DC",
         )
-        username_entry.grid(row=1, column=0, padx=20, sticky="ew")
+        username_entry.grid(row=3, column=0, padx=24, sticky="ew")
 
         ctk.CTkLabel(
-            form,
+            form_content,
             text="Contrasena",
             font=self.fonts["label"],
             text_color=self.style["texto_oscuro"],
-        ).grid(row=2, column=0, padx=20, pady=(16, 8), sticky="w")
+        ).grid(row=4, column=0, padx=24, pady=(16, 8), sticky="w")
         password_entry = ctk.CTkEntry(
-            form,
+            form_content,
             textvariable=self.password_var,
             show="*",
-            height=42,
+            height=44,
             corner_radius=14,
             border_color="#D5D8DC",
         )
-        password_entry.grid(row=3, column=0, padx=20, sticky="ew")
+        password_entry.grid(row=5, column=0, padx=24, sticky="ew")
 
         ctk.CTkLabel(
-            form,
+            form_content,
             textvariable=self.status_var,
             font=self.fonts["small"],
             text_color="#6D7480",
             justify="left",
-            wraplength=360,
-        ).grid(row=4, column=0, padx=20, pady=(16, 12), sticky="w")
+            wraplength=340,
+        ).grid(row=6, column=0, padx=24, pady=(16, 12), sticky="w")
 
-        submit_button = ctk.CTkButton(
-            form,
-            text="Entrar al sistema",
-            height=44,
+        ctk.CTkButton(
+            form_content,
+            text="Ingresar",
+            height=46,
             corner_radius=14,
             fg_color=self.style["secundario"],
             hover_color="#1D1D1D",
             text_color=self.style["texto_claro"],
             font=self.fonts["label_bold"],
             command=self._submit,
-        )
-        submit_button.grid(row=5, column=0, padx=20, pady=(0, 20), sticky="ew")
+        ).grid(row=7, column=0, padx=24, pady=(0, 24), sticky="ew")
 
         username_entry.bind("<Return>", lambda _event: self._submit())
         password_entry.bind("<Return>", lambda _event: self._submit())
-        username_entry.focus_set()
+        self._focus_widget(username_entry)
 
     def _submit(self) -> None:
         username = self.username_var.get().strip()
