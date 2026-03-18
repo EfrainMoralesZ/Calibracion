@@ -409,7 +409,15 @@ class NormSelectionDialog(ctk.CTkToplevel):
         ).grid(row=3, column=0, padx=14, pady=(0, 14), sticky="ew")
 
     def _render_score_history(self, parent: ctk.CTkScrollableFrame) -> None:
-        headers = ["Norma", "Calificación", "Fecha", "Supervisor", "Estatus"]
+        headers = [
+            "Norma",
+            "Calificación global",
+            "Hab. blandas",
+            "Hab. técnicas",
+            "Fecha",
+            "Supervisor",
+            "Estatus",
+        ]
         for col, title in enumerate(headers):
             ctk.CTkLabel(
                 parent,
@@ -428,7 +436,7 @@ class NormSelectionDialog(ctk.CTkToplevel):
                 text="No se pudo cargar el historial de calificaciones.",
                 font=FONTS["small"],
                 text_color="#6D7480",
-            ).grid(row=1, column=0, columnspan=5, padx=8, pady=8, sticky="w")
+            ).grid(row=1, column=0, columnspan=7, padx=8, pady=8, sticky="w")
             return
 
         history_rows = self.controller.get_norm_score_history(self.inspector_name)
@@ -438,21 +446,31 @@ class NormSelectionDialog(ctk.CTkToplevel):
                 text="Sin calificaciones guardadas para este ejecutivo técnico.",
                 font=FONTS["small"],
                 text_color="#6D7480",
-            ).grid(row=1, column=0, columnspan=5, padx=8, pady=8, sticky="w")
+            ).grid(row=1, column=0, columnspan=7, padx=8, pady=8, sticky="w")
             return
+
+        def _fmt_percent(value: object) -> str:
+            try:
+                if value is None or str(value).strip() == "":
+                    return "--"
+                return f"{float(value):.1f}%"
+            except (TypeError, ValueError):
+                return "--"
 
         for idx, row in enumerate(history_rows, start=1):
             visit_date = str(row.get("visit_date", "")).strip() or str(row.get("saved_at", "")).strip() or "--"
             values = [
                 str(row.get("norm", "Sin norma")).strip() or "Sin norma",
-                f"{float(row.get('score', 0.0)):.1f}%",
+                _fmt_percent(row.get("score")),
+                _fmt_percent(row.get("soft_skills_score")),
+                _fmt_percent(row.get("technical_skills_score")),
                 visit_date,
                 str(row.get("evaluator", "Sin supervisor")).strip() or "Sin supervisor",
                 str(row.get("status", "Sin estatus")).strip() or "Sin estatus",
             ]
 
             for col, value in enumerate(values):
-                anchor = "w" if col in {0, 3, 4} else "center"
+                anchor = "w" if col in {0, 5, 6} else "center"
                 padx = (4, 0) if col == 0 else 6
                 ctk.CTkLabel(
                     parent,
@@ -466,8 +484,8 @@ class NormSelectionDialog(ctk.CTkToplevel):
     def _open_score_history(self) -> None:
         dialog = ctk.CTkToplevel(self)
         dialog.title(f"Historial de calificaciones - {self.inspector_name}")
-        dialog.geometry("980x540")
-        dialog.minsize(860, 420)
+        dialog.geometry("1180x560")
+        dialog.minsize(980, 440)
         dialog.configure(fg_color=STYLE["fondo"])
         dialog.transient(self)
         dialog.grab_set()
@@ -488,17 +506,19 @@ class NormSelectionDialog(ctk.CTkToplevel):
             text="Consulta el detalle guardado por norma, fecha, supervisor y estatus.",
             font=FONTS["small"],
             text_color="#6D7480",
-            wraplength=860,
+            wraplength=1060,
             justify="left",
         ).grid(row=1, column=0, padx=20, pady=(0, 12), sticky="w")
 
         history_scroll = ctk.CTkScrollableFrame(wrapper, fg_color=STYLE["fondo"], corner_radius=18)
         history_scroll.grid(row=2, column=0, padx=20, pady=(0, 16), sticky="nsew")
         history_scroll.grid_columnconfigure(0, weight=3)
-        history_scroll.grid_columnconfigure(1, weight=1)
+        history_scroll.grid_columnconfigure(1, weight=2)
         history_scroll.grid_columnconfigure(2, weight=1)
-        history_scroll.grid_columnconfigure(3, weight=2)
-        history_scroll.grid_columnconfigure(4, weight=2)
+        history_scroll.grid_columnconfigure(3, weight=1)
+        history_scroll.grid_columnconfigure(4, weight=1)
+        history_scroll.grid_columnconfigure(5, weight=2)
+        history_scroll.grid_columnconfigure(6, weight=2)
         self._render_score_history(history_scroll)
 
         actions = ctk.CTkFrame(wrapper, fg_color="transparent")
@@ -1231,6 +1251,31 @@ class EvaluationDialog(ctk.CTkToplevel):
         }
         return final_score, status, breakdown, score_by_norm
 
+    @staticmethod
+    def _calculate_section_score(answers: list[dict[str, str]]) -> tuple[float, dict[str, int]]:
+        conforme = 0
+        no_conforme = 0
+        no_aplica = 0
+
+        for answer in answers:
+            result = str(answer.get("result", "")).strip().lower()
+            if result == "conforme":
+                conforme += 1
+            elif result == "no_conforme":
+                no_conforme += 1
+            elif result == "no_aplica":
+                no_aplica += 1
+
+        aplicables = conforme + no_conforme
+        score = round((conforme / aplicables * 100.0), 1) if aplicables > 0 else 0.0
+        breakdown = {
+            "conforme": conforme,
+            "no_conforme": no_conforme,
+            "no_aplica": no_aplica,
+            "aplicables": aplicables,
+        }
+        return score, breakdown
+
     def _load_latest(self, preload_saved: bool = False) -> None:
         if self._is_loading_latest:
             return
@@ -1418,6 +1463,8 @@ class EvaluationDialog(ctk.CTkToplevel):
             process_answers,
             technical_rows,
         )
+        soft_skills_score, soft_skills_breakdown = self._calculate_section_score(protocol_answers)
+        technical_skills_score, technical_skills_breakdown = self._calculate_section_score(process_answers)
 
         self.score_var.set(f"{score:.1f}")
         self.status_var.set(status)
@@ -1437,6 +1484,10 @@ class EvaluationDialog(ctk.CTkToplevel):
             "technical_normative_rows": technical_rows,
             "score_breakdown": score_breakdown,
             "score_by_norm": score_by_norm,
+            "soft_skills_score": soft_skills_score,
+            "technical_skills_score": technical_skills_score,
+            "soft_skills_breakdown": soft_skills_breakdown,
+            "technical_skills_breakdown": technical_skills_breakdown,
         }
 
     def _persist_evaluation(self, payload: dict[str, object]) -> dict | None:
@@ -2226,14 +2277,19 @@ class CalibrationApp(ctk.CTk):
         self.content_frame.grid_rowconfigure(0, weight=1)
 
         can_edit = self.controller.is_admin()
-        self.pages = {
-            "Principal": PrincipalView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
-            "Calendario": CalendarView(self.content_frame, self.controller, STYLE, FONTS, can_edit),
-        }
         if can_edit:
+            self.pages = {
+                "Principal": PrincipalView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
+                "Calendario": CalendarView(self.content_frame, self.controller, STYLE, FONTS, can_edit),
+            }
             self.pages["Dashboard"] = DashboardView(self.content_frame, self.controller, STYLE, FONTS)
             self.pages["Trimestral"] = TrimestralView(self.content_frame, self.controller, STYLE, FONTS, True)
             self.pages["Configuraciones"] = ConfigurationView(self.content_frame, self.controller, STYLE, FONTS, True)
+        else:
+            self.pages = {
+                "Calendario": CalendarView(self.content_frame, self.controller, STYLE, FONTS, can_edit),
+            }
+            self.pages["Trimestral"] = TrimestralView(self.content_frame, self.controller, STYLE, FONTS, False)
 
         self.page_dirty = {name: True for name in self.pages}
 

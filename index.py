@@ -464,9 +464,26 @@ class CalibrationController:
 		self.app_state: dict[str, Any] = _default_state()
 		self._consolidation_done: bool = False
 		self._visits_normalized: bool = False
+		self._history_dir_index: dict[str, Path] = {}
+		self._record_index: dict[str, dict[str, Any]] = {}
+		self._record_index_normalized: dict[str, dict[str, Any]] = {}
+		self._history_cache: dict[str, list[dict[str, Any]]] = {}
+		self._visits_cache: list[dict[str, Any]] | None = None
+		self._quarterly_scores_cache: list[dict[str, Any]] | None = None
+		self._catalog_norms_cache: list[dict[str, str]] | None = None
+		self._dashboard_people_cache: list[str] | None = None
+		self._assignable_inspectors_cache: list[str] | None = None
+		self._client_names_cache: list[str] | None = None
+		self._norm_card_metrics_cache: list[dict[str, Any]] | None = None
+		self._latest_evaluation_cache: dict[str, dict[str, Any]] = {}
+		self._latest_evaluation_by_norm_cache: dict[tuple[str, str], dict[str, Any]] = {}
+		self._principal_rows_cache: dict[tuple[str, str], list[dict[str, Any]]] = {}
+		self._overview_metrics_cache: dict[str, Any] | None = None
+		self._executive_profile_cache: dict[str, dict[str, Any]] = {}
 		self.reload()
 
 	def reload(self) -> None:
+		self._reset_runtime_caches()
 		self.raw_records = _read_json(BD_FILE, [])
 		self.norms_catalog = _read_json(NORMS_FILE, [])
 		self.clients_catalog = _read_json(CLIENTS_FILE, [])
@@ -486,6 +503,98 @@ class CalibrationController:
 		if not self._consolidation_done:
 			self._consolidate_history_storage()
 			self._consolidation_done = True
+		self._rebuild_runtime_indexes()
+
+	def _reset_runtime_caches(self) -> None:
+		self._history_dir_index = {}
+		self._record_index = {}
+		self._record_index_normalized = {}
+		self._history_cache = {}
+		self._visits_cache = None
+		self._quarterly_scores_cache = None
+		self._catalog_norms_cache = None
+		self._dashboard_people_cache = None
+		self._assignable_inspectors_cache = None
+		self._client_names_cache = None
+		self._norm_card_metrics_cache = None
+		self._latest_evaluation_cache = {}
+		self._latest_evaluation_by_norm_cache = {}
+		self._principal_rows_cache = {}
+		self._overview_metrics_cache = None
+		self._executive_profile_cache = {}
+
+	def _rebuild_runtime_indexes(self) -> None:
+		for record in self.raw_records:
+			name = str(record.get("NOMBRE", "")).strip()
+			if not name:
+				continue
+			self._record_index[name] = record
+			normalized_name = _normalize_person_name(name)
+			if normalized_name and normalized_name not in self._record_index_normalized:
+				self._record_index_normalized[normalized_name] = record
+
+		if HISTORY_DIR.exists():
+			for child in HISTORY_DIR.iterdir():
+				if not child.is_dir():
+					continue
+				identity = _folder_identity(child.name)
+				if identity and identity not in self._history_dir_index:
+					self._history_dir_index[identity] = child
+
+		for payload in self.app_state.get("evaluations", {}).values():
+			if not isinstance(payload, dict):
+				continue
+			inspector_name = str(
+				payload.get("inspector_name")
+				or payload.get("inspector_supervised")
+				or ""
+			).strip()
+			if not inspector_name:
+				continue
+			self._cache_latest_evaluation_entry(inspector_name, payload)
+
+	def _cache_latest_evaluation_entry(self, inspector_name: str, payload: dict[str, Any]) -> None:
+		clean_name = str(inspector_name or "").strip()
+		if not clean_name or not isinstance(payload, dict):
+			return
+
+		current_latest = self._latest_evaluation_cache.get(clean_name)
+		payload_saved_at = str(payload.get("saved_at", ""))
+		if current_latest is None or payload_saved_at >= str(current_latest.get("saved_at", "")):
+			self._latest_evaluation_cache[clean_name] = payload
+
+		norm_key = _normalize_norm_key(payload.get("selected_norm"))
+		current_by_norm = self._latest_evaluation_by_norm_cache.get((clean_name, norm_key))
+		if current_by_norm is None or payload_saved_at >= str(current_by_norm.get("saved_at", "")):
+			self._latest_evaluation_by_norm_cache[(clean_name, norm_key)] = payload
+
+	def _get_all_visits_cached(self) -> list[dict[str, Any]]:
+		if self._visits_cache is None:
+			visits = [_normalize_visit_record(visit, include_display=True) for visit in _read_all_visits()]
+			visits.sort(
+				key=lambda item: (
+					item.get("visit_date", ""),
+					item.get("assignment_time", ""),
+					item.get("updated_at", ""),
+				),
+				reverse=True,
+			)
+			self._visits_cache = visits
+		return self._visits_cache
+
+	def _get_all_quarterly_scores_cached(self) -> list[dict[str, Any]]:
+		if self._quarterly_scores_cache is None:
+			scores = _read_all_quarterly_scores()
+			scores.sort(
+				key=lambda item: (
+					int(item.get("year", 0)),
+					str(item.get("quarter", "")),
+					str(item.get("updated_at", "")),
+				),
+				reverse=True,
+			)
+			self._quarterly_scores_cache = scores
+		return self._quarterly_scores_cache
 
 	def _migrate_legacy_state(self) -> None:
 		"""One-time migration: moves visits and quarterly_scores from app_state.json
@@ -604,28 +713,27 @@ class CalibrationController:
 	def available_sections(self, user: dict[str, Any] | None = None) -> list[str]:
 		if self.is_admin(user):
 			return ["Principal", "Dashboard", "Calendario", "Trimestral", "Configuraciones"]
-		return ["Principal", "Calendario"]
+		return ["Calendario", "Trimestral"]
 
 	def get_record(self, inspector_name: str) -> dict[str, Any] | None:
 		target_name = str(inspector_name or "").strip()
 		if not target_name:
 			return None
 
-		for record in self.raw_records:
-			if str(record.get("NOMBRE", "")).strip() == target_name:
-				return record
+		record = self._record_index.get(target_name)
+		if record is not None:
+			return record
 
 		normalized_target = _normalize_person_name(target_name)
 		if not normalized_target:
 			return None
 
-		for record in self.raw_records:
-			record_name = str(record.get("NOMBRE", "")).strip()
-			if _normalize_person_name(record_name) == normalized_target:
-				return record
-		return None
+		return self._record_index_normalized.get(normalized_target)
 
 	def get_catalog_norms(self) -> list[dict[str, str]]:
+		if self._catalog_norms_cache is not None:
+			return [dict(item) for item in self._catalog_norms_cache]
+
 		catalog: list[dict[str, str]] = []
 		seen: set[str] = set()
 
@@ -658,7 +766,8 @@ class CalibrationController:
 				)
 				seen.add(token)
 
-		return sorted(catalog, key=lambda item: self._norm_sort_key(item["token"]))
+		self._catalog_norms_cache = sorted(catalog, key=lambda item: self._norm_sort_key(item["token"]))
+		return [dict(item) for item in self._catalog_norms_cache]
 
 	def get_norm_tokens(self) -> list[str]:
 		return [item["token"] for item in self.get_catalog_norms()]
@@ -686,6 +795,9 @@ class CalibrationController:
 		return sorted(accredited, key=self._norm_sort_key)
 
 	def get_dashboard_people(self) -> list[str]:
+		if self._dashboard_people_cache is not None:
+			return list(self._dashboard_people_cache)
+
 		names = {
 			str(record.get("NOMBRE", "")).strip()
 			for record in self.raw_records
@@ -696,20 +808,25 @@ class CalibrationController:
 			for user in self.users_catalog
 			if str(user.get("name", "")).strip()
 		)
-		return sorted(names)
+		self._dashboard_people_cache = sorted(names)
+		return list(self._dashboard_people_cache)
 
 	def get_assignable_inspectors(self) -> list[str]:
+		if self._assignable_inspectors_cache is not None:
+			return list(self._assignable_inspectors_cache)
+
 		executives = sorted(
 			str(user.get("name", "")).strip()
 			for user in self.users_catalog
 			if user.get("role") == "ejecutivo" and str(user.get("name", "")).strip()
 		)
-		return executives or self.get_dashboard_people()
+		self._assignable_inspectors_cache = executives or self.get_dashboard_people()
+		return list(self._assignable_inspectors_cache)
 
 	def get_busy_executives(self, date_iso: str, exclude_visit_id: str | None = None) -> set[str]:
 		"""Returns names of executives who already have a visit assigned on date_iso."""
 		busy: set[str] = set()
-		for visit in _read_all_visits():
+		for visit in self._get_all_visits_cached():
 			if exclude_visit_id and visit.get("id") == exclude_visit_id:
 				continue
 			if _normalize_visit_date(str(visit.get("visit_date", ""))) == date_iso:
@@ -722,12 +839,16 @@ class CalibrationController:
 		return [e for e in self.get_assignable_inspectors() if e not in busy]
 
 	def get_client_names(self) -> list[str]:
+		if self._client_names_cache is not None:
+			return list(self._client_names_cache)
+
 		names = {
 			str(client.get("CLIENTE", "")).strip()
 			for client in self.clients_catalog
 			if str(client.get("CLIENTE", "")).strip()
 		}
-		return sorted(names)
+		self._client_names_cache = sorted(names)
+		return list(self._client_names_cache)
 
 	def get_client_addresses(self, client_name: str) -> list[dict[str, str]]:
 		options: list[dict[str, str]] = []
@@ -769,9 +890,22 @@ class CalibrationController:
 		return bool(latest.get("form_completed"))
 
 	def get_history(self, inspector_name: str) -> list[dict[str, Any]]:
-		history_path = self._history_file(inspector_name)
-		history = _read_json(history_path, [])
-		return sorted(history, key=lambda item: item.get("saved_at", ""))
+		clean_name = str(inspector_name or "").strip()
+		if not clean_name:
+			return []
+
+		cached_history = self._history_cache.get(clean_name)
+		if cached_history is None:
+			history_path = self._history_file(clean_name)
+			history = _read_json(history_path, [])
+			if not isinstance(history, list):
+				history = []
+			cached_history = sorted(history, key=lambda item: item.get("saved_at", ""))
+			self._history_cache[clean_name] = cached_history
+			if cached_history:
+				self._cache_latest_evaluation_entry(clean_name, cached_history[-1])
+
+		return [dict(item) for item in cached_history if isinstance(item, dict)]
 
 	def get_recent_visits(self, inspector_name: str, limit: int = 5) -> list[dict[str, Any]]:
 		visits = self.list_visits(name=inspector_name)
@@ -835,13 +969,16 @@ class CalibrationController:
 		}
 
 	def get_norm_card_metrics(self) -> list[dict[str, Any]]:
+		if self._norm_card_metrics_cache is not None:
+			return [dict(item) for item in self._norm_card_metrics_cache]
+
 		catalog = self.get_catalog_norms()
 		counts = {item["token"]: 0 for item in catalog}
 		for record in self.raw_records:
 			for token in self.get_accredited_norms(record):
 				counts[token] = counts.get(token, 0) + 1
 
-		return [
+		self._norm_card_metrics_cache = [
 			{
 				"token": item["token"],
 				"label": item["nom"],
@@ -850,9 +987,23 @@ class CalibrationController:
 			}
 			for item in catalog
 		]
+		return [dict(item) for item in self._norm_card_metrics_cache]
 
 	def get_executive_profile(self, inspector_name: str) -> dict[str, Any]:
-		history = self.get_history(inspector_name)
+		clean_name = str(inspector_name or "").strip()
+		if not clean_name:
+			return {}
+
+		cached_profile = self._executive_profile_cache.get(clean_name)
+		if cached_profile is not None:
+			return {
+				**cached_profile,
+				"accredited_norms": list(cached_profile.get("accredited_norms", [])),
+				"history": [dict(point) for point in cached_profile.get("history", [])],
+				"recent_visits": [dict(visit) for visit in cached_profile.get("recent_visits", [])],
+			}
+
+		history = self.get_history(clean_name)
 		chart_points: list[dict[str, Any]] = []
 		for entry in history:
 			score = _coerce_score(entry.get("score"))
@@ -873,15 +1024,22 @@ class CalibrationController:
 			or (average_score is not None and average_score < 90)
 		)
 
-		return {
-			"name": inspector_name,
-			"accredited_norms": self.get_accredited_norms(inspector_name),
+		profile = {
+			"name": clean_name,
+			"accredited_norms": self.get_accredited_norms(clean_name),
 			"history": chart_points,
 			"latest_score": latest_score,
 			"average_score": average_score,
 			"focus_required": focus_required,
 			"latest_status": history[-1].get("status", "Sin seguimiento") if history else "Sin seguimiento",
-			"recent_visits": self.get_recent_visits(inspector_name),
+			"recent_visits": self.get_recent_visits(clean_name),
+		}
+		self._executive_profile_cache[clean_name] = profile
+		return {
+			**profile,
+			"accredited_norms": list(profile.get("accredited_norms", [])),
+			"history": [dict(point) for point in profile.get("history", [])],
+			"recent_visits": [dict(visit) for visit in profile.get("recent_visits", [])],
 		}
 
 	def save_principal_record(
@@ -963,6 +1121,14 @@ class CalibrationController:
 		score_by_norm = payload.get("score_by_norm", {})
 		if not isinstance(score_by_norm, dict):
 			score_by_norm = {}
+		soft_skills_score = _coerce_score(payload.get("soft_skills_score"))
+		technical_skills_score = _coerce_score(payload.get("technical_skills_score"))
+		soft_skills_breakdown = payload.get("soft_skills_breakdown", {})
+		if not isinstance(soft_skills_breakdown, dict):
+			soft_skills_breakdown = {}
+		technical_skills_breakdown = payload.get("technical_skills_breakdown", {})
+		if not isinstance(technical_skills_breakdown, dict):
+			technical_skills_breakdown = {}
 		normalized_score_by_norm: dict[str, float] = {}
 		for norm_name, raw_score in score_by_norm.items():
 			clean_norm_name = str(norm_name).strip()
@@ -980,6 +1146,10 @@ class CalibrationController:
 			raise ValueError("El puntaje debe ser numerico.")
 		if score < 0 or score > 100:
 			raise ValueError("El puntaje debe estar entre 0 y 100.")
+		if soft_skills_score is not None and (soft_skills_score < 0 or soft_skills_score > 100):
+			raise ValueError("La calificación de habilidades blandas debe estar entre 0 y 100.")
+		if technical_skills_score is not None and (technical_skills_score < 0 or technical_skills_score > 100):
+			raise ValueError("La calificación de habilidades técnicas debe estar entre 0 y 100.")
 
 		evaluation = {
 			"inspector_name": inspector_name,
@@ -988,6 +1158,8 @@ class CalibrationController:
 			"client": clean_client,
 			"visit_date": clean_date,
 			"score": score,
+			"soft_skills_score": soft_skills_score,
+			"technical_skills_score": technical_skills_score,
 			"status": clean_status,
 			"observations": clean_observations,
 			"corrective_actions": clean_actions,
@@ -996,6 +1168,8 @@ class CalibrationController:
 			"process_answers": process_answers,
 			"technical_normative_rows": technical_normative_rows,
 			"score_breakdown": score_breakdown,
+			"soft_skills_breakdown": soft_skills_breakdown,
+			"technical_skills_breakdown": technical_skills_breakdown,
 			"score_by_norm": normalized_score_by_norm,
 			"form_structure": "supervision_v2",
 			"saved_at": _timestamp(),
@@ -1016,7 +1190,7 @@ class CalibrationController:
 		current_user: dict[str, Any] | None = None,
 		name: str | None = None,
 	) -> list[dict[str, Any]]:
-		visits = [_normalize_visit_record(visit, include_display=True) for visit in _read_all_visits()]
+		visits = self._get_all_visits_cached()
 		if name:
 			visits = [visit for visit in visits if name in visit.get("inspectors", [])]
 
@@ -1024,23 +1198,19 @@ class CalibrationController:
 		if candidate and candidate.get("role") == "ejecutivo":
 			visits = [visit for visit in visits if candidate.get("name") in visit.get("inspectors", [])]
 
-		visits.sort(
-			key=lambda item: (
-				item.get("visit_date", ""),
-				item.get("assignment_time", ""),
-				item.get("updated_at", ""),
-			),
-			reverse=True,
-		)
-		return visits
+		return [dict(item) for item in visits]
 
 	def list_trimestral_scores(
 		self,
 		inspector_name: str | None = None,
 		year: int | None = None,
 		quarter: str | None = None,
+		current_user: dict[str, Any] | None = None,
 	) -> list[dict[str, Any]]:
-		scores = _read_all_quarterly_scores()
+		scores = self._get_all_quarterly_scores_cached()
+		candidate = current_user or self.current_user
+		if not inspector_name and candidate and candidate.get("role") == "ejecutivo":
+			inspector_name = str(candidate.get("name", "")).strip() or None
 		if inspector_name:
 			target = str(inspector_name).strip()
 			scores = [item for item in scores if str(item.get("inspector", "")).strip() == target]
@@ -1051,15 +1221,7 @@ class CalibrationController:
 			quarter_value = str(quarter).strip().upper()
 			scores = [item for item in scores if str(item.get("quarter", "")).strip().upper() == quarter_value]
 
-		scores.sort(
-			key=lambda item: (
-				int(item.get("year", 0)),
-				str(item.get("quarter", "")),
-				str(item.get("updated_at", "")),
-			),
-			reverse=True,
-		)
-		return scores
+		return [dict(item) for item in scores]
 
 	def save_trimestral_score(self, payload: dict[str, Any], score_id: str | None = None) -> dict[str, Any]:
 		inspector = str(payload.get("inspector", "")).strip()
@@ -1207,6 +1369,7 @@ class CalibrationController:
 		visit["departure_time"] = departure_time
 		visit["status"] = status
 		visit["notes"] = notes
+		visit["acceptance_status"] = visit.get("acceptance_status", "asignada")
 		visit["assigned_by"] = (self.current_user or {}).get("name", "Sistema")
 		visit["updated_at"] = _timestamp()
 
@@ -1244,6 +1407,66 @@ class CalibrationController:
 				_wvisits = [v for v in _wvisits if v.get("id") != visit_id]
 				_write_json(_wfolder / "visitas.json", _wvisits)
 				for inspector_name in affected_inspectors:
+					self._sync_visit_history(inspector_name)
+				self.reload()
+				return
+
+	def accept_visit(self, visit_id: str) -> None:
+		"""Mark a visit as accepted by the assigned technical executive."""
+		if not VISITS_DIR.exists():
+			return
+		for _wfolder in VISITS_DIR.iterdir():
+			if not _wfolder.is_dir():
+				continue
+			_wvisits = _read_json(_wfolder / "visitas.json", [])
+			_existing = next((v for v in _wvisits if v.get("id") == visit_id), None)
+			if _existing:
+				_existing["acceptance_status"] = "aceptada"
+				_existing["updated_at"] = _timestamp()
+				_write_json(_wfolder / "visitas.json", _wvisits)
+				self.reload()
+				return
+
+	def cancel_visit(self, visit_id: str, reason: str = "") -> None:
+		"""Cancel a visit (admin only)."""
+		if not VISITS_DIR.exists():
+			return
+		for _wfolder in VISITS_DIR.iterdir():
+			if not _wfolder.is_dir():
+				continue
+			_wvisits = _read_json(_wfolder / "visitas.json", [])
+			_existing = next((v for v in _wvisits if v.get("id") == visit_id), None)
+			if _existing:
+				_existing["acceptance_status"] = "cancelada"
+				_existing["cancellation_reason"] = str(reason or "").strip()
+				_existing["cancelled_by"] = (self.current_user or {}).get("name", "Sistema")
+				_existing["updated_at"] = _timestamp()
+				_write_json(_wfolder / "visitas.json", _wvisits)
+				self.reload()
+				return
+
+	def reassign_visit(self, visit_id: str, new_inspectors: list[str]) -> None:
+		"""Reassign a visit to different technical executives."""
+		if not new_inspectors:
+			raise ValueError("Debes seleccionar al menos un ejecutivo tecnico.")
+		if not VISITS_DIR.exists():
+			return
+		for _wfolder in VISITS_DIR.iterdir():
+			if not _wfolder.is_dir():
+				continue
+			_wvisits = _read_json(_wfolder / "visitas.json", [])
+			_existing = next((v for v in _wvisits if v.get("id") == visit_id), None)
+			if _existing:
+				old_inspectors = _normalize_visit_inspectors(_existing.get("inspectors"), "")
+				_existing["inspectors"] = new_inspectors
+				_existing["inspector"] = new_inspectors[0]
+				_existing["acceptance_status"] = "asignada"
+				_existing["reassigned_from"] = old_inspectors
+				_existing["reassigned_by"] = (self.current_user or {}).get("name", "Sistema")
+				_existing["updated_at"] = _timestamp()
+				_write_json(_wfolder / "visitas.json", _wvisits)
+				affected = set(old_inspectors) | set(new_inspectors)
+				for inspector_name in affected:
 					self._sync_visit_history(inspector_name)
 				self.reload()
 				return
@@ -1367,15 +1590,23 @@ class CalibrationController:
 
 	def _history_dir(self, inspector_name: str) -> Path:
 		preferred_path = HISTORY_DIR / _safe_folder_name(inspector_name)
-		preferred_path.mkdir(parents=True, exist_ok=True)
 
 		target_identity = _folder_identity(inspector_name)
+		cached_path = self._history_dir_index.get(target_identity) if target_identity else None
+		if cached_path is not None and cached_path.exists():
+			return cached_path
+
+		preferred_path.mkdir(parents=True, exist_ok=True)
 		if target_identity and HISTORY_DIR.exists():
 			candidates: list[Path] = []
 			for child in HISTORY_DIR.iterdir():
 				if not child.is_dir():
 					continue
-				if _history_folder_matches_identity(child, target_identity):
+				child_identity = _folder_identity(child.name)
+				if child_identity == target_identity:
+					candidates.append(child)
+					continue
+				if not self._consolidation_done and _history_folder_matches_identity(child, target_identity):
 					candidates.append(child)
 
 			legacy_path = HISTORY_DIR / _safe_slug(inspector_name)
@@ -1387,6 +1618,8 @@ class CalibrationController:
 					continue
 				_merge_history_directories(preferred_path, source)
 
+		if target_identity:
+			self._history_dir_index[target_identity] = preferred_path
 		return preferred_path
 
 	def _history_file(self, inspector_name: str) -> Path:
@@ -1439,6 +1672,8 @@ def _controller_get_norm_score_history(
 		saved_at = str(entry.get("saved_at", "")).strip()
 		status = str(entry.get("status", "")).strip() or "Sin estatus"
 		evaluator = str(entry.get("evaluator", "")).strip() or "Sin supervisor"
+		soft_skills_score = _coerce_score(entry.get("soft_skills_score"))
+		technical_skills_score = _coerce_score(entry.get("technical_skills_score"))
 
 		raw_scores = entry.get("score_by_norm", {})
 		score_rows: list[tuple[str, float]] = []
@@ -1465,6 +1700,8 @@ def _controller_get_norm_score_history(
 				{
 					"norm": self.get_norm_display_name(raw_norm_name),
 					"score": score,
+					"soft_skills_score": soft_skills_score,
+					"technical_skills_score": technical_skills_score,
 					"status": status,
 					"evaluator": evaluator,
 					"visit_date": visit_date,
@@ -1536,35 +1773,33 @@ def _controller_norm_sort_key(token: str) -> tuple[int, str]:
 
 
 def _controller_get_latest_evaluation(self, inspector_name: str, norm_token: str | None = None) -> dict[str, Any]:
-	evaluations = self.app_state.get("evaluations", {})
+	clean_name = str(inspector_name or "").strip()
+	if not clean_name:
+		return {}
 
 	if norm_token:
-		key = _controller_evaluation_key(inspector_name, norm_token)
-		latest = evaluations.get(key)
-		if not latest:
-			legacy_key = f"{inspector_name}::{str(norm_token).strip().upper()}"
-			latest = evaluations.get(legacy_key)
-		if latest:
-			return latest
-
-		history = self.get_history(inspector_name)
 		normalized_norm = _normalize_norm_key(norm_token)
+		latest = self._latest_evaluation_by_norm_cache.get((clean_name, normalized_norm))
+		if latest:
+			return dict(latest)
+
+		history = self.get_history(clean_name)
 		for entry in reversed(history):
 			current_norm = _normalize_norm_key(str(entry.get("selected_norm", "")).strip())
 			if current_norm == normalized_norm:
-				return entry
+				self._cache_latest_evaluation_entry(clean_name, entry)
+				return dict(entry)
 		return {}
 
-	candidates: list[dict[str, Any]] = []
-	for key, payload in evaluations.items():
-		if key == inspector_name or key.startswith(f"{inspector_name}::"):
-			candidates.append(payload)
+	latest = self._latest_evaluation_cache.get(clean_name)
+	if latest:
+		return dict(latest)
 
-	if candidates:
-		return sorted(candidates, key=lambda item: item.get("saved_at", ""))[-1]
-
-	history = self.get_history(inspector_name)
-	return history[-1] if history else {}
+	history = self.get_history(clean_name)
+	if history:
+		self._cache_latest_evaluation_entry(clean_name, history[-1])
+		return dict(history[-1])
+	return {}
 
 
 def _controller_has_completed_form(self, inspector_name: str, norm_token: str | None = None) -> bool:
@@ -1574,6 +1809,12 @@ def _controller_has_completed_form(self, inspector_name: str, norm_token: str | 
 
 def _controller_get_principal_rows(self, search_text: str = "", status_filter: str = "Todos") -> list[dict[str, Any]]:
 	lowered_query = search_text.strip().lower()
+	clean_status_filter = str(status_filter or "Todos").strip() or "Todos"
+	cache_key = (lowered_query, clean_status_filter)
+	cached_rows = self._principal_rows_cache.get(cache_key)
+	if cached_rows is not None:
+		return [dict(item) for item in cached_rows]
+
 	rows: list[dict[str, Any]] = []
 
 	for record in self.raw_records:
@@ -1581,7 +1822,7 @@ def _controller_get_principal_rows(self, search_text: str = "", status_filter: s
 		accredited_norms = self.get_accredited_norms(record)
 		latest = self.get_latest_evaluation(name)
 		latest_score = _coerce_score(latest.get("score"))
-		form_completed = self.has_completed_form(name)
+		form_completed = bool(latest.get("form_completed"))
 
 		if latest_score is None:
 			status = "Pendiente"
@@ -1610,19 +1851,24 @@ def _controller_get_principal_rows(self, search_text: str = "", status_filter: s
 		searchable_blob = f"{name} {norms_text} {status}".lower()
 		if lowered_query and lowered_query not in searchable_blob:
 			continue
-		if status_filter == "Completos" and not row["form_completed"]:
+		if clean_status_filter == "Completos" and not row["form_completed"]:
 			continue
-		if status_filter == "Pendientes" and row["form_completed"]:
+		if clean_status_filter == "Pendientes" and row["form_completed"]:
 			continue
-		if status_filter == "En enfoque" and row["status"] != "En enfoque":
+		if clean_status_filter == "En enfoque" and row["status"] != "En enfoque":
 			continue
 
 		rows.append(row)
 
-	return sorted(rows, key=lambda item: item["name"].lower())
+	rows = sorted(rows, key=lambda item: item["name"].lower())
+	self._principal_rows_cache[cache_key] = rows
+	return [dict(item) for item in rows]
 
 
 def _controller_get_overview_metrics(self) -> dict[str, Any]:
+	if self._overview_metrics_cache is not None:
+		return dict(self._overview_metrics_cache)
+
 	inspector_names = {
 		str(record.get("NOMBRE", "")).strip()
 		for record in self.raw_records
@@ -1640,12 +1886,13 @@ def _controller_get_overview_metrics(self) -> dict[str, Any]:
 			scores.append(score)
 
 	alerts = sum(1 for score in scores if score < 90)
-	return {
+	self._overview_metrics_cache = {
 		"inspectors": len(inspector_names),
 		"completed_forms": completed,
 		"average_score": round(mean(scores), 1) if scores else None,
 		"alerts": alerts,
 	}
+	return dict(self._overview_metrics_cache)
 
 
 def _controller_save_evaluation(self, inspector_name: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1666,6 +1913,14 @@ def _controller_save_evaluation(self, inspector_name: str, payload: dict[str, An
 	score_by_norm = payload.get("score_by_norm", {})
 	if not isinstance(score_by_norm, dict):
 		score_by_norm = {}
+	soft_skills_score = _coerce_score(payload.get("soft_skills_score"))
+	technical_skills_score = _coerce_score(payload.get("technical_skills_score"))
+	soft_skills_breakdown = payload.get("soft_skills_breakdown", {})
+	if not isinstance(soft_skills_breakdown, dict):
+		soft_skills_breakdown = {}
+	technical_skills_breakdown = payload.get("technical_skills_breakdown", {})
+	if not isinstance(technical_skills_breakdown, dict):
+		technical_skills_breakdown = {}
 	normalized_score_by_norm: dict[str, float] = {}
 	for norm_name, raw_score in score_by_norm.items():
 		clean_norm_name = str(norm_name).strip()
@@ -1683,6 +1938,10 @@ def _controller_save_evaluation(self, inspector_name: str, payload: dict[str, An
 		raise ValueError("El puntaje debe ser numerico.")
 	if score < 0 or score > 100:
 		raise ValueError("El puntaje debe estar entre 0 y 100.")
+	if soft_skills_score is not None and (soft_skills_score < 0 or soft_skills_score > 100):
+		raise ValueError("La calificación de habilidades blandas debe estar entre 0 y 100.")
+	if technical_skills_score is not None and (technical_skills_score < 0 or technical_skills_score > 100):
+		raise ValueError("La calificación de habilidades técnicas debe estar entre 0 y 100.")
 
 	evaluation = {
 		"inspector_name": inspector_name,
@@ -1691,6 +1950,8 @@ def _controller_save_evaluation(self, inspector_name: str, payload: dict[str, An
 		"client": clean_client,
 		"visit_date": clean_date,
 		"score": score,
+		"soft_skills_score": soft_skills_score,
+		"technical_skills_score": technical_skills_score,
 		"status": clean_status,
 		"observations": clean_observations,
 		"corrective_actions": clean_actions,
@@ -1699,6 +1960,8 @@ def _controller_save_evaluation(self, inspector_name: str, payload: dict[str, An
 		"process_answers": process_answers,
 		"technical_normative_rows": technical_normative_rows,
 		"score_breakdown": score_breakdown,
+		"soft_skills_breakdown": soft_skills_breakdown,
+		"technical_skills_breakdown": technical_skills_breakdown,
 		"score_by_norm": normalized_score_by_norm,
 		"form_structure": "supervision_v2",
 		"saved_at": _timestamp(),

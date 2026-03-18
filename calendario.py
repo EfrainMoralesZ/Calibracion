@@ -56,7 +56,9 @@ class CalendarView(ctk.CTkFrame):
         self.client_filter_selector: ctk.CTkComboBox | None = None
         self.status_filter_selector: ctk.CTkComboBox | None = None
         self.norms_display_label: ctk.CTkLabel | None = None
+        self.accept_visit_button: ctk.CTkButton | None = None
         self._form_buttons: list[ctk.CTkButton] = []
+        self._action_buttons: list[ctk.CTkButton] = []
         self._readonly_notice: ctk.CTkLabel | None = None
         self._viewing_past: bool = False
 
@@ -91,10 +93,11 @@ class CalendarView(ctk.CTkFrame):
         tabs = ctk.CTkTabview(self, fg_color=self.style["surface"], segmented_button_selected_color=self.style["secundario"])
         tabs.grid(row=1, column=0, sticky="nsew")
         tabs.add("Calendario")
-        tabs.add("Visitas asignadas")
-
         self._build_calendar_tab(tabs.tab("Calendario"))
-        self._build_visits_tab(tabs.tab("Visitas asignadas"))
+
+        if self.can_edit:
+            tabs.add("Visitas asignadas")
+            self._build_visits_tab(tabs.tab("Visitas asignadas"))
 
     def _build_calendar_tab(self, tab) -> None:
         tab.grid_columnconfigure(0, weight=3, minsize=360)
@@ -166,7 +169,30 @@ class CalendarView(ctk.CTkFrame):
             ).grid(row=0, column=idx, padx=2, pady=(0, 2), sticky="ew")
 
         self.calendar_grid_frame = ctk.CTkFrame(calendar_panel, fg_color="transparent")
-        self.calendar_grid_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="ew")
+        self.calendar_grid_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="w")
+
+        # Leyenda de estados
+        legend = ctk.CTkFrame(calendar_panel, fg_color="transparent")
+        legend.grid(row=3, column=0, padx=10, pady=(6, 10), sticky="w")
+        legend.grid_columnconfigure(1, weight=1)
+
+        for col, (label, color) in enumerate([
+            ("Asignada", "#FFFFFF"),
+            ("Aceptada", "#ECD925"),
+            ("Finalizada", "#D1F7D1"),
+            ("Cancelada", "#F7D1D1"),
+        ]):
+            legend_item = ctk.CTkFrame(legend, fg_color=color, corner_radius=6, border_width=1, border_color="#D5D8DC")
+            legend_item.grid(row=0, column=col, padx=(0 if col == 0 else 8, 0), sticky="w")
+            legend_item.grid_propagate(False)
+            legend_item.configure(width=105, height=28)
+            text_color = "#282828" if col in [0, 1] else self.style["texto_oscuro"]
+            ctk.CTkLabel(
+                legend_item,
+                text=label,
+                font=self.fonts["small"],
+                text_color=text_color,
+            ).pack(pady=6)
 
         self.side_panel = ctk.CTkScrollableFrame(tab, fg_color=self.style["surface"], corner_radius=22)
         self.side_panel.grid(row=0, column=1, sticky="nsew", pady=12)
@@ -205,6 +231,17 @@ class CalendarView(ctk.CTkFrame):
             self.notes_box = ctk.CTkTextbox(self.side_panel, height=260, corner_radius=18)
             self.notes_box.grid(row=2, column=0, padx=18, pady=(0, 18), sticky="nsew")
             self.notes_box.configure(state="disabled")
+
+            self.accept_visit_button = ctk.CTkButton(
+                self.side_panel,
+                text="Aceptar visita",
+                command=self._accept_visit_action,
+                fg_color="#ECD925",
+                text_color="#282828",
+                hover_color="#D8C220",
+                state="disabled",
+            )
+            self.accept_visit_button.grid(row=3, column=0, padx=18, pady=(0, 18), sticky="ew")
 
     def _build_visits_tab(self, tab) -> None:
         tab.grid_columnconfigure(0, weight=1)
@@ -403,31 +440,57 @@ class CalendarView(ctk.CTkFrame):
 
         button_row = ctk.CTkFrame(fields, fg_color="transparent")
         button_row.grid(row=22, column=0, sticky="ew", pady=(16, 0))
-        button_row.grid_columnconfigure(0, weight=1)
-        button_row.grid_columnconfigure(1, weight=1)
-        button_row.grid_columnconfigure(2, weight=1)
+        for col in range(5):
+            button_row.grid_columnconfigure(col, weight=1)
 
         self._form_buttons.clear()
-        btn_clear = ctk.CTkButton(
-            button_row, text="Limpiar", command=self.clear_form,
-            fg_color=self.style["fondo"], text_color=self.style["texto_oscuro"], hover_color="#E9ECEF",
-        )
-        btn_clear.grid(row=0, column=0, padx=(0, 6), sticky="ew")
-        self._form_buttons.append(btn_clear)
+        self._action_buttons: list[ctk.CTkButton] = []
+        
+        if self.can_edit:
+            btn_clear = ctk.CTkButton(
+                button_row, text="Limpiar", command=self.clear_form,
+                fg_color=self.style["fondo"], text_color=self.style["texto_oscuro"], hover_color="#E9ECEF",
+            )
+            btn_clear.grid(row=0, column=0, padx=(0, 3), sticky="ew")
+            self._form_buttons.append(btn_clear)
 
-        btn_save = ctk.CTkButton(
-            button_row, text="Guardar", command=self.save_visit,
-            fg_color=self.style["secundario"], hover_color="#1D1D1D",
-        )
-        btn_save.grid(row=0, column=1, padx=3, sticky="ew")
-        self._form_buttons.append(btn_save)
+            btn_save = ctk.CTkButton(
+                button_row, text="Guardar", command=self.save_visit,
+                fg_color=self.style["secundario"], hover_color="#1D1D1D",
+            )
+            btn_save.grid(row=0, column=1, padx=3, sticky="ew")
+            self._form_buttons.append(btn_save)
+            
+            btn_cancel = ctk.CTkButton(
+                button_row, text="Cancelar visita", command=self._cancel_visit_action,
+                fg_color="#F7D1D1", text_color="#D1534E", hover_color="#F0B8B4",
+            )
+            btn_cancel.grid(row=0, column=2, padx=3, sticky="ew")
+            self._form_buttons.append(btn_cancel)
+            self._action_buttons.append(btn_cancel)
+            
+            btn_reassign = ctk.CTkButton(
+                button_row, text="Reasignar ejecutivo", command=self._reassign_visit_action,
+                fg_color="#FFFFFF", text_color="#282828", hover_color="#F5F5F5",
+            )
+            btn_reassign.grid(row=0, column=3, padx=3, sticky="ew")
+            self._form_buttons.append(btn_reassign)
+            self._action_buttons.append(btn_reassign)
 
-        btn_delete = ctk.CTkButton(
-            button_row, text="Eliminar", command=self.delete_selected_visit,
-            fg_color=self.style["peligro"], hover_color="#B43C31",
-        )
-        btn_delete.grid(row=0, column=2, padx=(6, 0), sticky="ew")
-        self._form_buttons.append(btn_delete)
+            btn_delete = ctk.CTkButton(
+                button_row, text="Eliminar", command=self.delete_selected_visit,
+                fg_color=self.style["peligro"], hover_color="#B43C31",
+            )
+            btn_delete.grid(row=0, column=4, padx=(3, 0), sticky="ew")
+            self._form_buttons.append(btn_delete)
+        else:
+            btn_accept = ctk.CTkButton(
+                button_row, text="Aceptar visita", command=self._accept_visit_action,
+                fg_color="#ECD925", text_color="#282828", hover_color="#D8C220",
+            )
+            btn_accept.grid(row=0, column=0, padx=(0, 3), sticky="ew")
+            self._form_buttons.append(btn_accept)
+            self._action_buttons.append(btn_accept)
 
     def _label_and_widget_rows(self, parent, label_row: int, label_text: str, widget) -> None:
         """Place a label at label_row and its widget at label_row+1."""
@@ -577,14 +640,13 @@ class CalendarView(ctk.CTkFrame):
                 pass
 
     def refresh(self) -> None:
-        if self.tree is None:
-            return
-
-        for item in self.tree.get_children():
-            self.tree.delete(item)
+        if self.tree is not None:
+            for item in self.tree.get_children():
+                self.tree.delete(item)
 
         all_visits = self.controller.list_visits()
-        self._refresh_visit_filter_options(all_visits)
+        if self.tree is not None:
+            self._refresh_visit_filter_options(all_visits)
         query = self.search_var.get().strip().lower()
         executive_filter = self.executive_filter_var.get().strip() or self._ALL_EXEC_FILTER
         client_filter = self.client_filter_var.get().strip() or self._ALL_CLIENT_FILTER
@@ -626,21 +688,22 @@ class CalendarView(ctk.CTkFrame):
             if normalized:
                 self.visible_date_counts[normalized] = self.visible_date_counts.get(normalized, 0) + 1
 
-        for visit in filtered_visits:
-            self.tree.insert(
-                "",
-                "end",
-                iid=visit["id"],
-                values=(
-                    visit.get("visit_date", "--"),
-                    visit.get("schedule_text", "--"),
-                    visit.get("inspectors_text", visit.get("inspector", "--")),
-                    visit.get("client", "--"),
-                    visit.get("service", "--"),
-                    visit.get("status", "--"),
-                    visit.get("address", "--"),
-                ),
-            )
+        if self.tree is not None:
+            for visit in filtered_visits:
+                self.tree.insert(
+                    "",
+                    "end",
+                    iid=visit["id"],
+                    values=(
+                        visit.get("visit_date", "--"),
+                        visit.get("schedule_text", "--"),
+                        visit.get("inspectors_text", visit.get("inspector", "--")),
+                        visit.get("client", "--"),
+                        visit.get("service", "--"),
+                        visit.get("status", "--"),
+                        visit.get("address", "--"),
+                    ),
+                )
 
         if self.can_edit and self.client_selector is not None and self.client_selector.winfo_exists():
             try:
@@ -678,6 +741,15 @@ class CalendarView(ctk.CTkFrame):
 
         selected_normalized = self._normalize_date(self.date_var.get())
         today_iso = date.today().strftime("%Y-%m-%d")
+        
+        # Build map of visit statuses by date for coloring
+        visits_by_date = {}
+        for visit in self.controller.list_visits():
+            v_date = self._normalize_date(visit.get("visit_date", ""))
+            if v_date:
+                if v_date not in visits_by_date:
+                    visits_by_date[v_date] = []
+                visits_by_date[v_date].append(visit)
 
         for row in range(6):
             self.calendar_grid_frame.grid_rowconfigure(row, weight=1)
@@ -702,12 +774,39 @@ class CalendarView(ctk.CTkFrame):
                 is_past_day = day_iso < today_iso
                 has_past_visits = is_past_day and count > 0
                 is_sunday = (col == 6)
+                
+                # Determine color based on acceptance status of visits on this date
+                day_visits = visits_by_date.get(day_iso, [])
+                has_cancelled = any(v.get("acceptance_status") == "cancelada" for v in day_visits)
+                has_finalizada = any(v.get("acceptance_status") == "finalizada" for v in day_visits)
+                has_aceptada = any(v.get("acceptance_status") == "aceptada" for v in day_visits)
+                has_assigned = any(v.get("acceptance_status") == "asignada" for v in day_visits)
 
                 if (is_past_day and not has_past_visits) or (is_sunday and not count):
                     fg_color = "#EEF0F2"
                     text_color = "#9AA0A8"
                     state = "disabled"
                     hover_color = "#EEF0F2"
+                elif has_cancelled:
+                    fg_color = "#F7D1D1"
+                    text_color = "#D1534E"
+                    state = "normal"
+                    hover_color = "#F0B8B4"
+                elif has_finalizada:
+                    fg_color = "#D1F7D1"
+                    text_color = "#00A84F"
+                    state = "normal"
+                    hover_color = "#A8E0A8"
+                elif has_aceptada:
+                    fg_color = "#ECD925"
+                    text_color = "#282828"
+                    state = "normal"
+                    hover_color = "#D8C220"
+                elif has_assigned:
+                    fg_color = "#FFFFFF"
+                    text_color = "#282828"
+                    state = "normal"
+                    hover_color = "#F5F5F5"
                 elif is_past_day and has_past_visits:
                     fg_color = "#E8EEF8"
                     text_color = "#4A6FA5"
@@ -752,7 +851,7 @@ class CalendarView(ctk.CTkFrame):
         self._render_month_grid()
         self._refresh_exec_options()
 
-        if is_past and self.can_edit:
+        if self.can_edit:
             visits_on_date = [
                 v for v in self.controller.list_visits()
                 if self._normalize_date(v.get("visit_date", "")) == iso_date
@@ -777,6 +876,17 @@ class CalendarView(ctk.CTkFrame):
                 self.status_var.set(visit.get("status", "Programada"))
             else:
                 self.selected_visit_id = None
+        elif not self.can_edit:
+            visits_on_date = [
+                v for v in self.controller.list_visits()
+                if self._normalize_date(v.get("visit_date", "")) == iso_date
+            ]
+            if visits_on_date:
+                self.selected_visit_id = visits_on_date[0].get("id")
+                self._show_readonly_visit_details(visits_on_date[0])
+            else:
+                self.selected_visit_id = None
+                self._show_readonly_visit_details(None)
 
         self._set_form_editable(not is_past)
         # Scroll form panel to top so fields are immediately visible
@@ -787,6 +897,14 @@ class CalendarView(ctk.CTkFrame):
                 pass
 
     def _set_form_editable(self, editable: bool) -> None:
+        if not self.can_edit:
+            if self.notes_box is not None:
+                try:
+                    self.notes_box.configure(state="disabled")
+                except TclError:
+                    pass
+            return
+
         state = "normal" if editable else "disabled"
         for widget in [
             self.exec1_selector, self.exec2_selector,
@@ -803,6 +921,13 @@ class CalendarView(ctk.CTkFrame):
         for btn in self._form_buttons:
             try:
                 btn.configure(state=state)
+            except TclError:
+                pass
+        # Set action buttons state (only enabled when visit selected)
+        action_state = "normal" if self.selected_visit_id else "disabled"
+        for btn in getattr(self, "_action_buttons", []):
+            try:
+                btn.configure(state=action_state)
             except TclError:
                 pass
         if self._readonly_notice is not None:
@@ -952,6 +1077,124 @@ class CalendarView(ctk.CTkFrame):
         self.clear_form()
         self.refresh()
 
+    def _cancel_visit_action(self) -> None:
+        if not self.can_edit or not self.selected_visit_id:
+            messagebox.showwarning("Visitas", "Selecciona una visita para cancelar.")
+            return
+        
+        if not messagebox.askyesno("Visitas", "Deseas cancelar la visita seleccionada?"):
+            return
+        
+        self.controller.cancel_visit(self.selected_visit_id)
+        messagebox.showinfo("Visitas", "La visita fue cancelada correctamente.")
+        self.clear_form()
+        self.refresh()
+
+    def _reassign_visit_action(self) -> None:
+        if not self.can_edit or not self.selected_visit_id:
+            messagebox.showwarning("Visitas", "Selecciona una visita para reasignar.")
+            return
+        
+        # Show reassignment dialog
+        new_inspectors = self.inspector_var.get().strip()
+        exec2_raw = self.exec2_var.get().strip()
+        if exec2_raw and exec2_raw != self._NO_EXEC2:
+            new_inspectors = [new_inspectors, exec2_raw]
+        else:
+            new_inspectors = [new_inspectors] if new_inspectors else []
+        
+        if not new_inspectors:
+            messagebox.showwarning("Visitas", "Selecciona al menos un ejecutivo para reasignar.")
+            return
+        
+        if not messagebox.askyesno("Visitas", "Deseas reasignar la visita a los ejecutivos seleccionados?"):
+            return
+        
+        try:
+            self.controller.reassign_visit(self.selected_visit_id, new_inspectors)
+            messagebox.showinfo("Visitas", "La visita fue reasignada correctamente.")
+            self.clear_form()
+            self.refresh()
+        except ValueError as error:
+            messagebox.showerror("Visitas", str(error))
+
+    def _accept_visit_action(self) -> None:
+        if self.can_edit or not self.selected_visit_id:
+            return
+        
+        if not messagebox.askyesno("Visitas", "Deseas aceptar la visita?"):
+            return
+        
+        self.controller.accept_visit(self.selected_visit_id)
+        visit = next((item for item in self.controller.list_visits() if item.get("id") == self.selected_visit_id), None)
+        self._show_readonly_visit_details(visit)
+        messagebox.showinfo("Visitas", "Visita aceptada correctamente.")
+        self._render_month_grid()
+        self.refresh()
+
+    def _set_accept_button_state(self, visit: dict | None) -> None:
+        if self.accept_visit_button is None:
+            return
+
+        if visit is None:
+            self.accept_visit_button.configure(state="disabled", text="Aceptar visita")
+            return
+
+        status = str(visit.get("acceptance_status", "asignada")).strip().lower() or "asignada"
+        if status == "asignada":
+            self.accept_visit_button.configure(state="normal", text="Aceptar visita")
+        elif status == "aceptada":
+            self.accept_visit_button.configure(state="disabled", text="Visita confirmada")
+        elif status == "finalizada":
+            self.accept_visit_button.configure(state="disabled", text="Visita finalizada")
+        elif status == "cancelada":
+            self.accept_visit_button.configure(state="disabled", text="Visita cancelada")
+        else:
+            self.accept_visit_button.configure(state="disabled", text="Aceptar visita")
+
+    def _show_readonly_visit_details(self, visit: dict | None) -> None:
+        if self.notes_box is None:
+            return
+
+        if visit is None:
+            self.notes_box.configure(state="normal")
+            self.notes_box.delete("1.0", "end")
+            self.notes_box.insert(
+                "1.0",
+                "Selecciona una visita para revisar direccion, fecha, servicio y observaciones registradas.",
+            )
+            self.notes_box.configure(state="disabled")
+            self._set_accept_button_state(None)
+            return
+
+        confirmation_map = {
+            "asignada": "Asignada",
+            "aceptada": "Confirmada",
+            "finalizada": "Finalizada",
+            "cancelada": "Cancelada",
+        }
+        confirmation_status = confirmation_map.get(
+            str(visit.get("acceptance_status", "asignada")).strip().lower(),
+            "Asignada",
+        )
+        text = (
+            f"Ejecutivos Tecnicos: {visit.get('inspectors_text', visit.get('inspector', '--'))}\n"
+            f"Cliente: {visit.get('client', '--')}\n"
+            f"Fecha: {visit.get('visit_date', '--')}\n"
+            f"Hora de asignacion: {visit.get('assignment_time', '--') or '--'}\n"
+            f"Hora de salida: {visit.get('departure_time', '--') or '--'}\n"
+            f"Servicio: {visit.get('service', '--')}\n"
+            f"Estado operativo: {visit.get('status', '--')}\n"
+            f"Confirmacion: {confirmation_status}\n"
+            f"Direccion: {visit.get('address', '--')}\n\n"
+            f"Notas:\n{visit.get('notes', 'Sin observaciones')}"
+        )
+        self.notes_box.configure(state="normal")
+        self.notes_box.delete("1.0", "end")
+        self.notes_box.insert("1.0", text)
+        self.notes_box.configure(state="disabled")
+        self._set_accept_button_state(visit)
+
     def _on_client_change(self, _value: str) -> None:
         self.address_options = self.controller.get_client_addresses(self.client_var.get())
         labels = [item["address"] for item in self.address_options] or ["Sin direcciones"]
@@ -1023,21 +1266,7 @@ class CalendarView(ctk.CTkFrame):
             self._refresh_exec_options()
             self._set_form_editable(not is_past)
         elif self.notes_box is not None:
-            text = (
-                f"Ejecutivos Tecnicos: {visit.get('inspectors_text', visit.get('inspector', '--'))}\n"
-                f"Cliente: {visit.get('client', '--')}\n"
-                f"Fecha: {visit.get('visit_date', '--')}\n"
-                f"Hora de asignacion: {visit.get('assignment_time', '--') or '--'}\n"
-                f"Hora de salida: {visit.get('departure_time', '--') or '--'}\n"
-                f"Servicio: {visit.get('service', '--')}\n"
-                f"Estado: {visit.get('status', '--')}\n"
-                f"Direccion: {visit.get('address', '--')}\n\n"
-                f"Notas:\n{visit.get('notes', 'Sin observaciones')}"
-            )
-            self.notes_box.configure(state="normal")
-            self.notes_box.delete("1.0", "end")
-            self.notes_box.insert("1.0", text)
-            self.notes_box.configure(state="disabled")
+            self._show_readonly_visit_details(visit)
 
     @staticmethod
     def _normalize_date(raw_value: str) -> str:

@@ -73,6 +73,7 @@
     "status": "Programada",
     "notes": "Reunir toda la documentación requerida para la visita",
     "assigned_by": "Efrain Morales Zamarrón",
-    "updated_at": "2026-03-18 15:26"
+    "updated_at": "2026-03-18 16:25",
+    "acceptance_status": "aceptada"
   }
 ]

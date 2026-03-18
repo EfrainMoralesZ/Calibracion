@@ -269,6 +269,10 @@ def build_formato_supervision_pdf(output_path: str | Path, payload: dict) -> Pat
     technical_rows = _normalize_technical_rows(payload.get("technical_normative_rows", []))
     score_by_norm = _normalize_score_by_norm(payload.get("score_by_norm", {}))
     average_score = _calculate_average_score(score_by_norm, raw_score)
+    soft_skills_score = _to_float(payload.get("soft_skills_score"), -1.0)
+    technical_skills_score = _to_float(payload.get("technical_skills_score"), -1.0)
+    soft_skills_text = f"{soft_skills_score:.1f}%" if soft_skills_score >= 0 else "--"
+    technical_skills_text = f"{technical_skills_score:.1f}%" if technical_skills_score >= 0 else "--"
 
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name="VCHeading", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=20, textColor=DARK, spaceAfter=12))
@@ -294,6 +298,8 @@ def build_formato_supervision_pdf(output_path: str | Path, payload: dict) -> Pat
         ["Ejecutivo supervisado", inspector_supervised],
         ["Nombre del supervisor", supervisor_name],
         ["Norma evaluada", _safe(payload.get("selected_norm"))],
+        ["Calificación habilidades blandas", soft_skills_text],
+        ["Calificación habilidades técnicas", technical_skills_text],
         ["Calificacion final (promedio)", f"{average_score:.1f}%"],
     ]
 
