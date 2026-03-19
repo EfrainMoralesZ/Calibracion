@@ -16,7 +16,11 @@
     ],
     "group_id": "ff2cc53868b446c180e6fc416ed7fb92",
     "assignment_time": "",
-    "departure_time": ""
+    "departure_time": "",
+    "acceptance_responses": {},
+    "accepted_count": 0,
+    "required_acceptances": 2,
+    "accepted_by": ""
   },
   {
     "id": "7d126aa3865442c3ab1b4973b4fb0486",
@@ -35,7 +39,11 @@
     ],
     "group_id": "7d126aa3865442c3ab1b4973b4fb0486",
     "assignment_time": "",
-    "departure_time": ""
+    "departure_time": "",
+    "acceptance_responses": {},
+    "accepted_count": 0,
+    "required_acceptances": 2,
+    "accepted_by": ""
   },
   {
     "id": "e011bb1ddf284aaa957e3bcab2ffb7a1",
@@ -54,7 +62,11 @@
     "status": "Programada",
     "notes": "",
     "assigned_by": "Efrain Morales Zamarrón",
-    "updated_at": "2026-03-18 13:51"
+    "updated_at": "2026-03-18 13:51",
+    "acceptance_responses": {},
+    "accepted_count": 0,
+    "required_acceptances": 2,
+    "accepted_by": ""
   },
   {
     "id": "e1b991ac084f406f87aa9c6c1fc609ac",
@@ -81,6 +93,47 @@
     ],
     "reassigned_by": "Efrain Morales Zamarrón",
     "cancellation_reason": "",
-    "cancelled_by": "Efrain Morales Zamarrón"
+    "cancelled_by": "Efrain Morales Zamarrón",
+    "acceptance_responses": {},
+    "accepted_count": 0,
+    "required_acceptances": 2,
+    "accepted_by": ""
+  },
+  {
+    "id": "12b99d3cfe694690b5a58d3649f94694",
+    "group_id": "12b99d3cfe694690b5a58d3649f94694",
+    "inspectors": [
+      "Jose Alberto Zuñiga Estrada",
+      "Jesus Eduardo Reyes Lozano"
+    ],
+    "inspector": "Jose Alberto Zuñiga Estrada",
+    "client": "ULTA BEAUTY S.A.P.I. DE C.V.",
+    "address": "Carretera Libramiento Sur No. 6 Edificio 2a, Texcacoa, Tepotzotlán, Estado de México, 54605",
+    "service": "DICTAMEN",
+    "visit_date": "2026-03-21",
+    "assignment_time": "09:00",
+    "departure_time": "18:00",
+    "status": "Programada",
+    "notes": "Reunir la documentación necesaria para la visita",
+    "acceptance_status": "finalizada",
+    "assigned_by": "Efrain Morales Zamarrón",
+    "updated_at": "2026-03-19 15:50",
+    "reported_norms": {
+      "Jose Alberto Zuñiga Estrada": [
+        "NOM-004",
+        "NOM-024",
+        "NOM-141"
+      ],
+      "Jesus Eduardo Reyes Lozano": [
+        "NOM-015",
+        "NOM-020",
+        "NOM-024",
+        "NOM-189"
+      ]
+    },
+    "acceptance_responses": {},
+    "accepted_count": 0,
+    "required_acceptances": 2,
+    "accepted_by": ""
   }
 ]

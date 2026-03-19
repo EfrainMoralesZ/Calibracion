@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from datetime import datetime
 from statistics import mean
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 import tkinter as tk
 
 import customtkinter as ctk
@@ -41,6 +42,8 @@ class TrimestralView(ctk.CTkFrame):
 		self.capture_delete_button: ctk.CTkButton | None = None
 		self.capture_history_box: ctk.CTkTextbox | None = None
 		self.cards_pager_frame: ctk.CTkFrame | None = None
+		self.history_dashboard_frame: ctk.CTkScrollableFrame | None = None
+		self.history_dashboard_summary_label: ctk.CTkLabel | None = None
 		self.tabview: ctk.CTkTabview | None = None
 		self.capture_tab_name = "Captura trimestral"
 		self.history_tab_name = "Historial trimestral"
@@ -61,9 +64,9 @@ class TrimestralView(ctk.CTkFrame):
 			text_color=self.style["texto_oscuro"],
 		).grid(row=0, column=0, sticky="w")
 		subtitle_text = (
-			"Asigna calificaciones trimestrales por norma, revisa cards y consulta historial por pestana."
+			"Asigna calificaciones trimestrales por norma, consulta demanda de normas y analiza frecuencias de uso por pestana."
 			if self.can_edit
-			else "Consulta tus calificaciones trimestrales por norma en cards y en historial de solo lectura."
+			else "Consulta tus calificaciones trimestrales por norma en cards y analiza demanda de uso en historial."
 		)
 		ctk.CTkLabel(
 			header,
@@ -96,10 +99,9 @@ class TrimestralView(ctk.CTkFrame):
 
 		cards_title = "Inspectores y normas acreditadas" if self.can_edit else "Tu card trimestral"
 		cards_hint = (
-			"Usa Ver calificaciones para abrir el historial por norma/anio y Captura trimestral para enviar la calificacion."
-			" El circulo muestra la ultima calificacion pendiente (ej. T1 9) hasta su confirmacion."
+			"Asigna calificaciones trimestrales por norma, consulta demanda de uso de normas y confirma capturas."
 			if self.can_edit
-			else "Aqui aparece tu card trimestral por norma y el estado de confirmacion de lectura."
+			else "Aqui aparece tu card trimestral con acceso a estadisticas de demanda de normas y confirmacion de visto."
 		)
 		ctk.CTkLabel(
 			cards_wrapper,
@@ -131,50 +133,72 @@ class TrimestralView(ctk.CTkFrame):
 		table_panel.grid_columnconfigure(0, weight=1)
 		table_panel.grid_rowconfigure(2, weight=1)
 
-		title_text = "Historial trimestral global" if self.can_edit else "Historial trimestral asignado"
-		hint_text = (
-			"En esta pestana se muestran las calificaciones trimestrales por norma y su confirmacion."
-			if self.can_edit
-			else "En esta pestana aparece tu historial trimestral por norma."
-		)
+		dashboard_panel = ctk.CTkFrame(table_panel, fg_color="#FFFFFF", corner_radius=16, border_width=1, border_color="#E3E6EA")
+		dashboard_panel.grid(row=2, column=0, padx=18, pady=(0, 18), sticky="nsew")
+		dashboard_panel.grid_columnconfigure(0, weight=1)
+		dashboard_panel.grid_rowconfigure(3, weight=1)
+
+		dashboard_title = "Demanda de normas por ejecutivo" if self.can_edit else "Demanda de tus normas acreditadas"
 		ctk.CTkLabel(
-			table_panel,
-			text=title_text,
+			dashboard_panel,
+			text=dashboard_title,
 			font=self.fonts["label_bold"],
 			text_color=self.style["texto_oscuro"],
-		).grid(row=0, column=0, padx=18, pady=(14, 4), sticky="w")
-		ctk.CTkLabel(
-			table_panel,
-			text=hint_text,
+		).grid(row=0, column=0, padx=12, pady=(10, 2), sticky="w")
+
+		default_summary = "Sin reportes de normas aplicadas para mostrar."
+		self.history_dashboard_summary_label = ctk.CTkLabel(
+			dashboard_panel,
+			text=default_summary,
 			font=self.fonts["small"],
 			text_color="#6D7480",
-		).grid(row=1, column=0, padx=18, pady=(0, 8), sticky="w")
+			justify="left",
+		)
+		self.history_dashboard_summary_label.grid(row=1, column=0, padx=12, pady=(0, 6), sticky="w")
 
-		container = ctk.CTkFrame(table_panel, fg_color="transparent")
-		container.grid(row=2, column=0, padx=18, pady=(0, 18), sticky="nsew")
-		container.grid_columnconfigure(0, weight=1)
-		container.grid_rowconfigure(0, weight=1)
+		legend_row = ctk.CTkFrame(dashboard_panel, fg_color="transparent")
+		legend_row.grid(row=2, column=0, padx=12, pady=(0, 8), sticky="ew")
+		legend_row.grid_columnconfigure(2, weight=1)
+		ctk.CTkLabel(
+			legend_row,
+			text="Alta demanda (más usos)",
+			font=self.fonts["small"],
+			text_color="#FFFFFF",
+			fg_color=self.style["primario"],
+			corner_radius=999,
+			height=26,
+		).grid(row=0, column=0, padx=(0, 8), sticky="w")
+		ctk.CTkLabel(
+			legend_row,
+			text="Baja demanda (menos usos)",
+			font=self.fonts["small"],
+			text_color="#6D7480",
+			fg_color="#E8EAEB",
+			corner_radius=999,
+			height=26,
+		).grid(row=0, column=1, sticky="w")
+		ctk.CTkButton(
+			legend_row,
+			text="Exportar PDF",
+			width=128,
+			height=34,
+			fg_color=self.style["primario"],
+			text_color=self.style["texto_oscuro"],
+			hover_color="#D9C31E",
+			command=self._export_history_dashboard_pdf,
+		).grid(row=0, column=3, sticky="e")
 
-		columns = ("inspector", "norm", "periodo", "calificacion", "confirmado", "updated")
-		self.tree = ttk.Treeview(container, columns=columns, show="headings", height=18)
-		self.tree.grid(row=0, column=0, sticky="nsew")
-		scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.tree.yview)
-		scrollbar.grid(row=0, column=1, sticky="ns")
-		self.tree.configure(yscrollcommand=scrollbar.set)
+		self.history_dashboard_frame = ctk.CTkScrollableFrame(
+			dashboard_panel,
+			fg_color="#FFFFFF",
+			corner_radius=12,
+		)
+		self.history_dashboard_frame.grid(row=3, column=0, padx=12, pady=(0, 12), sticky="nsew")
+		self.history_dashboard_frame.grid_columnconfigure(0, weight=1)
 
-		self.tree.heading("inspector", text="Ejecutivo Tecnico")
-		self.tree.heading("norm", text="Norma")
-		self.tree.heading("periodo", text="Periodo")
-		self.tree.heading("calificacion", text="Calificacion")
-		self.tree.heading("confirmado", text="Confirmado")
-		self.tree.heading("updated", text="Ultima actualizacion")
-		self.tree.column("inspector", width=230, anchor="w")
-		self.tree.column("norm", width=110, anchor="center")
-		self.tree.column("periodo", width=110, anchor="center")
-		self.tree.column("calificacion", width=110, anchor="center")
-		self.tree.column("confirmado", width=130, anchor="center")
-		self.tree.column("updated", width=170, anchor="w")
-		self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
+		self.tree = None
+		self.row_cache = {}
+		self._history_signature = None
 
 	def _field(self, parent, index: int, label: str, widget) -> None:
 		base_row = (index - 1) * 2 + 1
@@ -195,16 +219,25 @@ class TrimestralView(ctk.CTkFrame):
 
 		self.capture_dialog = ctk.CTkToplevel(self)
 		self.capture_dialog.title("Captura trimestral")
-		self.capture_dialog.geometry("620x700")
-		self.capture_dialog.minsize(580, 640)
+		self.capture_dialog.geometry("640x660")
+		self.capture_dialog.minsize(560, 500)
 		self.capture_dialog.configure(fg_color=self.style["fondo"])
 		self.capture_dialog.transient(self.winfo_toplevel())
 		self.capture_dialog.grab_set()
 		self.capture_dialog.protocol("WM_DELETE_WINDOW", self._close_capture_dialog)
 
-		form_panel = ctk.CTkFrame(self.capture_dialog, fg_color=self.style["surface"], corner_radius=22)
-		form_panel.pack(fill="both", expand=True, padx=18, pady=18)
-		form_panel.grid_columnconfigure(0, weight=1)
+		# Outer wrapper: scrollable content on top, fixed action bar at bottom
+		outer = ctk.CTkFrame(self.capture_dialog, fg_color=self.style["fondo"])
+		outer.pack(fill="both", expand=True, padx=14, pady=14)
+		outer.grid_rowconfigure(0, weight=1)
+		outer.grid_rowconfigure(1, weight=0)
+		outer.grid_columnconfigure(0, weight=1)
+
+		# Scrollable form area
+		form_scroll = ctk.CTkScrollableFrame(outer, fg_color=self.style["surface"], corner_radius=18)
+		form_scroll.grid(row=0, column=0, sticky="nsew", pady=(0, 10))
+		form_scroll.grid_columnconfigure(0, weight=1)
+		form_panel = form_scroll
 
 		self.capture_title_label = ctk.CTkLabel(
 			form_panel,
@@ -264,21 +297,22 @@ class TrimestralView(ctk.CTkFrame):
 			font=self.fonts["label"],
 			text_color=self.style["texto_oscuro"],
 		).grid(row=11, column=0, padx=18, pady=(10, 6), sticky="w")
-		self.notes_box = ctk.CTkTextbox(form_panel, height=110, corner_radius=16)
-		self.notes_box.grid(row=12, column=0, padx=18, sticky="ew")
+		self.notes_box = ctk.CTkTextbox(form_panel, height=90, corner_radius=16)
+		self.notes_box.grid(row=12, column=0, padx=18, pady=(0, 4), sticky="ew")
 
 		ctk.CTkLabel(
 			form_panel,
 			text="Historial reciente de la norma",
 			font=self.fonts["label"],
 			text_color=self.style["texto_oscuro"],
-		).grid(row=13, column=0, padx=18, pady=(10, 6), sticky="w")
-		self.capture_history_box = ctk.CTkTextbox(form_panel, height=120, corner_radius=16)
-		self.capture_history_box.grid(row=14, column=0, padx=18, sticky="ew")
+		).grid(row=13, column=0, padx=18, pady=(8, 6), sticky="w")
+		self.capture_history_box = ctk.CTkTextbox(form_panel, height=100, corner_radius=16)
+		self.capture_history_box.grid(row=14, column=0, padx=18, pady=(0, 14), sticky="ew")
 		self.capture_history_box.configure(state="disabled")
 
-		actions = ctk.CTkFrame(form_panel, fg_color="transparent")
-		actions.grid(row=15, column=0, padx=18, pady=(14, 16), sticky="ew")
+		# Fixed action bar — always visible at the bottom of the dialog
+		actions = ctk.CTkFrame(outer, fg_color=self.style["surface"], corner_radius=16)
+		actions.grid(row=1, column=0, sticky="ew")
 		actions.grid_columnconfigure(0, weight=1)
 		actions.grid_columnconfigure(1, weight=1)
 		actions.grid_columnconfigure(2, weight=1)
@@ -290,14 +324,14 @@ class TrimestralView(ctk.CTkFrame):
 			text_color=self.style["texto_oscuro"],
 			hover_color="#E9ECEF",
 			command=lambda: self.clear_form(full_reset=False),
-		).grid(row=0, column=0, padx=(0, 6), sticky="ew")
+		).grid(row=0, column=0, padx=(10, 4), pady=10, sticky="ew")
 		ctk.CTkButton(
 			actions,
 			text="Guardar",
 			fg_color=self.style["secundario"],
 			hover_color="#1D1D1D",
 			command=self.save_score,
-		).grid(row=0, column=1, padx=3, sticky="ew")
+		).grid(row=0, column=1, padx=4, pady=10, sticky="ew")
 		self.capture_delete_button = ctk.CTkButton(
 			actions,
 			text="Eliminar",
@@ -305,7 +339,7 @@ class TrimestralView(ctk.CTkFrame):
 			hover_color="#B43C31",
 			command=self.delete_score,
 		)
-		self.capture_delete_button.grid(row=0, column=2, padx=3, sticky="ew")
+		self.capture_delete_button.grid(row=0, column=2, padx=4, pady=10, sticky="ew")
 		ctk.CTkButton(
 			actions,
 			text="Cerrar",
@@ -313,7 +347,7 @@ class TrimestralView(ctk.CTkFrame):
 			text_color=self.style["texto_oscuro"],
 			hover_color="#E9ECEF",
 			command=self._close_capture_dialog,
-		).grid(row=0, column=3, padx=(6, 0), sticky="ew")
+		).grid(row=0, column=3, padx=(4, 10), pady=10, sticky="ew")
 
 		self._sync_capture_norm_selector()
 		self._refresh_capture_history_preview()
@@ -386,7 +420,14 @@ class TrimestralView(ctk.CTkFrame):
 					score_text = f"{score_value:.1f}%" if score_value is not None else "--"
 					period = f"{item.get('quarter', '--')} {item.get('year', '--')}"
 					updated = str(item.get("updated_at", "--"))
-					state = "Confirmado" if str(item.get("confirmed_at", "")).strip() else "Pendiente"
+					sent_at = str(item.get("sent_at", "")).strip()
+					confirmed_at = str(item.get("confirmed_at", "")).strip()
+					if not sent_at:
+						state = "Asignada (sin enviar)"
+					elif confirmed_at and confirmed_at.lower() != "none":
+						state = "Confirmado"
+					else:
+						state = "Pendiente"
 					lines.append(f"- {period} | {score_text} | {updated} | {state}")
 
 		self.capture_history_box.configure(state="normal")
@@ -396,6 +437,15 @@ class TrimestralView(ctk.CTkFrame):
 
 	def _open_capture_dialog(self, inspector_name: str | None = None, score: dict | None = None) -> None:
 		if not self.can_edit:
+			return
+
+		# Block editing if the score was already sent
+		if score is not None and str(score.get("sent_at", "")).strip():
+			messagebox.showinfo(
+				"Trimestral",
+				"Esta calificacion ya fue enviada y no puede ser modificada.",
+				parent=self,
+			)
 			return
 
 		if score is None:
@@ -550,6 +600,7 @@ class TrimestralView(ctk.CTkFrame):
 	def refresh(self) -> None:
 		self._render_inspector_cards()
 		self._refresh_history_table()
+		self._render_history_dashboard()
 		self._sync_capture_norm_selector()
 		self._refresh_capture_history_preview()
 		self._update_capture_title()
@@ -562,15 +613,23 @@ class TrimestralView(ctk.CTkFrame):
 		target_inspector = None if self.can_edit else str((self.controller.current_user or {}).get("name", "")).strip()
 		row_cache: dict[str, dict] = {}
 		rows_to_render: list[tuple[str, tuple[str, str, str, str, str, str]]] = []
-		for score in self.controller.list_trimestral_scores(inspector_name=target_inspector or None):
+		for score in self.controller.list_trimestral_scores(
+			inspector_name=target_inspector or None,
+			include_unsent=self.can_edit,
+		):
 			score_id = score.get("id")
 			if not score_id:
 				continue
 			row_cache[score_id] = score
 			raw_score = self._coerce_score(score.get("score"))
 			score_text = f"{raw_score:.1f}%" if raw_score is not None else "--"
-			confirmed_at = str(score.get("confirmed_at", "")).strip()
-			confirmed_text = f"Si ({confirmed_at[:16]})" if confirmed_at else "Pendiente"
+			sent_at = str(score.get("sent_at", "")).strip()
+			confirmed_raw = score.get("confirmed_at")
+			confirmed_at = "" if confirmed_raw in (None, "") else str(confirmed_raw).strip()
+			if sent_at:
+				confirmed_text = f"Si ({confirmed_at[:16]})" if confirmed_at and confirmed_at.lower() != "none" else "Pendiente"
+			else:
+				confirmed_text = "No enviado"
 			rows_to_render.append(
 				(
 					score_id,
@@ -602,6 +661,320 @@ class TrimestralView(ctk.CTkFrame):
 			self.tree.selection_set(selected_score_id)
 			self.tree.see(selected_score_id)
 
+	def _collect_history_dashboard_data(self) -> dict[str, object]:
+		bars: list[dict[str, object]] = []
+		empty_message = "Sin reportes de normas aplicadas para graficar."
+		metrics: dict[str, int] = {}
+		summary_text = "Sin reportes de normas aplicadas para mostrar."
+
+		reports = self.controller.list_norm_visit_reports()
+
+		if self.can_edit:
+			aggregate: dict[tuple[str, str], int] = {}
+			for row in reports:
+				inspector = str(row.get("inspector", "")).strip()
+				raw_norms = row.get("norms", [])
+				if not inspector or not isinstance(raw_norms, list):
+					continue
+				for raw_norm in raw_norms:
+					norm = self._norm_key(raw_norm)
+					if not norm or norm == "SIN_NORMA":
+						continue
+					aggregate[(inspector, norm)] = aggregate.get((inspector, norm), 0) + 1
+
+			for (inspector, norm), usage_count in aggregate.items():
+				bars.append(
+					{
+						"inspector": inspector,
+						"norm": norm,
+						"usage_count": usage_count,
+						"status": "Demanda media",
+					}
+				)
+
+			if bars:
+				highest_usage = max(int(item.get("usage_count", 0) or 0) for item in bars)
+				lowest_usage = min(int(item.get("usage_count", 0) or 0) for item in bars)
+				for item in bars:
+					usage_count = int(item.get("usage_count", 0) or 0)
+					if usage_count == highest_usage:
+						item["status"] = "Mayor demanda"
+					elif usage_count == lowest_usage:
+						item["status"] = "Menor demanda"
+					else:
+						item["status"] = "Demanda media"
+			else:
+				highest_usage = 0
+				lowest_usage = 0
+
+			metrics = {
+				"total_combinations": len(bars),
+				"total_uses": sum(int(item.get("usage_count", 0) or 0) for item in bars),
+				"highest_usage": highest_usage,
+				"lowest_usage": lowest_usage,
+				"norms_used": len({str(item.get("norm", "")).strip() for item in bars if str(item.get("norm", "")).strip()}),
+				"executivos": len({str(item.get("inspector", "")).strip() for item in bars if str(item.get("inspector", "")).strip()}),
+				"reports_count": len(reports),
+			}
+			summary_text = (
+				f"Reportes de visita: {metrics['reports_count']} | Combinaciones ejecutivo-norma: {metrics['total_combinations']} | "
+				f"Usos totales: {metrics['total_uses']} | Mayor demanda: {metrics['highest_usage']} usos | "
+				f"Menor demanda: {metrics['lowest_usage']} usos | Ordenadas por demanda (mayor a menor)."
+			)
+			report_title = "Reporte de demanda de normas por ejecutivo"
+			scope_label = "Global"
+		else:
+			inspector_name = str((self.controller.current_user or {}).get("name", "")).strip()
+			target_identity = self._normalize_identity(inspector_name)
+			own_reports = [
+				item
+				for item in reports
+				if self._normalize_identity(str(item.get("inspector", "")).strip()) == target_identity
+			]
+
+			aggregate: dict[str, int] = {}
+			for row in own_reports:
+				raw_norms = row.get("norms", [])
+				if not isinstance(raw_norms, list):
+					continue
+				for raw_norm in raw_norms:
+					norm = self._norm_key(raw_norm)
+					if not norm or norm == "SIN_NORMA":
+						continue
+					aggregate[norm] = aggregate.get(norm, 0) + 1
+
+			for norm, usage_count in aggregate.items():
+				bars.append(
+					{
+						"inspector": inspector_name,
+						"norm": norm,
+						"usage_count": usage_count,
+						"status": "Demanda media",
+					}
+				)
+
+			if not bars:
+				empty_message = "Todavia no has reportado normas aplicadas en tus visitas."
+				highest_usage = 0
+				lowest_usage = 0
+			else:
+				highest_usage = max(int(item.get("usage_count", 0) or 0) for item in bars)
+				lowest_usage = min(int(item.get("usage_count", 0) or 0) for item in bars)
+				for item in bars:
+					usage_count = int(item.get("usage_count", 0) or 0)
+					if usage_count == highest_usage:
+						item["status"] = "Mayor demanda"
+					elif usage_count == lowest_usage:
+						item["status"] = "Menor demanda"
+					else:
+						item["status"] = "Demanda media"
+
+			metrics = {
+				"total_norms": len(bars),
+				"total_uses": sum(int(item.get("usage_count", 0) or 0) for item in bars),
+				"highest_usage": highest_usage,
+				"lowest_usage": lowest_usage,
+				"reports_count": len(own_reports),
+			}
+			summary_text = (
+				f"Reportes de visita: {metrics['reports_count']} | Normas reportadas: {metrics['total_norms']} | "
+				f"Usos totales: {metrics['total_uses']} | Mayor demanda: {metrics['highest_usage']} usos | "
+				f"Menor demanda: {metrics['lowest_usage']} usos."
+			)
+			report_title = f"Reporte de demanda de normas de {inspector_name}" if inspector_name else "Reporte de demanda de normas"
+			scope_label = inspector_name or "Ejecutivo"
+
+		bars.sort(
+			key=lambda item: (
+				-int(item.get("usage_count", 0) or 0),
+				str(item.get("inspector", "")),
+				str(item.get("norm", "")),
+			)
+		)
+		return {
+			"bars": bars,
+			"empty_message": empty_message,
+			"summary_text": summary_text,
+			"metrics": metrics,
+			"report_title": report_title,
+			"scope_label": scope_label,
+		}
+
+	def _render_history_dashboard(self) -> None:
+		if self.history_dashboard_frame is None:
+			return
+
+		container = self.history_dashboard_frame
+		for child in container.winfo_children():
+			child.destroy()
+
+		dashboard_data = self._collect_history_dashboard_data()
+		bars = list(dashboard_data.get("bars", []))
+		empty_message = str(dashboard_data.get("empty_message", "Sin datos para mostrar."))
+		summary_text = str(dashboard_data.get("summary_text", "Sin reportes de normas aplicadas para mostrar."))
+		if self.history_dashboard_summary_label is not None:
+			self.history_dashboard_summary_label.configure(text=summary_text)
+
+		if not bars:
+			ctk.CTkLabel(
+				container,
+				text=empty_message,
+				font=self.fonts["label"],
+				text_color="#6D7480",
+			).grid(row=0, column=0, padx=12, pady=24, sticky="n")
+			return
+
+		header_row = ctk.CTkFrame(container, fg_color="#F3F5F7", corner_radius=12)
+		header_row.grid(row=0, column=0, padx=4, pady=(0, 8), sticky="ew")
+		header_row.grid_columnconfigure(0, minsize=340 if self.can_edit else 230)
+		header_row.grid_columnconfigure(1, weight=1)
+		header_row.grid_columnconfigure(2, minsize=96)
+		ctk.CTkLabel(
+			header_row,
+			text="Ejecutivo y norma" if self.can_edit else "Norma reportada",
+			font=self.fonts["small_bold"],
+			text_color="#6D7480",
+		).grid(row=0, column=0, padx=(14, 10), pady=8, sticky="w")
+		ctk.CTkLabel(
+			header_row,
+			text="Frecuencia de uso (demanda)",
+			font=self.fonts["small_bold"],
+			text_color="#6D7480",
+		).grid(row=0, column=1, padx=(0, 10), pady=8, sticky="w")
+		ctk.CTkLabel(
+			header_row,
+			text="Usos",
+			font=self.fonts["small_bold"],
+			text_color="#6D7480",
+		).grid(row=0, column=2, padx=(0, 14), pady=8, sticky="e")
+
+		label_width = 340 if self.can_edit else 230
+		max_usage = max([item["usage_count"] for item in bars], default=1)
+		
+		for index, item in enumerate(bars, start=1):
+			usage_count = int(item.get("usage_count", 0) or 0)
+			status_text = str(item.get("status", ""))
+			if status_text == "Mayor demanda":
+				fill_color = self.style["exito"]
+			elif status_text == "Menor demanda":
+				fill_color = self.style["advertencia"]
+			else:
+				fill_color = self.style["primario"]
+
+			row_card = ctk.CTkFrame(
+				container,
+				fg_color="#FFFFFF",
+				corner_radius=14,
+				border_width=1,
+				border_color="#E9ECEF",
+			)
+			row_card.grid(row=index, column=0, padx=4, pady=(0, 8), sticky="ew")
+			row_card.grid_columnconfigure(0, minsize=label_width)
+			row_card.grid_columnconfigure(1, weight=1)
+			row_card.grid_columnconfigure(2, minsize=96)
+
+			meta_frame = ctk.CTkFrame(row_card, fg_color="transparent")
+			meta_frame.grid(row=0, column=0, padx=(12, 10), pady=10, sticky="nsew")
+			norm_label = self._norm_display(str(item.get("norm", "")))
+
+			if self.can_edit:
+				title_text = str(item.get("inspector", "--"))
+				subtitle_text = f"Norma: {norm_label}"
+			else:
+				title_text = norm_label
+				subtitle_text = "Frecuencia reportada en visitas finalizadas"
+
+			ctk.CTkLabel(
+				meta_frame,
+				text=title_text,
+				font=self.fonts["label_bold"],
+				text_color=self.style["texto_oscuro"],
+				justify="left",
+				anchor="w",
+				wraplength=label_width - 26,
+			).pack(anchor="w")
+			ctk.CTkLabel(
+				meta_frame,
+				text=subtitle_text,
+				font=self.fonts["small"],
+				text_color="#6D7480",
+				justify="left",
+				anchor="w",
+				wraplength=label_width - 26,
+			).pack(anchor="w", pady=(2, 0))
+
+			bar_frame = ctk.CTkFrame(row_card, fg_color="transparent")
+			bar_frame.grid(row=0, column=1, padx=(0, 10), pady=10, sticky="ew")
+			bar_frame.grid_columnconfigure(0, weight=1)
+
+			progress = ctk.CTkProgressBar(
+				bar_frame,
+				height=18,
+				corner_radius=9,
+				fg_color="#EEF1F4",
+				progress_color=fill_color,
+			)
+			progress.grid(row=0, column=0, sticky="ew")
+			progress.set(max(0.0, min(usage_count / max(max_usage, 1), 1.0)))
+
+			usage_text = "uso" if usage_count == 1 else "usos"
+			ctk.CTkLabel(
+				bar_frame,
+				text=f"{usage_count} {usage_text} reportados | {status_text}",
+				font=self.fonts["small"],
+				text_color="#6D7480",
+				anchor="w",
+				justify="left",
+			).grid(row=1, column=0, pady=(5, 0), sticky="w")
+
+			ctk.CTkLabel(
+				row_card,
+				text=f"{usage_count}",
+				font=self.fonts["label_bold"],
+				text_color=fill_color,
+			).grid(row=0, column=2, padx=(0, 14), pady=10, sticky="e")
+
+	def _export_history_dashboard_pdf(self) -> None:
+		dashboard_data = self._collect_history_dashboard_data()
+		bars = list(dashboard_data.get("bars", []))
+		if not bars:
+			messagebox.showinfo("Trimestral", "No hay reportes de normas para exportar.", parent=self)
+			return
+
+		default_path = self.controller.get_default_trimestral_report_path()
+		destination = filedialog.asksaveasfilename(
+			parent=self,
+			title="Guardar reporte trimestral",
+			defaultextension=".pdf",
+			initialdir=str(default_path.parent),
+			initialfile=default_path.name,
+			filetypes=[("PDF", "*.pdf")],
+		)
+		if not destination:
+			return
+
+		payload = {
+			"can_edit": self.can_edit,
+			"report_title": dashboard_data.get("report_title"),
+			"scope_label": dashboard_data.get("scope_label"),
+			"summary_text": dashboard_data.get("summary_text"),
+			"metrics": dashboard_data.get("metrics"),
+			"bars": bars,
+			"viewer_name": str((self.controller.current_user or {}).get("name", "")).strip() or "Sistema",
+			"exported_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+		}
+
+		try:
+			output = self.controller.generate_trimestral_dashboard_report(destination, payload)
+		except ValueError as error:
+			messagebox.showerror("Trimestral", str(error), parent=self)
+			return
+		except Exception as error:
+			messagebox.showerror("Trimestral", f"No se pudo generar el PDF.\n{error}", parent=self)
+			return
+
+		messagebox.showinfo("Trimestral", f"Reporte generado en:\n{output}", parent=self)
+
 	def _render_inspector_cards(self) -> None:
 		if self.cards_frame is None:
 			return
@@ -609,15 +982,29 @@ class TrimestralView(ctk.CTkFrame):
 		rows = self.controller.get_principal_rows()
 		current_name = str((self.controller.current_user or {}).get("name", "")).strip()
 		if not self.can_edit:
-			rows = [row for row in rows if str(row.get("name", "")).strip() == current_name]
+			current_identity = self._normalize_identity(current_name)
+			rows = [
+				row
+				for row in rows
+				if self._normalize_identity(str(row.get("name", "")).strip()) == current_identity
+			]
+			if not rows and current_name:
+				profile = self.controller.get_executive_profile(current_name)
+				accredited_norms = list(profile.get("accredited_norms", [])) if isinstance(profile, dict) else []
+				norms_text = ", ".join(accredited_norms) if accredited_norms else "Sin acreditaciones"
+				rows = [{"name": current_name, "norms_text": norms_text}]
 
-		score_rows = self.controller.list_trimestral_scores(inspector_name=None if self.can_edit else current_name)
+		score_rows = self.controller.list_trimestral_scores(
+			inspector_name=None if self.can_edit else current_name,
+			include_unsent=self.can_edit,
+		)
 		scores_by_inspector: dict[str, list[dict]] = {}
 		for score in score_rows:
 			inspector_name = str(score.get("inspector", "")).strip()
-			if not inspector_name:
+			inspector_identity = self._normalize_identity(inspector_name)
+			if not inspector_identity:
 				continue
-			scores_by_inspector.setdefault(inspector_name, []).append(score)
+			scores_by_inspector.setdefault(inspector_identity, []).append(score)
 
 		for values in scores_by_inspector.values():
 			values.sort(
@@ -632,18 +1019,24 @@ class TrimestralView(ctk.CTkFrame):
 		card_models: list[dict[str, str]] = []
 		for row in rows:
 			inspector_name = str(row.get("name", "")).strip()
+			inspector_identity = self._normalize_identity(inspector_name)
 			norms_text = str(row.get("norms_text", "Sin acreditaciones")).strip() or "Sin acreditaciones"
-			assigned_scores = scores_by_inspector.get(inspector_name, [])
+			assigned_scores = scores_by_inspector.get(inspector_identity, [])
+			if not assigned_scores and not self.can_edit and current_name:
+				assigned_scores = scores_by_inspector.get(self._normalize_identity(current_name), [])
 			summary = self._format_assigned_scores(assigned_scores)
 			norm_count = len({self._norm_key(item) for item in assigned_scores})
 			card_models.append(
 				{
-					"inspector_name": inspector_name,
+					"inspector_name": inspector_name or current_name,
 					"norms_text": norms_text,
 					"skills_text": f"Normas calificadas: {norm_count}",
 					"pending_text": summary["pending_text"],
 					"califications_hint": summary["califications_hint"],
-					"pending_badge": summary["pending_badge"],
+					"send_ready": "1" if summary["send_ready"] else "0",
+					"confirm_ready": "1" if summary["confirm_ready"] else "0",
+					"check_text": summary["check_text"],
+					"check_ok": "1" if summary["check_ok"] else "0",
 				}
 			)
 
@@ -654,7 +1047,10 @@ class TrimestralView(ctk.CTkFrame):
 				model["skills_text"],
 				model["pending_text"],
 				model["califications_hint"],
-				model["pending_badge"],
+				model["send_ready"],
+				model["confirm_ready"],
+				model["check_text"],
+				model["check_ok"],
 			)
 			for model in card_models
 		)
@@ -695,24 +1091,11 @@ class TrimestralView(ctk.CTkFrame):
 				corner_radius=20,
 				border_width=1,
 				border_color="#E3E6EA",
-				height=260,
+				height=292,
 			)
 			card.grid(row=0, column=0, sticky="nsew")
 			card.grid_propagate(False)
 			card.grid_columnconfigure(0, weight=1)
-
-			if model["pending_badge"]:
-				ctk.CTkLabel(
-					card_host,
-					text=model["pending_badge"],
-					font=("Arial", 10, "bold"),
-					text_color=self.style["texto_oscuro"],
-					fg_color=self.style["primario"],
-					corner_radius=28,
-					width=56,
-					height=56,
-					justify="center",
-				).place(relx=1.0, x=-8, y=-8, anchor="ne")
 
 			ctk.CTkLabel(
 				card,
@@ -763,12 +1146,22 @@ class TrimestralView(ctk.CTkFrame):
 				wraplength=250,
 			).grid(row=5, column=0, padx=12, pady=(0, 6), sticky="w")
 
+			ctk.CTkLabel(
+				card,
+				text=model["check_text"],
+				font=self.fonts["small_bold"],
+				text_color=self.style["exito"] if model["check_ok"] == "1" else "#6D7480",
+			).grid(row=6, column=0, padx=12, pady=(0, 8), sticky="w")
+
 			actions_row = ctk.CTkFrame(card, fg_color="transparent")
-			actions_row.grid(row=6, column=0, padx=12, pady=(0, 12), sticky="ew")
+			actions_row.grid(row=7, column=0, padx=12, pady=(0, 12), sticky="ew")
 			actions_row.grid_columnconfigure(0, weight=1)
 			if self.can_edit:
 				actions_row.grid_columnconfigure(1, weight=1)
 				actions_row.grid_columnconfigure(2, weight=1)
+				actions_row.grid_columnconfigure(3, weight=1)
+			else:
+				actions_row.grid_columnconfigure(1, weight=1)
 
 			ctk.CTkButton(
 				actions_row,
@@ -777,7 +1170,7 @@ class TrimestralView(ctk.CTkFrame):
 				text_color=self.style["texto_oscuro"],
 				hover_color="#D8C220",
 				command=lambda name=inspector_name: self._open_inspector_detail(name),
-			).grid(row=0, column=0, padx=(0, 4 if self.can_edit else 0), sticky="ew")
+			).grid(row=0, column=0, padx=(0, 4 if self.can_edit else 3), sticky="ew")
 
 			if self.can_edit:
 				ctk.CTkButton(
@@ -797,56 +1190,142 @@ class TrimestralView(ctk.CTkFrame):
 					text_color=self.style["texto_oscuro"],
 					hover_color="#E9ECEF",
 					command=lambda name=inspector_name: self._open_capture_for_inspector(name),
-				).grid(row=0, column=2, padx=(4, 0), sticky="ew")
+				).grid(row=0, column=2, padx=4, sticky="ew")
+				ctk.CTkButton(
+					actions_row,
+					text="Enviar",
+					fg_color=self.style["secundario"],
+					text_color=self.style["texto_claro"],
+					hover_color="#1D1D1D",
+					state="normal" if model["send_ready"] == "1" else "disabled",
+					command=lambda name=inspector_name: self._send_scores_for_inspector(name),
+				).grid(row=0, column=3, padx=(4, 0), sticky="ew")
+			else:
+				ctk.CTkButton(
+					actions_row,
+					text="Confirmar visto",
+					fg_color=self.style["exito"],
+					hover_color="#0B7A4D",
+					state="normal" if model["confirm_ready"] == "1" else "disabled",
+					command=lambda name=inspector_name: self._confirm_scores_for_inspector(name),
+				).grid(row=0, column=1, padx=(3, 0), sticky="ew")
 
 		self._rebuild_cards_pager(len(card_models))
 
 	def _format_assigned_scores(self, scores: list[dict]) -> dict[str, str]:
 		if not scores:
 			return {
-				"pending_text": "Pendientes de enterado: 0 | Confirmadas: 0",
-				"califications_hint": "Ver calificaciones muestra el historial por anio y trimestre.",
-				"pending_badge": "",
+				"pending_text": "Estado: Sin calificaciones",
+				"califications_hint": "Registra calificaciones trimestrales para habilitar su envio.",
+				"send_ready": "",
+				"confirm_ready": "",
+				"check_text": "Check ejecutivo: --",
+				"check_ok": "",
 			}
 
-		pending_rows = [item for item in scores if not str(item.get("confirmed_at", "")).strip()]
-		confirmed_rows = [item for item in scores if str(item.get("confirmed_at", "")).strip()]
-		pending_count = len(pending_rows)
-		confirmed_count = len(confirmed_rows)
+		unsent_rows = [item for item in scores if not str(item.get("sent_at", "")).strip()]
+		sent_rows = [item for item in scores if str(item.get("sent_at", "")).strip()]
+		pending_confirm = [item for item in sent_rows if not str(item.get("confirmed_at") or "").strip()]
+		confirmed_rows = [item for item in sent_rows if str(item.get("confirmed_at") or "").strip()]
+		critical_count = 0
+		for item in scores:
+			score_value = self._coerce_score(item.get("score"))
+			if score_value is not None and score_value < 90:
+				critical_count += 1
 
-		badge_text = self._pending_badge_text(pending_rows[0]) if pending_rows else ""
-		if pending_rows:
-			hint_text = (
-				"Calificacion pendiente visible en el circulo."
-				" Al confirmar de enterado se mueve a Ver calificaciones."
-			)
+		if unsent_rows:
+			state_text = "Estado: Calificaciones asignadas"
+			hint_text = f"Pendientes de envio: {len(unsent_rows)} | Enviadas: {len(sent_rows)}"
 		else:
-			hint_text = "Sin pendientes. Revisa Ver calificaciones para el historico anual/trimestral."
+			state_text = "Estado: Calificado"
+			hint_text = f"Pendientes de enterado: {len(pending_confirm)} | Confirmadas: {len(confirmed_rows)}"
+
+		if critical_count:
+			hint_text = f"{hint_text} | Critico (<90%): {critical_count}"
+
+		if sent_rows:
+			if pending_confirm:
+				check_text = f"Check ejecutivo: {len(confirmed_rows)}/{len(sent_rows)} confirmadas"
+				check_ok = ""
+			else:
+				check_text = "Check ejecutivo: ✓ Confirmado"
+				check_ok = "1"
+		else:
+			check_text = "Check ejecutivo: --"
+			check_ok = ""
 
 		return {
-			"pending_text": f"Pendientes de enterado: {pending_count} | Confirmadas: {confirmed_count}",
+			"pending_text": state_text,
 			"califications_hint": hint_text,
-			"pending_badge": badge_text,
+			"send_ready": "1" if len(unsent_rows) > 0 else "",
+			"confirm_ready": "1" if len(pending_confirm) > 0 else "",
+			"check_text": check_text,
+			"check_ok": check_ok,
 		}
 
-	def _pending_badge_text(self, score_row: dict) -> str:
-		quarter = str(score_row.get("quarter", "--")).strip().upper() or "--"
-		raw_score = self._coerce_score(score_row.get("score"))
-		if raw_score is None:
-			score_text = "--"
-		elif float(raw_score).is_integer():
-			score_text = str(int(raw_score))
-		else:
-			score_text = f"{raw_score:.1f}"
-		return f"{quarter}\n{score_text}"
+	def _send_scores_for_inspector(self, inspector_name: str) -> None:
+		if not self.can_edit:
+			return
+
+		scores = self.controller.list_trimestral_scores(inspector_name=inspector_name, include_unsent=True)
+		unsent_ids = [
+			str(item.get("id", "")).strip()
+			for item in scores
+			if str(item.get("id", "")).strip() and not str(item.get("sent_at", "")).strip()
+		]
+		if not unsent_ids:
+			messagebox.showinfo("Trimestral", "No hay calificaciones pendientes por enviar para este ejecutivo.", parent=self)
+			return
+
+		if not messagebox.askyesno(
+			"Trimestral",
+			f"Deseas enviar {len(unsent_ids)} calificaciones al ejecutivo tecnico?",
+			parent=self,
+		):
+			return
+
+		sent_count = self.controller.send_trimestral_scores(inspector_name, unsent_ids)
+		if sent_count <= 0:
+			messagebox.showwarning("Trimestral", "No se pudieron enviar las calificaciones seleccionadas.", parent=self)
+			return
+
+		messagebox.showinfo("Trimestral", f"Se enviaron {sent_count} calificaciones.", parent=self)
+		self.refresh()
+
+	def _confirm_scores_for_inspector(self, inspector_name: str) -> None:
+		if self.can_edit:
+			return
+
+		scores = self.controller.list_trimestral_scores(inspector_name=inspector_name, include_unsent=False)
+		pending_ids = [
+			str(item.get("id", "")).strip()
+			for item in scores
+			if str(item.get("id", "")).strip()
+			and str(item.get("sent_at", "")).strip()
+			and not str(item.get("confirmed_at") or "").strip()
+		]
+		if not pending_ids:
+			messagebox.showinfo("Trimestral", "No hay calificaciones pendientes por confirmar.", parent=self)
+			return
+
+		if not messagebox.askyesno("Trimestral", "Confirmas que ya revisaste tus calificaciones?", parent=self):
+			return
+
+		confirmed_count = self.controller.confirm_trimestral_scores(inspector_name, pending_ids)
+		if confirmed_count <= 0:
+			messagebox.showwarning("Trimestral", "No se pudieron confirmar las calificaciones.", parent=self)
+			return
+
+		messagebox.showinfo("Trimestral", f"Se confirmaron {confirmed_count} calificaciones.", parent=self)
+		self.refresh()
 
 	def _open_preview_popup(self, inspector_name: str) -> None:
-		scores = self.controller.list_trimestral_scores(inspector_name=inspector_name)
+		scores = self.controller.list_trimestral_scores(inspector_name=inspector_name, include_unsent=True)
 
 		dialog = ctk.CTkToplevel(self)
 		dialog.title(f"Preview calificaciones — {inspector_name}")
-		dialog.geometry("620x520")
-		dialog.minsize(520, 420)
+		dialog.geometry("860x620")
+		dialog.minsize(720, 520)
 		dialog.configure(fg_color=self.style["fondo"])
 		dialog.transient(self.winfo_toplevel())
 		dialog.grab_set()
@@ -854,7 +1333,7 @@ class TrimestralView(ctk.CTkFrame):
 		wrapper = ctk.CTkFrame(dialog, fg_color=self.style["surface"], corner_radius=20)
 		wrapper.pack(fill="both", expand=True, padx=18, pady=18)
 		wrapper.grid_columnconfigure(0, weight=1)
-		wrapper.grid_rowconfigure(1, weight=1)
+		wrapper.grid_rowconfigure(3, weight=1)
 
 		ctk.CTkLabel(
 			wrapper,
@@ -863,36 +1342,289 @@ class TrimestralView(ctk.CTkFrame):
 			text_color=self.style["texto_oscuro"],
 		).grid(row=0, column=0, padx=18, pady=(14, 10), sticky="w")
 
-		info_box = ctk.CTkTextbox(wrapper, corner_radius=16)
-		info_box.grid(row=1, column=0, padx=18, pady=(0, 10), sticky="nsew")
+		filters = ctk.CTkFrame(wrapper, fg_color="transparent")
+		filters.grid(row=1, column=0, padx=18, pady=(0, 10), sticky="ew")
+		filters.grid_columnconfigure(5, weight=1)
 
-		lines: list[str] = []
-		if not scores:
-			lines = ["Sin calificaciones asignadas para este ejecutivo tecnico."]
-		else:
-			scores_by_norm: dict[str, list[dict]] = {}
-			for score in scores:
-				norm_token = self._norm_key(score)
-				scores_by_norm.setdefault(norm_token, []).append(score)
+		valid_years: list[int] = []
+		for score_row in scores:
+			try:
+				year_value = int(score_row.get("year", 0))
+			except (TypeError, ValueError):
+				continue
+			if year_value > 0 and year_value not in valid_years:
+				valid_years.append(year_value)
+		valid_years.sort(reverse=True)
 
-			for norm_token in sorted(scores_by_norm):
-				norm_scores = sorted(
-					scores_by_norm[norm_token],
-					key=lambda s: (int(s.get("year", 0)), self._quarter_sort_key(s.get("quarter", ""))),
+		year_var = ctk.StringVar(value="Todos")
+		quarter_var = ctk.StringVar(value="Todos")
+
+		ctk.CTkLabel(
+			filters,
+			text="Año",
+			font=self.fonts["small_bold"],
+			text_color="#6D7480",
+		).grid(row=0, column=0, padx=(0, 8), sticky="w")
+		year_selector = ctk.CTkComboBox(
+			filters,
+			variable=year_var,
+			values=["Todos", *[str(value) for value in valid_years]],
+			width=120,
+			height=34,
+			fg_color="#FFFFFF",
+			border_color="#D5D8DC",
+			button_color=self.style["primario"],
+			dropdown_hover_color=self.style["primario"],
+		)
+		year_selector.grid(row=0, column=1, padx=(0, 16), sticky="w")
+
+		ctk.CTkLabel(
+			filters,
+			text="Trimestre",
+			font=self.fonts["small_bold"],
+			text_color="#6D7480",
+		).grid(row=0, column=2, padx=(0, 8), sticky="w")
+		quarter_selector = ctk.CTkComboBox(
+			filters,
+			variable=quarter_var,
+			values=["Todos"],
+			width=120,
+			height=34,
+			fg_color="#FFFFFF",
+			border_color="#D5D8DC",
+			button_color=self.style["primario"],
+			dropdown_hover_color=self.style["primario"],
+		)
+		quarter_selector.grid(row=0, column=3, padx=(0, 16), sticky="w")
+
+		ctk.CTkLabel(
+			filters,
+			text=(
+				"Vista admin: se muestran solo calificaciones criticas (<90%) filtradas por año y trimestre."
+				if self.can_edit
+				else "Consulta las calificaciones pasadas filtrando por año y trimestre."
+			),
+			font=self.fonts["small"],
+			text_color="#6D7480",
+		).grid(row=0, column=4, sticky="w")
+
+		summary_label = ctk.CTkLabel(
+			wrapper,
+			text="",
+			font=self.fonts["small"],
+			text_color="#6D7480",
+			justify="left",
+		)
+		summary_label.grid(row=2, column=0, padx=18, pady=(0, 8), sticky="w")
+
+		results_frame = ctk.CTkScrollableFrame(wrapper, fg_color="#FFFFFF", corner_radius=16)
+		results_frame.grid(row=3, column=0, padx=18, pady=(0, 10), sticky="nsew")
+		results_frame.grid_columnconfigure(0, weight=1)
+
+		def _score_state(score_row: dict) -> tuple[str, str]:
+			raw_score = self._coerce_score(score_row.get("score"))
+			if self.can_edit and raw_score is not None and raw_score < 90:
+				return "Critico (<90%)", self.style["advertencia"]
+			sent_at = str(score_row.get("sent_at", "")).strip()
+			confirmed_at = str(score_row.get("confirmed_at") or "").strip()
+			if not sent_at:
+				return "Sin enviar", "#6D7480"
+			if confirmed_at and confirmed_at.lower() != "none":
+				return "Confirmado", self.style["exito"]
+			return "Enviada", self.style["advertencia"]
+
+		def _available_quarters() -> list[str]:
+			selected_year = year_var.get().strip()
+			quarters: set[str] = set()
+			for score_row in scores:
+				if selected_year != "Todos" and str(score_row.get("year", "")).strip() != selected_year:
+					continue
+				quarter_value = str(score_row.get("quarter", "")).strip().upper()
+				if quarter_value in {"T1", "T2", "T3", "T4"}:
+					quarters.add(quarter_value)
+			ordered = sorted(quarters, key=self._quarter_sort_key)
+			return ["Todos", *ordered]
+
+		def _filtered_scores() -> list[dict]:
+			selected_year = year_var.get().strip()
+			selected_quarter = quarter_var.get().strip().upper()
+			filtered = list(scores)
+			if selected_year != "Todos":
+				filtered = [item for item in filtered if str(item.get("year", "")).strip() == selected_year]
+			if selected_quarter != "TODOS":
+				filtered = [item for item in filtered if str(item.get("quarter", "")).strip().upper() == selected_quarter]
+			if self.can_edit:
+				critical_only: list[dict] = []
+				for item in filtered:
+					raw_score = self._coerce_score(item.get("score"))
+					if raw_score is not None and raw_score < 90:
+						critical_only.append(item)
+				filtered = critical_only
+			filtered.sort(
+				key=lambda item: (
+					int(item.get("year", 0)),
+					self._quarter_sort_key(item.get("quarter", "")),
+					self._norm_key(item),
+					str(item.get("updated_at", "")),
+				),
+				reverse=True,
+			)
+			return filtered
+
+		def _render_preview(_value=None) -> None:
+			for child in results_frame.winfo_children():
+				child.destroy()
+
+			selected_year = year_var.get().strip()
+			selected_quarter = quarter_var.get().strip().upper()
+			filtered_scores = _filtered_scores()
+
+			period_label = selected_year if selected_year != "Todos" else "todos los años"
+			quarter_label = selected_quarter if selected_quarter != "TODOS" else "todos los trimestres"
+			if not filtered_scores:
+				summary_label.configure(
+					text=(
+						f"Sin calificaciones criticas (<90%) para {period_label} y {quarter_label}."
+						if self.can_edit
+						else f"Sin registros para {period_label} y {quarter_label}."
+					)
 				)
-				lines.append(f"Norma: {norm_token}")
-				for score_row in norm_scores:
+				ctk.CTkLabel(
+					results_frame,
+					text=(
+						"No hay calificaciones criticas por debajo de 90% para el filtro seleccionado."
+						if self.can_edit
+						else "No hay calificaciones históricas para el filtro seleccionado."
+					),
+					font=self.fonts["label"],
+					text_color="#6D7480",
+				).grid(row=0, column=0, padx=12, pady=24, sticky="n")
+				return
+
+			periods = {
+				(int(item.get("year", 0)), str(item.get("quarter", "")).strip().upper())
+				for item in filtered_scores
+			}
+			norms = {self._norm_key(item) for item in filtered_scores}
+			summary_label.configure(
+				text=(
+					f"Mostrando {len(filtered_scores)} calificaciones criticas (<90%) en {len(periods)} periodos | "
+					f"Normas: {len(norms)} | Año: {period_label} | Trimestre: {quarter_label}."
+					if self.can_edit
+					else f"Mostrando {len(filtered_scores)} calificaciones en {len(periods)} periodos | "
+					f"Normas: {len(norms)} | Año: {period_label} | Trimestre: {quarter_label}."
+				)
+			)
+
+			grouped: dict[tuple[int, str], list[dict]] = {}
+			for score_row in filtered_scores:
+				try:
+					year_value = int(score_row.get("year", 0))
+				except (TypeError, ValueError):
+					year_value = 0
+				quarter_value = str(score_row.get("quarter", "")).strip().upper() or "--"
+				grouped.setdefault((year_value, quarter_value), []).append(score_row)
+
+			ordered_periods = sorted(grouped, key=lambda item: (item[0], self._quarter_sort_key(item[1])), reverse=True)
+			for index, period_key in enumerate(ordered_periods):
+				year_value, quarter_value = period_key
+				period_rows = sorted(grouped[period_key], key=lambda item: self._norm_key(item))
+
+				card = ctk.CTkFrame(
+					results_frame,
+					fg_color="#FFFFFF",
+					corner_radius=14,
+					border_width=1,
+					border_color="#E9ECEF",
+				)
+				card.grid(row=index, column=0, padx=4, pady=(0, 10), sticky="ew")
+				card.grid_columnconfigure(0, weight=1)
+
+				header = ctk.CTkFrame(card, fg_color="#F3F5F7", corner_radius=12)
+				header.grid(row=0, column=0, padx=10, pady=(10, 8), sticky="ew")
+				header.grid_columnconfigure(0, weight=1)
+				ctk.CTkLabel(
+					header,
+					text=f"{quarter_value} {year_value}",
+					font=self.fonts["label_bold"],
+					text_color=self.style["texto_oscuro"],
+				).grid(row=0, column=0, padx=12, pady=8, sticky="w")
+				ctk.CTkLabel(
+					header,
+					text=f"Registros: {len(period_rows)}",
+					font=self.fonts["small_bold"],
+					text_color="#6D7480",
+				).grid(row=0, column=1, padx=12, pady=8, sticky="e")
+
+				columns = ctk.CTkFrame(card, fg_color="transparent")
+				columns.grid(row=1, column=0, padx=12, pady=(0, 4), sticky="ew")
+				columns.grid_columnconfigure(0, weight=1)
+				columns.grid_columnconfigure(1, minsize=100)
+				columns.grid_columnconfigure(2, minsize=130)
+				columns.grid_columnconfigure(3, minsize=120)
+				for col_index, label_text in enumerate(["Norma", "Calificación", "Estado", "Actualizado"]):
+					anchor = "w" if col_index == 0 else "center"
+					sticky = "w" if col_index == 0 else "ew"
+					ctk.CTkLabel(
+						columns,
+						text=label_text,
+						font=self.fonts["small_bold"],
+						text_color="#6D7480",
+						anchor=anchor,
+					).grid(row=0, column=col_index, pady=(0, 2), sticky=sticky)
+
+				for row_index, score_row in enumerate(period_rows, start=2):
+					row_frame = ctk.CTkFrame(card, fg_color="transparent")
+					row_frame.grid(row=row_index, column=0, padx=12, pady=(0, 6), sticky="ew")
+					row_frame.grid_columnconfigure(0, weight=1)
+					row_frame.grid_columnconfigure(1, minsize=100)
+					row_frame.grid_columnconfigure(2, minsize=130)
+					row_frame.grid_columnconfigure(3, minsize=120)
+
+					norm_text = self._norm_display(self._norm_key(score_row))
 					raw_score = self._coerce_score(score_row.get("score"))
 					score_text = f"{raw_score:.1f}%" if raw_score is not None else "--"
-					period = f"{score_row.get('quarter', '--')} {score_row.get('year', '--')}"
-					state = "Confirmado" if str(score_row.get("confirmed_at", "")).strip() else "Pendiente"
-					lines.append(f"  - {period} | {score_text} | {state}")
-				lines.append("")
+					state_text, state_color = _score_state(score_row)
+					updated_text = str(score_row.get("updated_at", "")).strip() or "--"
 
-		info_box.configure(state="normal")
-		info_box.delete("1.0", "end")
-		info_box.insert("1.0", "\n".join(lines).rstrip())
-		info_box.configure(state="disabled")
+					ctk.CTkLabel(
+						row_frame,
+						text=norm_text,
+						font=self.fonts["small"],
+						text_color=self.style["texto_oscuro"],
+						justify="left",
+						anchor="w",
+						wraplength=320,
+					).grid(row=0, column=0, sticky="w")
+					ctk.CTkLabel(
+						row_frame,
+						text=score_text,
+						font=self.fonts["small_bold"],
+						text_color=self.style["texto_oscuro"],
+					).grid(row=0, column=1, sticky="ew")
+					ctk.CTkLabel(
+						row_frame,
+						text=state_text,
+						font=self.fonts["small_bold"],
+						text_color=state_color,
+					).grid(row=0, column=2, sticky="ew")
+					ctk.CTkLabel(
+						row_frame,
+						text=updated_text[:16],
+						font=self.fonts["small"],
+						text_color="#6D7480",
+					).grid(row=0, column=3, sticky="ew")
+
+		def _on_year_change(_value=None) -> None:
+			quarter_values = _available_quarters()
+			quarter_selector.configure(values=quarter_values)
+			if quarter_var.get() not in quarter_values:
+				quarter_var.set("Todos")
+			_render_preview()
+
+		year_selector.configure(command=_on_year_change)
+		quarter_selector.configure(command=_render_preview)
+		_on_year_change()
 
 		ctk.CTkButton(
 			wrapper,
@@ -901,7 +1633,7 @@ class TrimestralView(ctk.CTkFrame):
 			text_color=self.style["texto_oscuro"],
 			hover_color="#E9ECEF",
 			command=dialog.destroy,
-		).grid(row=2, column=0, padx=18, pady=(0, 14), sticky="e")
+		).grid(row=4, column=0, padx=18, pady=(0, 14), sticky="e")
 
 	def _open_capture_for_inspector(self, inspector_name: str) -> None:
 		if not self.can_edit:
@@ -967,8 +1699,9 @@ class TrimestralView(ctk.CTkFrame):
 		)
 		curve_canvas.grid(row=1, column=0, padx=(18, 10), pady=(0, 16), sticky="nsew")
 
-		info_box = ctk.CTkTextbox(wrapper, corner_radius=16)
-		info_box.grid(row=1, column=1, padx=(10, 18), pady=(0, 16), sticky="nsew")
+		info_scroll = ctk.CTkScrollableFrame(wrapper, fg_color="#F8F9FA", corner_radius=16)
+		info_scroll.grid(row=1, column=1, padx=(10, 18), pady=(0, 16), sticky="nsew")
+		info_scroll.grid_columnconfigure(0, weight=1)
 
 		detail_scores = list(scores_for_inspector)
 		confirm_button: ctk.CTkButton | None = None
@@ -986,11 +1719,20 @@ class TrimestralView(ctk.CTkFrame):
 			)
 			return filtered
 
+		def _is_conf(row: dict) -> bool:
+			v = str(row.get("confirmed_at") or "").strip().lower()
+			return bool(v) and v != "none"
+
 		def _render_detail(_value=None) -> None:
+			# clear previous content
+			for _w in info_scroll.winfo_children():
+				_w.destroy()
+
 			norm_token = self._norm_key(norm_var.get())
 			norm_display = self._norm_display(norm_token)
 			selected_rows = _scores_for_selected_norm()
 
+			# -- update chart --
 			curve_history = []
 			for row in reversed(selected_rows):
 				score_value = self._coerce_score(row.get("score"))
@@ -998,84 +1740,160 @@ class TrimestralView(ctk.CTkFrame):
 					continue
 				label = f"{row.get('quarter', '--')} {row.get('year', '--')}"
 				curve_history.append({"label": label, "score": score_value})
-
 			self._draw_curve_on_canvas(curve_canvas, curve_history, f"Sin curva disponible para {norm_token}.")
 
-			norms_line = ", ".join(accredited_norms) if accredited_norms else "Sin acreditaciones"
-			lines = [
-				"Resumen trimestral por norma",
-				"",
-				f"Ejecutivo Tecnico: {inspector_name}",
-				f"Norma seleccionada: {norm_display}",
-				f"Normas acreditadas: {norms_line}",
-				"",
-			]
+			# ── Norm header ──────────────────────────────────────────
+			ctk.CTkLabel(
+				info_scroll,
+				text=norm_token,
+				font=("Arial", 20, "bold"),
+				text_color=self.style["texto_oscuro"],
+			).pack(anchor="w", padx=14, pady=(12, 0))
+			ctk.CTkLabel(
+				info_scroll,
+				text=norm_display,
+				font=("Arial", 10),
+				text_color="#6D7480",
+				wraplength=280,
+				justify="left",
+			).pack(anchor="w", padx=14, pady=(0, 8))
+
+			ctk.CTkFrame(info_scroll, height=1, fg_color="#E0E3E8").pack(fill="x", padx=14, pady=(0, 10))
 
 			if selected_rows:
 				numeric_scores = [
-					value
-					for value in (self._coerce_score(item.get("score")) for item in selected_rows)
-					if value is not None
+					v for v in (self._coerce_score(r.get("score")) for r in selected_rows)
+					if v is not None
 				]
 				latest = selected_rows[0]
 				latest_score = self._coerce_score(latest.get("score"))
 				latest_period = f"{latest.get('quarter', '--')} {latest.get('year', '--')}"
+				is_latest_confirmed = _is_conf(latest)
+				is_latest_sent = bool(str(latest.get("sent_at") or "").strip())
+
+				# ── Big score ────────────────────────────────────────
+				score_color = "#1E9E5F" if (latest_score or 0) >= 90 else "#C0392B"
+				score_display = f"{latest_score:.1f}%" if latest_score is not None else "--"
+				ctk.CTkLabel(
+					info_scroll,
+					text=score_display,
+					font=("Arial", 36, "bold"),
+					text_color=score_color,
+				).pack(anchor="w", padx=14, pady=(0, 2))
+				ctk.CTkLabel(
+					info_scroll,
+					text=f"Periodo: {latest_period}",
+					font=("Arial", 11),
+					text_color="#6D7480",
+				).pack(anchor="w", padx=14, pady=(0, 6))
+
+				# ── Status badge ─────────────────────────────────────
+				if not is_latest_sent:
+					badge_text, badge_bg, badge_fg = "Sin enviar", "#F0F0F0", "#6D7480"
+				elif is_latest_confirmed:
+					badge_text, badge_bg, badge_fg = "✓ Confirmado", "#D4EDDA", "#1E9E5F"
+				else:
+					badge_text, badge_bg, badge_fg = "⏳ Pendiente de confirmar", "#FFF3CD", "#856404"
+				ctk.CTkLabel(
+					info_scroll,
+					text=badge_text,
+					fg_color=badge_bg,
+					text_color=badge_fg,
+					corner_radius=8,
+					padx=10,
+					font=("Arial", 11, "bold"),
+				).pack(anchor="w", padx=14, pady=(0, 12))
+
+				# ── Stats grid ───────────────────────────────────────
 				avg_score = round(mean(numeric_scores), 1) if numeric_scores else None
 				best_score = max(numeric_scores) if numeric_scores else None
 				worst_score = min(numeric_scores) if numeric_scores else None
 
-				lines.append(
-					f"Ultima calificacion: {latest_score:.1f}% ({latest_period})"
-					if latest_score is not None
-					else f"Ultima calificacion: -- ({latest_period})"
-				)
-				lines.append(f"Promedio: {avg_score:.1f}%" if avg_score is not None else "Promedio: --")
-				lines.append(f"Mejor calificacion: {best_score:.1f}%" if best_score is not None else "Mejor calificacion: --")
-				lines.append(f"Calificacion mas baja: {worst_score:.1f}%" if worst_score is not None else "Calificacion mas baja: --")
+				stats_frame = ctk.CTkFrame(info_scroll, fg_color="#FFFFFF", corner_radius=10)
+				stats_frame.pack(fill="x", padx=14, pady=(0, 10))
+				for _col in range(3):
+					stats_frame.grid_columnconfigure(_col, weight=1)
+				for _ci, (_lbl, _val) in enumerate([
+					("Promedio", f"{avg_score:.1f}%" if avg_score is not None else "--"),
+					("Mejor", f"{best_score:.1f}%" if best_score is not None else "--"),
+					("Mas baja", f"{worst_score:.1f}%" if worst_score is not None else "--"),
+				]):
+					_cell = ctk.CTkFrame(stats_frame, fg_color="transparent")
+					_cell.grid(row=0, column=_ci, padx=8, pady=8)
+					ctk.CTkLabel(_cell, text=_lbl, font=("Arial", 9), text_color="#6D7480").pack()
+					ctk.CTkLabel(_cell, text=_val, font=("Arial", 13, "bold"), text_color=self.style["texto_oscuro"]).pack()
 			else:
-				lines.append("Sin calificaciones trimestrales registradas para esta norma.")
+				ctk.CTkLabel(
+					info_scroll,
+					text="Sin calificaciones para esta norma.",
+					font=("Arial", 12),
+					text_color="#6D7480",
+				).pack(anchor="w", padx=14, pady=12)
 
+			# ── Calificaciones del año ────────────────────────────────
 			current_year = datetime.now().year
-			current_year_rows: list[dict] = []
-			for item in selected_rows:
-				try:
-					if int(item.get("year", 0)) == current_year:
-						current_year_rows.append(item)
-				except (TypeError, ValueError):
-					continue
+			current_year_rows = [r for r in selected_rows if str(r.get("year", "")) == str(current_year)]
 
-			lines.extend(["", f"Calificaciones {current_year}:"])
+			ctk.CTkFrame(info_scroll, height=1, fg_color="#E0E3E8").pack(fill="x", padx=14, pady=(4, 8))
+			ctk.CTkLabel(
+				info_scroll,
+				text=f"Calificaciones {current_year}",
+				font=("Arial", 12, "bold"),
+				text_color=self.style["texto_oscuro"],
+			).pack(anchor="w", padx=14, pady=(0, 6))
+
 			if current_year_rows:
 				for row in current_year_rows:
-					score_value = self._coerce_score(row.get("score"))
-					score_text = f"{score_value:.1f}%" if score_value is not None else "--"
+					sv = self._coerce_score(row.get("score"))
+					score_txt = f"{sv:.1f}%" if sv is not None else "--"
 					period = f"{row.get('quarter', '--')} {row.get('year', '--')}"
-					confirmed_at = str(row.get("confirmed_at", "")).strip()
-					state = "Confirmado" if confirmed_at else "Pendiente de confirmacion"
-					lines.append(f"- {period} | {score_text} | {state}")
+					sentv = str(row.get("sent_at") or "").strip()
+					if not sentv:
+						st, st_color = "Sin enviar", "#6D7480"
+					elif _is_conf(row):
+						st, st_color = "✓ Confirmado", "#1E9E5F"
+					else:
+						st, st_color = "Pendiente", "#856404"
+					row_f = ctk.CTkFrame(info_scroll, fg_color="transparent")
+					row_f.pack(fill="x", padx=14, pady=2)
+					row_f.grid_columnconfigure(0, weight=1)
+					ctk.CTkLabel(row_f, text=f"{period}  {score_txt}", font=("Arial", 11), text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w")
+					ctk.CTkLabel(row_f, text=st, font=("Arial", 10, "bold"), text_color=st_color).grid(row=0, column=1, sticky="e")
 			else:
-				lines.append(f"- Sin calificaciones para {current_year}.")
+				ctk.CTkLabel(info_scroll, text=f"Sin calificaciones para {current_year}.", font=("Arial", 11), text_color="#6D7480").pack(anchor="w", padx=14)
 
-			lines.extend(["", "Historial acumulado por anio/trimestre:"])
-			if selected_rows:
+			# ── Historial ────────────────────────────────────────────
+			if len(selected_rows) > len(current_year_rows):
+				ctk.CTkFrame(info_scroll, height=1, fg_color="#E0E3E8").pack(fill="x", padx=14, pady=(10, 6))
+				ctk.CTkLabel(
+					info_scroll, text="Historial anterior",
+					font=("Arial", 11, "bold"), text_color="#6D7480",
+				).pack(anchor="w", padx=14, pady=(0, 4))
 				for row in selected_rows:
-					score_value = self._coerce_score(row.get("score"))
-					score_text = f"{score_value:.1f}%" if score_value is not None else "--"
+					if str(row.get("year", "")) == str(current_year):
+						continue
+					sv = self._coerce_score(row.get("score"))
+					score_txt = f"{sv:.1f}%" if sv is not None else "--"
 					period = f"{row.get('quarter', '--')} {row.get('year', '--')}"
-					date_text = str(row.get("updated_at", "--"))
-					confirmed_at = str(row.get("confirmed_at", "")).strip()
-					state = "Confirmado" if confirmed_at else "Pendiente de confirmacion"
-					lines.append(f"- {period} | {score_text} | Fecha: {date_text} | {state}")
-			else:
-				lines.append("- Sin historial disponible.")
+					sentv = str(row.get("sent_at") or "").strip()
+					if not sentv:
+						st, st_color = "Sin enviar", "#6D7480"
+					elif _is_conf(row):
+						st, st_color = "✓ Confirmado", "#1E9E5F"
+					else:
+						st, st_color = "Pendiente", "#856404"
+					row_f = ctk.CTkFrame(info_scroll, fg_color="transparent")
+					row_f.pack(fill="x", padx=14, pady=2)
+					row_f.grid_columnconfigure(0, weight=1)
+					ctk.CTkLabel(row_f, text=f"{period}  {score_txt}", font=("Arial", 11), text_color="#6D7480").grid(row=0, column=0, sticky="w")
+					ctk.CTkLabel(row_f, text=st, font=("Arial", 10), text_color=st_color).grid(row=0, column=1, sticky="e")
 
-			info_box.configure(state="normal")
-			info_box.delete("1.0", "end")
-			info_box.insert("1.0", "\n".join(lines))
-			info_box.configure(state="disabled")
-
+			# ── Update confirm button state ───────────────────────────
 			if confirm_button is not None:
-				has_pending = any(not str(item.get("confirmed_at", "")).strip() for item in selected_rows)
+				has_pending = any(
+					str(r.get("sent_at") or "").strip() and not _is_conf(r)
+					for r in selected_rows
+				)
 				confirm_button.configure(state="normal" if has_pending else "disabled")
 
 		def _confirm_selected_norm() -> None:
@@ -1138,6 +1956,16 @@ class TrimestralView(ctk.CTkFrame):
 			).grid(row=0, column=1, sticky="ew")
 
 		dialog.after(80, _render_detail)
+
+	@staticmethod
+	def _normalize_identity(value: str | None) -> str:
+		text = str(value or "").strip().lower()
+		if not text:
+			return ""
+		normalized = unicodedata.normalize("NFKD", text)
+		without_accents = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+		without_symbols = re.sub(r"[^a-z0-9]+", " ", without_accents)
+		return re.sub(r"\s+", " ", without_symbols).strip()
 
 	@staticmethod
 	def _norm_key(value: dict | str | None) -> str:

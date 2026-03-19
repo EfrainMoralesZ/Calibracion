@@ -1,0 +1,39 @@
+[
+  {
+    "id": "9e55e2cf8c304ee7bd7bc08d937b3bb1",
+    "visit_id": "12b99d3cfe694690b5a58d3649f94694",
+    "visit_date": "2026-03-21",
+    "month": "2026-03",
+    "year": 2026,
+    "inspector": "Jose Alberto Zuñiga Estrada",
+    "client": "ULTA BEAUTY S.A.P.I. DE C.V.",
+    "address": "Carretera Libramiento Sur No. 6 Edificio 2a, Texcacoa, Tepotzotlán, Estado de México, 54605",
+    "service": "DICTAMEN",
+    "norms": [
+      "NOM-004",
+      "NOM-024",
+      "NOM-141"
+    ],
+    "norm_count": 3,
+    "updated_at": "2026-03-19 15:22"
+  },
+  {
+    "id": "54217d257ed24a40add951b8b92659e9",
+    "visit_id": "12b99d3cfe694690b5a58d3649f94694",
+    "visit_date": "2026-03-21",
+    "month": "2026-03",
+    "year": 2026,
+    "inspector": "Jesus Eduardo Reyes Lozano",
+    "client": "ULTA BEAUTY S.A.P.I. DE C.V.",
+    "address": "Carretera Libramiento Sur No. 6 Edificio 2a, Texcacoa, Tepotzotlán, Estado de México, 54605",
+    "service": "DICTAMEN",
+    "norms": [
+      "NOM-015",
+      "NOM-020",
+      "NOM-024",
+      "NOM-189"
+    ],
+    "norm_count": 4,
+    "updated_at": "2026-03-19 15:50"
+  }
+]

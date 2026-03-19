@@ -23,6 +23,7 @@ STATE_FILE = DATA_DIR / "app_state.json"
 HISTORY_DIR = DATA_DIR / "historico"
 VISITS_DIR = DATA_DIR / "visitas"
 TRIMESTRAL_DIR = DATA_DIR / "trimestral"
+NORMS_REPORT_FILE = DATA_DIR / "reporte de normas.json"
 DOCUMENT_MODULE_DIR = ROOT_DIR / "Documentos PDF.py"
 
 
@@ -323,6 +324,34 @@ def _normalize_visit_inspectors(raw_values: Any, fallback: str = "") -> list[str
 	return normalized
 
 
+def _normalize_visit_acceptance_responses(raw_value: Any) -> dict[str, dict[str, str]]:
+	responses: dict[str, dict[str, str]] = {}
+	if not isinstance(raw_value, dict):
+		return responses
+
+	for raw_name, payload in raw_value.items():
+		name = str(raw_name or "").strip()
+		if not name:
+			continue
+
+		confirmed_at = ""
+		confirmed_by = name
+		if isinstance(payload, dict):
+			confirmed_at = str(payload.get("confirmed_at", "")).strip()
+			confirmed_by = str(payload.get("confirmed_by", name)).strip() or name
+		else:
+			confirmed_at = str(payload or "").strip()
+
+		if not confirmed_at:
+			continue
+		responses[name] = {
+			"confirmed_at": confirmed_at,
+			"confirmed_by": confirmed_by,
+		}
+
+	return responses
+
+
 def _normalize_visit_record(raw_visit: dict[str, Any], include_display: bool = False) -> dict[str, Any]:
 	visit = dict(raw_visit)
 	normalized_date = _normalize_visit_date(str(visit.get("visit_date", "")))
@@ -344,6 +373,31 @@ def _normalize_visit_record(raw_visit: dict[str, Any], include_display: bool = F
 	visit["inspectors"] = inspectors
 	visit["inspector"] = inspectors[0] if inspectors else ""
 	visit["group_id"] = str(visit.get("group_id", "")).strip()
+
+	normalized_responses = _normalize_visit_acceptance_responses(visit.get("acceptance_responses"))
+	responses_by_identity = {
+		_normalize_person_name(name): (name, payload)
+		for name, payload in normalized_responses.items()
+		if _normalize_person_name(name)
+	}
+	filtered_responses: dict[str, dict[str, str]] = {}
+	for inspector_name in inspectors:
+		identity = _normalize_person_name(inspector_name)
+		if not identity:
+			continue
+		mapped = responses_by_identity.get(identity)
+		if mapped is None:
+			continue
+		_, payload = mapped
+		filtered_responses[inspector_name] = dict(payload)
+	visit["acceptance_responses"] = filtered_responses
+	visit["accepted_count"] = len(filtered_responses)
+	visit["required_acceptances"] = len(inspectors)
+	if filtered_responses:
+		visit["accepted_by"] = ", ".join(filtered_responses.keys())
+	else:
+		visit["accepted_by"] = ""
+
 	if include_display:
 		visit["inspectors_text"] = ", ".join(inspectors) if inspectors else "--"
 		if assignment_time and departure_time:
@@ -396,6 +450,16 @@ def _merge_visit_records(raw_visits: list[dict[str, Any]], include_display: bool
 
 		existing["inspectors"] = merged_inspectors
 		existing["inspector"] = merged_inspectors[0] if merged_inspectors else ""
+
+		existing_responses = _normalize_visit_acceptance_responses(existing.get("acceptance_responses"))
+		incoming_responses = _normalize_visit_acceptance_responses(visit.get("acceptance_responses"))
+		for inspector_name, payload in incoming_responses.items():
+			current_payload = existing_responses.get(inspector_name)
+			if current_payload is None or str(payload.get("confirmed_at", "")) >= str(current_payload.get("confirmed_at", "")):
+				existing_responses[inspector_name] = payload
+		existing["acceptance_responses"] = existing_responses
+		if existing_responses and str(existing.get("acceptance_status", "")).strip().lower() not in {"cancelada", "finalizada"}:
+			existing["acceptance_status"] = "aceptada"
 
 	return [_normalize_visit_record(visit, include_display=include_display) for visit in grouped.values()]
 
@@ -496,6 +560,8 @@ class CalibrationController:
 		HISTORY_DIR.mkdir(parents=True, exist_ok=True)
 		VISITS_DIR.mkdir(parents=True, exist_ok=True)
 		TRIMESTRAL_DIR.mkdir(parents=True, exist_ok=True)
+		if not NORMS_REPORT_FILE.exists():
+			_write_json(NORMS_REPORT_FILE, [])
 		self._migrate_legacy_state()
 		if not self._visits_normalized:
 			self._normalize_visit_storage()
@@ -715,6 +781,48 @@ class CalibrationController:
 			return ["Principal", "Dashboard", "Calendario", "Trimestral", "Configuraciones"]
 		return ["Calendario", "Trimestral"]
 
+	def _resolve_canonical_person_name(self, value: str | None) -> str:
+		clean_name = str(value or "").strip()
+		if not clean_name:
+			return ""
+
+		normalized_target = _normalize_person_name(clean_name)
+		if not normalized_target:
+			return clean_name
+
+		candidate_names: list[str] = []
+		candidate_names.extend(
+			str(user.get("name", "")).strip()
+			for user in self.users_catalog
+			if str(user.get("name", "")).strip()
+		)
+		candidate_names.extend(
+			str(record.get("NOMBRE", "")).strip()
+			for record in self.raw_records
+			if str(record.get("NOMBRE", "")).strip()
+		)
+
+		target_tokens = normalized_target.split()
+		best_match = clean_name
+		best_token_count = len(target_tokens)
+		for candidate in candidate_names:
+			normalized_candidate = _normalize_person_name(candidate)
+			candidate_tokens = normalized_candidate.split()
+			if len(candidate_tokens) <= best_token_count:
+				continue
+			if candidate_tokens[: len(target_tokens)] == target_tokens:
+				best_match = candidate
+				best_token_count = len(candidate_tokens)
+
+		if best_match != clean_name:
+			return best_match
+
+		for candidate in candidate_names:
+			if _normalize_person_name(candidate) == normalized_target:
+				return candidate
+
+		return best_match
+
 	def get_record(self, inspector_name: str) -> dict[str, Any] | None:
 		target_name = str(inspector_name or "").strip()
 		if not target_name:
@@ -728,7 +836,26 @@ class CalibrationController:
 		if not normalized_target:
 			return None
 
-		return self._record_index_normalized.get(normalized_target)
+		record = self._record_index_normalized.get(normalized_target)
+		if record is not None:
+			return record
+
+		target_tokens = normalized_target.split()
+		best_match: dict[str, Any] | None = None
+		best_token_count = 0
+		for candidate_identity, candidate_record in self._record_index_normalized.items():
+			candidate_tokens = candidate_identity.split()
+			if not candidate_tokens:
+				continue
+			prefix_match = candidate_tokens[: len(target_tokens)] == target_tokens
+			reverse_prefix_match = target_tokens[: len(candidate_tokens)] == candidate_tokens
+			if not prefix_match and not reverse_prefix_match:
+				continue
+			if len(candidate_tokens) > best_token_count:
+				best_match = candidate_record
+				best_token_count = len(candidate_tokens)
+
+		return best_match
 
 	def get_catalog_norms(self) -> list[dict[str, str]]:
 		if self._catalog_norms_cache is not None:
@@ -1115,6 +1242,7 @@ class CalibrationController:
 		protocol_answers = _normalize_supervision_answers(payload.get("protocol_answers"))
 		process_answers = _normalize_supervision_answers(payload.get("process_answers"))
 		technical_normative_rows = _normalize_technical_normative_rows(payload.get("technical_normative_rows"))
+		image_folder = str(payload.get("image_folder", "")).strip()
 		score_breakdown = payload.get("score_breakdown", {})
 		if not isinstance(score_breakdown, dict):
 			score_breakdown = {}
@@ -1167,6 +1295,7 @@ class CalibrationController:
 			"protocol_answers": protocol_answers,
 			"process_answers": process_answers,
 			"technical_normative_rows": technical_normative_rows,
+			"image_folder": image_folder,
 			"score_breakdown": score_breakdown,
 			"soft_skills_breakdown": soft_skills_breakdown,
 			"technical_skills_breakdown": technical_skills_breakdown,
@@ -1207,14 +1336,26 @@ class CalibrationController:
 		year: int | None = None,
 		quarter: str | None = None,
 		current_user: dict[str, Any] | None = None,
+		include_unsent: bool = False,
 	) -> list[dict[str, Any]]:
 		scores = self._get_all_quarterly_scores_cached()
 		candidate = current_user or self.current_user
-		if not inspector_name and candidate and candidate.get("role") == "ejecutivo":
+		is_executive_view = bool(candidate and candidate.get("role") == "ejecutivo")
+		if not inspector_name and is_executive_view:
 			inspector_name = str(candidate.get("name", "")).strip() or None
 		if inspector_name:
 			target = str(inspector_name).strip()
-			scores = [item for item in scores if str(item.get("inspector", "")).strip() == target]
+			target_identity = _normalize_person_name(target)
+			if target_identity:
+				scores = [
+					item
+					for item in scores
+					if _normalize_person_name(str(item.get("inspector", ""))) == target_identity
+				]
+			else:
+				scores = [item for item in scores if str(item.get("inspector", "")).strip() == target]
+		if is_executive_view and not include_unsent:
+			scores = [item for item in scores if str(item.get("sent_at", "")).strip()]
 		if norm:
 			norm_value = _extract_norm_token(str(norm)) or str(norm).strip().upper()
 			scores = [
@@ -1230,6 +1371,93 @@ class CalibrationController:
 			scores = [item for item in scores if str(item.get("quarter", "")).strip().upper() == quarter_value]
 
 		return [dict(item) for item in scores]
+
+	def _boleta_path_for_score(self, score_row: dict[str, Any]) -> Path | None:
+		inspector_name = str(score_row.get("inspector", "")).strip()
+		quarter = str(score_row.get("quarter", "")).strip().upper()
+		try:
+			year = int(score_row.get("year", 0))
+		except (TypeError, ValueError):
+			year = 0
+
+		if not inspector_name or not year or quarter not in {"T1", "T2", "T3", "T4"}:
+			return None
+
+		boleta_dir = self._history_dir(inspector_name) / "boletas" / str(year)
+		boleta_dir.mkdir(parents=True, exist_ok=True)
+		return boleta_dir / f"{quarter}_boleta.json"
+
+	def _upsert_boleta_record(self, score_row: dict[str, Any]) -> None:
+		boleta_path = self._boleta_path_for_score(score_row)
+		if boleta_path is None:
+			return
+
+		score_id = str(score_row.get("id", "")).strip()
+		if not score_id:
+			return
+
+		boleta_records = _read_json(boleta_path, [])
+		if not isinstance(boleta_records, list):
+			boleta_records = []
+		boleta_records = [row for row in boleta_records if str(row.get("id", "")).strip() != score_id]
+		boleta_records.append(dict(score_row))
+		_write_json(boleta_path, boleta_records)
+
+	def _remove_boleta_record(self, score_row: dict[str, Any]) -> None:
+		boleta_path = self._boleta_path_for_score(score_row)
+		if boleta_path is None or not boleta_path.exists():
+			return
+
+		score_id = str(score_row.get("id", "")).strip()
+		if not score_id:
+			return
+
+		boleta_records = _read_json(boleta_path, [])
+		if not isinstance(boleta_records, list):
+			return
+		filtered = [row for row in boleta_records if str(row.get("id", "")).strip() != score_id]
+		if filtered != boleta_records:
+			_write_json(boleta_path, filtered)
+
+	def send_trimestral_scores(self, inspector_name: str, score_ids: list[str] | None = None) -> int:
+		target_identity = _normalize_person_name(inspector_name)
+		if not target_identity or not TRIMESTRAL_DIR.exists():
+			return 0
+
+		target_ids = {str(item).strip() for item in (score_ids or []) if str(item).strip()}
+		sent_count = 0
+
+		for folder in TRIMESTRAL_DIR.iterdir():
+			if not folder.is_dir():
+				continue
+
+			scores_path = folder / "trimestral.json"
+			scores = _read_json(scores_path, [])
+			changed = False
+			for row in scores:
+				if not isinstance(row, dict):
+					continue
+				score_id = str(row.get("id", "")).strip()
+				if target_ids and score_id not in target_ids:
+					continue
+				if _normalize_person_name(str(row.get("inspector", ""))) != target_identity:
+					continue
+				if str(row.get("sent_at", "")).strip():
+					continue
+
+				row["sent_at"] = _timestamp()
+				row["updated_at"] = _timestamp()
+				changed = True
+				sent_count += 1
+				self._upsert_boleta_record(row)
+
+			if changed:
+				_write_json(scores_path, scores)
+
+		if sent_count:
+			self.reload()
+
+		return sent_count
 
 	def save_trimestral_score(self, payload: dict[str, Any], score_id: str | None = None) -> dict[str, Any]:
 		inspector = str(payload.get("inspector", "")).strip()
@@ -1269,6 +1497,30 @@ class CalibrationController:
 					_write_json(_folder / "trimestral.json", _fscores)
 					break
 
+		# Deduplicate: if no explicit score_id, check for same inspector+norm+quarter+year
+		if existing is None:
+			_insp_norm = _normalize_person_name(inspector)
+			_q_path = _quarter_dir(quarter, year) / "trimestral.json"
+			if _q_path.exists():
+				_q_check = _read_json(_q_path, [])
+				_dup = next(
+					(
+						s for s in _q_check
+						if _normalize_person_name(str(s.get("inspector", ""))) == _insp_norm
+						and (_extract_norm_token(str(s.get("norm", ""))) or str(s.get("norm", "")).strip().upper()) == norm
+						and str(s.get("quarter", "")).strip().upper() == quarter
+						and str(s.get("year", "")) == str(year)
+					),
+					None,
+				)
+				if _dup is not None:
+					existing = _dup
+					_write_json(_q_path, [s for s in _q_check if s.get("id") != _dup.get("id")])
+
+		# Lock: prevent modifications to already-sent scores
+		if existing is not None and str(existing.get("sent_at", "")).strip():
+			raise ValueError("Esta calificacion ya fue enviada y no puede ser modificada.")
+
 		record = dict(existing or {})
 		record["id"] = record.get("id") or uuid4().hex
 		record["inspector"] = inspector
@@ -1280,22 +1532,16 @@ class CalibrationController:
 		record["evaluator"] = (self.current_user or {}).get("name", "Sistema")
 		record["confirmed_at"] = None
 		record["confirmed_by"] = ""
-		record["sent_at"] = _timestamp()
+		previous_sent_at = str(record.get("sent_at", "")).strip()
+		record["sent_at"] = previous_sent_at if previous_sent_at else ""
+		record["boleta_status"] = "CRITICO" if score < 90 else "CALIFICADO"
 		record["updated_at"] = _timestamp()
 
 		q_dir = _quarter_dir(quarter, year)
 		q_scores = _read_json(q_dir / "trimestral.json", [])
 		q_scores.append(record)
 		_write_json(q_dir / "trimestral.json", q_scores)
-
-		# Persist boleta by inspector / year / quarter
-		boleta_dir = self._history_dir(inspector) / "boletas" / str(year)
-		boleta_dir.mkdir(parents=True, exist_ok=True)
-		boleta_path = boleta_dir / f"{quarter}_boleta.json"
-		boleta_records = _read_json(boleta_path, [])
-		boleta_records = [r for r in boleta_records if str(r.get("id", "")) != str(record["id"])]
-		boleta_records.append(record)
-		_write_json(boleta_path, boleta_records)
+		self._upsert_boleta_record(record)
 
 		self.reload()
 		return record
@@ -1326,11 +1572,13 @@ class CalibrationController:
 					continue
 				if target_identity and _normalize_person_name(str(row.get("inspector", ""))) != target_identity:
 					continue
-				if str(row.get("confirmed_at", "")).strip():
+				if str(row.get("confirmed_at") or "").strip():
 					continue
 
 				row["confirmed_at"] = _timestamp()
 				row["confirmed_by"] = viewer_name
+				row["updated_at"] = _timestamp()
+				self._upsert_boleta_record(row)
 				changed = True
 				confirmed += 1
 
@@ -1353,6 +1601,7 @@ class CalibrationController:
 			if _existing:
 				_scores = [s for s in _scores if s.get("id") != score_id]
 				_write_json(_folder / "trimestral.json", _scores)
+				self._remove_boleta_record(_existing)
 				self.reload()
 				return
 
@@ -1436,7 +1685,33 @@ class CalibrationController:
 		visit["departure_time"] = departure_time
 		visit["status"] = status
 		visit["notes"] = notes
-		visit["acceptance_status"] = visit.get("acceptance_status", "asignada")
+
+		raw_status = str(visit.get("acceptance_status", "asignada")).strip().lower() or "asignada"
+		existing_responses = _normalize_visit_acceptance_responses(visit.get("acceptance_responses"))
+		responses_by_identity = {
+			_normalize_person_name(name): payload
+			for name, payload in existing_responses.items()
+			if _normalize_person_name(name)
+		}
+		filtered_responses: dict[str, dict[str, str]] = {}
+		for inspector_name in inspectors:
+			identity = _normalize_person_name(inspector_name)
+			payload = responses_by_identity.get(identity)
+			if payload is None:
+				continue
+			filtered_responses[inspector_name] = dict(payload)
+		visit["acceptance_responses"] = filtered_responses
+
+		if raw_status in {"cancelada", "finalizada"}:
+			visit["acceptance_status"] = raw_status
+		elif filtered_responses:
+			visit["acceptance_status"] = "aceptada"
+		elif raw_status == "reasignada":
+			visit["acceptance_status"] = "reasignada"
+		else:
+			visit["acceptance_status"] = "asignada"
+
+		visit["accepted_by"] = ", ".join(filtered_responses.keys()) if filtered_responses else ""
 		visit["assigned_by"] = (self.current_user or {}).get("name", "Sistema")
 		visit["updated_at"] = _timestamp()
 
@@ -1479,20 +1754,68 @@ class CalibrationController:
 				return
 
 	def accept_visit(self, visit_id: str) -> None:
-		"""Mark a visit as accepted by the assigned technical executive."""
+		"""Mark a visit as accepted by the current technical executive with timestamp."""
 		if not VISITS_DIR.exists():
 			return
+
+		viewer = self.current_user or {}
+		viewer_name = str(viewer.get("name", "")).strip()
+		viewer_role = str(viewer.get("role", "")).strip().lower()
+		if viewer_role != "ejecutivo":
+			raise ValueError("Solo un ejecutivo tecnico puede confirmar la visita.")
+		if not viewer_name:
+			raise ValueError("No se pudo identificar al ejecutivo que confirma.")
+		viewer_identity = _normalize_person_name(viewer_name)
+
 		for _wfolder in VISITS_DIR.iterdir():
 			if not _wfolder.is_dir():
 				continue
 			_wvisits = _read_json(_wfolder / "visitas.json", [])
 			_existing = next((v for v in _wvisits if v.get("id") == visit_id), None)
 			if _existing:
+				status = str(_existing.get("acceptance_status", "asignada")).strip().lower() or "asignada"
+				if status == "cancelada":
+					raise ValueError("La visita esta cancelada y no puede confirmarse.")
+				if status == "finalizada":
+					raise ValueError("La visita ya fue finalizada y no admite nuevas confirmaciones.")
+
+				inspectors = _normalize_visit_inspectors(
+					_existing.get("inspectors"),
+					str(_existing.get("inspector", "")),
+				)
+				inspector_by_identity = {
+					_normalize_person_name(name): name
+					for name in inspectors
+					if _normalize_person_name(name)
+				}
+				canonical_viewer = inspector_by_identity.get(viewer_identity)
+				if not canonical_viewer:
+					raise ValueError("No tienes permiso para confirmar esta visita.")
+
+				responses = _normalize_visit_acceptance_responses(_existing.get("acceptance_responses"))
+				response_identities = {
+					_normalize_person_name(name)
+					for name in responses
+					if _normalize_person_name(name)
+				}
+				if viewer_identity in response_identities:
+					raise ValueError("Ya confirmaste esta visita.")
+
+				confirmed_at = _timestamp()
+				responses[canonical_viewer] = {
+					"confirmed_at": confirmed_at,
+					"confirmed_by": canonical_viewer,
+				}
+
+				_existing["acceptance_responses"] = responses
 				_existing["acceptance_status"] = "aceptada"
-				_existing["updated_at"] = _timestamp()
+				_existing["accepted_by"] = ", ".join(sorted(responses.keys(), key=str.casefold))
+				_existing["updated_at"] = confirmed_at
 				_write_json(_wfolder / "visitas.json", _wvisits)
 				self.reload()
 				return
+
+		raise ValueError("No se encontro la visita seleccionada.")
 
 	def cancel_visit(self, visit_id: str, reason: str = "") -> None:
 		"""Cancel a visit (admin only)."""
@@ -1528,6 +1851,8 @@ class CalibrationController:
 				_existing["inspectors"] = new_inspectors
 				_existing["inspector"] = new_inspectors[0]
 				_existing["acceptance_status"] = "reasignada"
+				_existing["acceptance_responses"] = {}
+				_existing["accepted_by"] = ""
 				_existing["reassigned_from"] = old_inspectors
 				_existing["reassigned_by"] = (self.current_user or {}).get("name", "Sistema")
 				_existing["updated_at"] = _timestamp()
@@ -1537,6 +1862,180 @@ class CalibrationController:
 					self._sync_visit_history(inspector_name)
 				self.reload()
 				return
+
+	def _find_visit_storage(self, visit_id: str) -> tuple[Path, list[dict[str, Any]], dict[str, Any]] | None:
+		if not VISITS_DIR.exists():
+			return None
+		for week_dir in VISITS_DIR.iterdir():
+			if not week_dir.is_dir():
+				continue
+			visits_path = week_dir / "visitas.json"
+			visits = _read_json(visits_path, [])
+			if not isinstance(visits, list):
+				continue
+			for row in visits:
+				if not isinstance(row, dict):
+					continue
+				if str(row.get("id", "")).strip() == str(visit_id).strip():
+					return visits_path, visits, row
+		return None
+
+	def get_visit_available_norms(self, visit_id: str, inspector_name: str | None = None) -> list[str]:
+		found = self._find_visit_storage(visit_id)
+		if found is None:
+			return []
+		_visit_path, _visits, visit = found
+
+		all_norms: set[str] = set()
+		visit_inspectors = _normalize_visit_inspectors(visit.get("inspectors"), str(visit.get("inspector", "")))
+		if not visit_inspectors and inspector_name:
+			visit_inspectors = [str(inspector_name).strip()]
+
+		for name in visit_inspectors:
+			for token in self.get_accredited_norms(name):
+				all_norms.add(token)
+		return sorted(all_norms, key=self._norm_sort_key)
+
+	def get_visit_reported_norms(self, visit_id: str, inspector_name: str) -> list[str]:
+		reports = _read_json(NORMS_REPORT_FILE, [])
+		if not isinstance(reports, list):
+			return []
+
+		target_visit = str(visit_id).strip()
+		target_identity = _normalize_person_name(inspector_name)
+		for row in reports:
+			if not isinstance(row, dict):
+				continue
+			if str(row.get("visit_id", "")).strip() != target_visit:
+				continue
+			if _normalize_person_name(str(row.get("inspector", ""))) != target_identity:
+				continue
+			raw_norms = row.get("norms", [])
+			if not isinstance(raw_norms, list):
+				return []
+			cleaned = [_normalize_norm_key(item) for item in raw_norms if str(item).strip()]
+			return sorted(set(cleaned), key=self._norm_sort_key)
+
+		return []
+
+	def save_visit_norm_report(self, visit_id: str, norms_applied: list[str], inspector_name: str | None = None) -> dict[str, Any]:
+		found = self._find_visit_storage(visit_id)
+		if found is None:
+			raise ValueError("No se encontro la visita seleccionada.")
+
+		visits_path, visits, visit = found
+		visit_inspectors = _normalize_visit_inspectors(visit.get("inspectors"), str(visit.get("inspector", "")))
+
+		viewer_name = str((self.current_user or {}).get("name", "")).strip()
+		target_name = str(inspector_name or viewer_name).strip()
+		if not target_name:
+			target_name = visit_inspectors[0] if visit_inspectors else ""
+
+		if not target_name:
+			raise ValueError("No se pudo identificar al ejecutivo tecnico del reporte.")
+
+		if self.current_user and self.current_user.get("role") == "ejecutivo":
+			if target_name != viewer_name:
+				raise ValueError("Solo puedes reportar normas para tus propias visitas.")
+			if target_name not in visit_inspectors:
+				raise ValueError("No tienes permiso para reportar normas en esta visita.")
+
+		clean_norms = sorted(
+			{_normalize_norm_key(item) for item in norms_applied if str(item).strip()},
+			key=self._norm_sort_key,
+		)
+		if not clean_norms:
+			raise ValueError("Selecciona al menos una norma aplicada durante la visita.")
+
+		reports = _read_json(NORMS_REPORT_FILE, [])
+		if not isinstance(reports, list):
+			reports = []
+
+		target_visit = str(visit_id).strip()
+		target_identity = _normalize_person_name(target_name)
+		existing_index = next(
+			(
+				index
+				for index, item in enumerate(reports)
+				if isinstance(item, dict)
+				and str(item.get("visit_id", "")).strip() == target_visit
+				and _normalize_person_name(str(item.get("inspector", ""))) == target_identity
+			),
+			None,
+		)
+
+		visit_date = _normalize_visit_date(str(visit.get("visit_date", "")))
+		month_key = visit_date[:7] if visit_date else datetime.now().strftime("%Y-%m")
+		year_value = int(month_key.split("-")[0]) if "-" in month_key else datetime.now().year
+
+		record = dict(reports[existing_index]) if existing_index is not None else {}
+		record["id"] = str(record.get("id", "")).strip() or uuid4().hex
+		record["visit_id"] = target_visit
+		record["visit_date"] = visit_date
+		record["month"] = month_key
+		record["year"] = year_value
+		record["inspector"] = target_name
+		record["client"] = str(visit.get("client", "")).strip()
+		record["address"] = str(visit.get("address", "")).strip()
+		record["service"] = str(visit.get("service", "")).strip()
+		record["norms"] = clean_norms
+		record["norm_count"] = len(clean_norms)
+		record["updated_at"] = _timestamp()
+
+		if existing_index is None:
+			reports.append(record)
+		else:
+			reports[existing_index] = record
+		_write_json(NORMS_REPORT_FILE, reports)
+
+		reported_norms = visit.get("reported_norms", {})
+		if not isinstance(reported_norms, dict):
+			reported_norms = {}
+		reported_norms[target_name] = clean_norms
+		visit["reported_norms"] = reported_norms
+		visit["acceptance_status"] = "finalizada"
+		visit["updated_at"] = _timestamp()
+		_write_json(visits_path, visits)
+
+		self.reload()
+		return record
+
+	def list_norm_visit_reports(self, month: str | None = None) -> list[dict[str, Any]]:
+		reports = _read_json(NORMS_REPORT_FILE, [])
+		if not isinstance(reports, list):
+			reports = []
+
+		if month:
+			month_key = str(month).strip()
+			reports = [item for item in reports if str(item.get("month", "")).strip() == month_key]
+
+		reports.sort(
+			key=lambda item: (
+				str(item.get("month", "")),
+				str(item.get("visit_date", "")),
+				str(item.get("updated_at", "")),
+			),
+			reverse=True,
+		)
+		return [dict(item) for item in reports if isinstance(item, dict)]
+
+	def get_norm_report_months(self) -> list[str]:
+		reports = self.list_norm_visit_reports()
+		months = sorted({str(item.get("month", "")).strip() for item in reports if str(item.get("month", "")).strip()})
+		return months
+
+	def get_monthly_norm_demand(self, month: str | None = None) -> list[dict[str, Any]]:
+		target_month = str(month).strip() if month else ""
+		rows = self.list_norm_visit_reports(month=target_month or None)
+		counts: dict[str, int] = {}
+		for row in rows:
+			for norm in row.get("norms", []):
+				norm_key = _normalize_norm_key(norm)
+				counts[norm_key] = counts.get(norm_key, 0) + 1
+
+		result = [{"norm": norm, "count": count} for norm, count in counts.items()]
+		result.sort(key=lambda item: (item["count"], item["norm"]), reverse=True)
+		return result
 
 	def save_norm(self, payload: dict[str, Any], original_nom: str | None = None) -> dict[str, Any]:
 		nom = str(payload.get("NOM", "")).strip()
@@ -1788,11 +2287,26 @@ class CalibrationController:
 		return output_path
 
 	def _history_dir(self, inspector_name: str) -> Path:
-		preferred_path = HISTORY_DIR / _safe_folder_name(inspector_name)
+		requested_name = str(inspector_name or "").strip()
+		canonical_name = self._resolve_canonical_person_name(requested_name) or requested_name
+		preferred_path = HISTORY_DIR / _safe_folder_name(canonical_name)
+		alias_paths: list[Path] = []
+		if canonical_name and requested_name and _normalize_person_name(canonical_name) != _normalize_person_name(requested_name):
+			for alias_path in {
+				HISTORY_DIR / _safe_folder_name(requested_name),
+				HISTORY_DIR / _safe_slug(requested_name),
+			}:
+				alias_paths.append(alias_path)
 
-		target_identity = _folder_identity(inspector_name)
+		target_identity = _folder_identity(canonical_name)
 		cached_path = self._history_dir_index.get(target_identity) if target_identity else None
-		if cached_path is not None and cached_path.exists():
+		has_pending_alias = any(
+			alias_path.exists()
+			and cached_path is not None
+			and alias_path.resolve() != cached_path.resolve()
+			for alias_path in alias_paths
+		)
+		if cached_path is not None and cached_path.exists() and not has_pending_alias:
 			return cached_path
 
 		preferred_path.mkdir(parents=True, exist_ok=True)
@@ -1808,9 +2322,13 @@ class CalibrationController:
 				if not self._consolidation_done and _history_folder_matches_identity(child, target_identity):
 					candidates.append(child)
 
-			legacy_path = HISTORY_DIR / _safe_slug(inspector_name)
+			legacy_path = HISTORY_DIR / _safe_slug(canonical_name)
 			if legacy_path.exists() and legacy_path.is_dir() and legacy_path not in candidates:
 				candidates.append(legacy_path)
+
+			for alias_path in alias_paths:
+				if alias_path.exists() and alias_path.is_dir() and alias_path not in candidates:
+					candidates.append(alias_path)
 
 			for source in candidates:
 				if source.resolve() == preferred_path.resolve():
@@ -2106,6 +2624,7 @@ def _controller_save_evaluation(self, inspector_name: str, payload: dict[str, An
 	protocol_answers = _normalize_supervision_answers(payload.get("protocol_answers"))
 	process_answers = _normalize_supervision_answers(payload.get("process_answers"))
 	technical_normative_rows = _normalize_technical_normative_rows(payload.get("technical_normative_rows"))
+	image_folder = str(payload.get("image_folder", "")).strip()
 	score_breakdown = payload.get("score_breakdown", {})
 	if not isinstance(score_breakdown, dict):
 		score_breakdown = {}
@@ -2158,6 +2677,7 @@ def _controller_save_evaluation(self, inspector_name: str, payload: dict[str, An
 		"protocol_answers": protocol_answers,
 		"process_answers": process_answers,
 		"technical_normative_rows": technical_normative_rows,
+		"image_folder": image_folder,
 		"score_breakdown": score_breakdown,
 		"soft_skills_breakdown": soft_skills_breakdown,
 		"technical_skills_breakdown": technical_skills_breakdown,
@@ -2239,6 +2759,33 @@ def _controller_generate_document(
 	return output_path
 
 
+def _controller_get_default_trimestral_report_path(self) -> Path:
+	reports_dir = DATA_DIR / "reportes"
+	reports_dir.mkdir(parents=True, exist_ok=True)
+
+	current_user = self.current_user or {}
+	viewer_name = str(current_user.get("name", "reporte_trimestral")).strip() or "reporte_trimestral"
+	viewer_role = str(current_user.get("role", "")).strip().lower()
+	scope_slug = "global" if viewer_role == "admin" else _safe_slug(viewer_name).lower()
+	timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+	filename = f"reporte_trimestral_{scope_slug}_{timestamp}.pdf"
+	return reports_dir / filename
+
+
+def _controller_generate_trimestral_dashboard_report(
+	self,
+	destination: str | Path,
+	payload: dict[str, Any],
+) -> Path:
+	output_path = Path(destination)
+	output_path.parent.mkdir(parents=True, exist_ok=True)
+
+	module = _load_module(str(DOCUMENT_MODULE_DIR / "ReporteTrimestral.py"))
+	builder = getattr(module, "build_trimestral_dashboard_pdf")
+	builder(output_path, payload)
+	return output_path
+
+
 CalibrationController._evaluation_key = staticmethod(_controller_evaluation_key)
 CalibrationController.get_norm_display_name = _controller_get_norm_display_name
 CalibrationController.get_norm_score_history = _controller_get_norm_score_history
@@ -2251,3 +2798,5 @@ CalibrationController.get_overview_metrics = _controller_get_overview_metrics
 CalibrationController.save_evaluation = _controller_save_evaluation
 CalibrationController.get_default_document_path = _controller_get_default_document_path
 CalibrationController.generate_document = _controller_generate_document
+CalibrationController.get_default_trimestral_report_path = _controller_get_default_trimestral_report_path
+CalibrationController.generate_trimestral_dashboard_report = _controller_generate_trimestral_dashboard_report

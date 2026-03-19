@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from statistics import mean
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfgen import canvas as pdf_canvas
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
 ACCENT = colors.HexColor("#ECD925")
@@ -107,6 +108,88 @@ def _normalize_score_by_norm(raw_scores: object) -> dict[str, float]:
         normalized[clean_norm] = round(score, 1)
 
     return normalized
+
+
+def _normalize_match_key(value: object) -> str:
+    text = str(value or "").strip().lower()
+    if not text:
+        return ""
+    return re.sub(r"[^a-z0-9]+", "", text)
+
+
+def _collect_evidence_images(rows_data: list[dict[str, str]], image_folder: str) -> list[dict[str, object]]:
+    folder_path = Path(str(image_folder or "").strip())
+    if not folder_path.exists() or not folder_path.is_dir():
+        return []
+
+    valid_suffixes = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+    files_by_key: dict[str, Path] = {}
+    for file_path in sorted(folder_path.iterdir()):
+        if not file_path.is_file() or file_path.suffix.lower() not in valid_suffixes:
+            continue
+        key = _normalize_match_key(file_path.stem)
+        if key and key not in files_by_key:
+            files_by_key[key] = file_path
+
+    matches: list[dict[str, object]] = []
+    used_keys: set[str] = set()
+    for row in rows_data:
+        sku_value = _safe(row.get("sku"), "")
+        key = _normalize_match_key(sku_value)
+        if not key or key in used_keys:
+            continue
+        image_path = files_by_key.get(key)
+        if image_path is None:
+            continue
+        matches.append({"sku": sku_value, "path": image_path})
+        used_keys.add(key)
+
+    return matches
+
+
+def _append_evidence_section(
+    story: list[object],
+    technical_rows: list[dict[str, str]],
+    image_folder: str,
+    styles,
+) -> None:
+    folder_text = str(image_folder or "").strip()
+    if not folder_text:
+        return
+
+    matches = _collect_evidence_images(technical_rows, folder_text)
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Evidencia fotografica por SKU/ITEM/CODIGO/UPC", styles["VCSubheading"]))
+
+    if not matches:
+        story.append(
+            Paragraph(
+                "No se encontraron imagenes con nombre coincidente al SKU/ITEM/CODIGO/UPC capturado.",
+                styles["VCBodySmall"],
+            )
+        )
+        return
+
+    for item in matches:
+        sku_value = _safe(item.get("sku"), "--")
+        image_path = item.get("path")
+        story.append(Paragraph(f"SKU/ITEM/CODIGO/UPC: {sku_value}", styles["VCBody"]))
+        if not isinstance(image_path, Path):
+            story.append(Paragraph("Imagen no valida.", styles["VCBodySmall"]))
+            story.append(Spacer(1, 10))
+            continue
+
+        try:
+            image_flow = Image(str(image_path))
+            base_width = float(image_flow.drawWidth or 1.0)
+            base_height = float(image_flow.drawHeight or 1.0)
+            scale = min(500.0 / base_width, 280.0 / base_height, 1.0)
+            image_flow.drawWidth = base_width * scale
+            image_flow.drawHeight = base_height * scale
+            story.append(image_flow)
+        except Exception:
+            story.append(Paragraph(f"No se pudo cargar la imagen {image_path.name}.", styles["VCBodySmall"]))
+        story.append(Spacer(1, 10))
 
 
 def _header_cell(text: str, styles) -> Paragraph:
@@ -267,6 +350,7 @@ def build_formato_supervision_pdf(output_path: str | Path, payload: dict) -> Pat
     protocol_answers = _normalize_answers(payload.get("protocol_answers", []))
     process_answers = _normalize_answers(payload.get("process_answers", []))
     technical_rows = _normalize_technical_rows(payload.get("technical_normative_rows", []))
+    image_folder = str(payload.get("image_folder", "")).strip()
     score_by_norm = _normalize_score_by_norm(payload.get("score_by_norm", {}))
     average_score = _calculate_average_score(score_by_norm, raw_score)
     soft_skills_score = _to_float(payload.get("soft_skills_score"), -1.0)
@@ -332,6 +416,7 @@ def build_formato_supervision_pdf(output_path: str | Path, payload: dict) -> Pat
     story.append(Spacer(1, 12))
     story.append(Paragraph("Supervision tecnico normativa", styles["VCSubheading"]))
     story.append(_build_technical_table(technical_rows, styles))
+    _append_evidence_section(story, technical_rows, image_folder, styles)
     document.build(
         story,
         onFirstPage=_decorate_page,

@@ -15,6 +15,10 @@
     ],
     "group_id": "576975f1274a40a79b7cc7629b7edf74",
     "assignment_time": "",
-    "departure_time": ""
+    "departure_time": "",
+    "acceptance_responses": {},
+    "accepted_count": 0,
+    "required_acceptances": 1,
+    "accepted_by": ""
   }
 ]

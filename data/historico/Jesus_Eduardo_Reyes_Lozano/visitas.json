@@ -1,27 +1,5 @@
 [
   {
-    "id": "e1b991ac084f406f87aa9c6c1fc609ac",
-    "group_id": "e1b991ac084f406f87aa9c6c1fc609ac",
-    "inspectors": [
-      "David Garcia Alcantara",
-      "Edvin Zaid Ornelas Hernandez"
-    ],
-    "inspector": "David Garcia Alcantara",
-    "client": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
-    "address": "Parque industrial advance II, Capula, Tepotzotlán, Estado de México, 54603",
-    "service": "DICTAMEN",
-    "visit_date": "2026-03-20",
-    "assignment_time": "09:00",
-    "departure_time": "18:00",
-    "status": "Programada",
-    "notes": "Reunir toda la documentación requerida para la visita",
-    "assigned_by": "Efrain Morales Zamarrón",
-    "updated_at": "2026-03-18 16:25",
-    "acceptance_status": "aceptada",
-    "inspectors_text": "David Garcia Alcantara, Edvin Zaid Ornelas Hernandez",
-    "schedule_text": "09:00 - 18:00"
-  },
-  {
     "id": "7d126aa3865442c3ab1b4973b4fb0486",
     "inspector": "David Garcia Alcantara",
     "client": "DANONE DE MÉXICO S.A. DE C.V.",
@@ -41,37 +19,5 @@
     "departure_time": "",
     "inspectors_text": "David Garcia Alcantara, Jesus Eduardo Reyes Lozano",
     "schedule_text": "--"
-  },
-  {
-    "id": "576975f1274a40a79b7cc7629b7edf74",
-    "inspector": "David Garcia Alcantara",
-    "client": "DANONE DE MÉXICO S.A. DE C.V.",
-    "address": "Av. Irapuato 2475, Ciudad Industrial Irapuato, Irapuato, Guanajuato, 36514",
-    "service": "DICTAMEN",
-    "visit_date": "2026-03-13",
-    "status": "Programada",
-    "notes": "Adjuntar la documentacion pertinente",
-    "assigned_by": "Efrain Morales Zamarrón",
-    "updated_at": "2026-03-12 15:54",
-    "inspectors": [
-      "David Garcia Alcantara"
-    ],
-    "group_id": "576975f1274a40a79b7cc7629b7edf74",
-    "assignment_time": "",
-    "departure_time": "",
-    "inspectors_text": "David Garcia Alcantara",
-    "schedule_text": "--"
-  },
-  {
-    "id": "d10597ac7a404d43ae5e41efdd64372a",
-    "inspector": "Jesus Eduardo Reyes Lozano",
-    "client": "DANONE DE MÉXICO S.A. DE C.V.",
-    "address": "Av. Irapuato 2475, Ciudad Industrial Irapuato, Irapuato, Guanajuato, 36514",
-    "service": "DICTAMEN",
-    "visit_date": "2026-03-17",
-    "status": "Programada",
-    "notes": "",
-    "assigned_by": "Efrain Morales Zamarrón",
-    "updated_at": "2026-03-17 13:29"
   }
 ]

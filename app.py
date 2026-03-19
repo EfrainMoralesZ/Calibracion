@@ -707,6 +707,7 @@ class EvaluationDialog(ctk.CTkToplevel):
         self.score_var = ctk.StringVar(value="")
         self.status_var = ctk.StringVar(value="Estable")
         self.form_status_var = ctk.StringVar(value="")
+        self.image_folder_var = ctk.StringVar(value="")
 
         self.norm_selector: ctk.CTkComboBox | None = None
         self.client_selector: ctk.CTkComboBox | None = None
@@ -990,7 +991,7 @@ class EvaluationDialog(ctk.CTkToplevel):
 
     def _build_technical_tab(self, parent: ctk.CTkFrame) -> None:
         parent.grid_columnconfigure(0, weight=1)
-        parent.grid_rowconfigure(3, weight=1)
+        parent.grid_rowconfigure(4, weight=1)
 
         ctk.CTkLabel(parent, text="SUPERVISIÓN TÉCNICO NORMATIVA", font=FONTS["label_bold"], text_color=STYLE["texto_oscuro"]).grid(row=0, column=0, padx=18, pady=(16, 6), sticky="w")
         ctk.CTkLabel(
@@ -1002,8 +1003,32 @@ class EvaluationDialog(ctk.CTkToplevel):
             justify="left",
         ).grid(row=1, column=0, padx=18, sticky="w")
 
+        evidence_row = ctk.CTkFrame(parent, fg_color="transparent")
+        evidence_row.grid(row=2, column=0, padx=18, pady=(10, 8), sticky="ew")
+        evidence_row.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(
+            evidence_row,
+            text="Cargar carpeta de imagenes",
+            fg_color=STYLE["fondo"],
+            text_color=STYLE["texto_oscuro"],
+            border_width=1,
+            border_color="#D5D8DC",
+            hover_color="#E9ECEF",
+            command=self._select_images_folder,
+        ).grid(row=0, column=0, padx=(0, 10), sticky="w")
+
+        ctk.CTkLabel(
+            evidence_row,
+            textvariable=self.image_folder_var,
+            font=FONTS["small"],
+            text_color="#6D7480",
+            justify="left",
+            anchor="w",
+        ).grid(row=0, column=1, sticky="ew")
+
         header = ctk.CTkFrame(parent, fg_color=STYLE["primario"], corner_radius=10)
-        header.grid(row=2, column=0, padx=18, pady=(10, 8), sticky="ew")
+        header.grid(row=3, column=0, padx=18, pady=(0, 8), sticky="ew")
         header.grid_columnconfigure(0, weight=4)
         header.grid_columnconfigure(1, weight=3)
         header.grid_columnconfigure(2, weight=1)
@@ -1029,7 +1054,7 @@ class EvaluationDialog(ctk.CTkToplevel):
             add_btn.configure(state="disabled")
 
         self.technical_rows_container = ctk.CTkScrollableFrame(parent, fg_color=STYLE["fondo"], corner_radius=0)
-        self.technical_rows_container.grid(row=3, column=0, padx=18, pady=(0, 12), sticky="nsew")
+        self.technical_rows_container.grid(row=4, column=0, padx=18, pady=(0, 12), sticky="nsew")
         self.technical_rows_container.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
@@ -1038,10 +1063,10 @@ class EvaluationDialog(ctk.CTkToplevel):
             font=FONTS["small"],
             text_color="#6D7480",
             justify="left",
-        ).grid(row=4, column=0, padx=18, pady=(0, 8), sticky="w")
+        ).grid(row=5, column=0, padx=18, pady=(0, 8), sticky="w")
 
         actions = ctk.CTkFrame(parent, fg_color="transparent")
-        actions.grid(row=5, column=0, padx=18, pady=(0, 12), sticky="ew")
+        actions.grid(row=6, column=0, padx=18, pady=(0, 12), sticky="ew")
         actions.grid_columnconfigure(0, weight=1)
 
         self.download_button = ctk.CTkButton(
@@ -1058,6 +1083,12 @@ class EvaluationDialog(ctk.CTkToplevel):
             self.download_button.configure(state="disabled")
 
         self._add_technical_row()
+
+    def _select_images_folder(self) -> None:
+        selected = filedialog.askdirectory(parent=self, title="Selecciona la carpeta de imagenes")
+        if not selected:
+            return
+        self.image_folder_var.set(selected)
 
     def _add_technical_row(self, initial_values: dict[str, str] | None = None) -> None:
         if self.technical_rows_container is None:
@@ -1423,6 +1454,7 @@ class EvaluationDialog(ctk.CTkToplevel):
                 self.supervisor_var.set(latest.get("evaluator", self.supervisor_var.get()))
                 self.score_var.set(str(latest.get("score", "")))
                 self.status_var.set(str(latest.get("status", self.status_var.get())))
+                self.image_folder_var.set(str(latest.get("image_folder", "")).strip())
 
                 protocol_map = {
                     str(item.get("activity", "")).strip(): item
@@ -1464,6 +1496,7 @@ class EvaluationDialog(ctk.CTkToplevel):
             else:
                 self.date_var.set(datetime.now().strftime("%Y-%m-%d"))
                 self.score_var.set("")
+                self.image_folder_var.set("")
                 for idx in range(len(PROTOCOL_QUESTIONS)):
                     self.protocol_result_vars[idx].set("")
                     self.protocol_obs_vars[idx].set("")
@@ -1605,6 +1638,7 @@ class EvaluationDialog(ctk.CTkToplevel):
             "protocol_answers": protocol_answers,
             "process_answers": process_answers,
             "technical_normative_rows": technical_rows,
+            "image_folder": self.image_folder_var.get().strip(),
             "score_breakdown": score_breakdown,
             "score_by_norm": score_by_norm,
             "soft_skills_score": soft_skills_score,
@@ -1721,6 +1755,7 @@ class EvaluationDialog(ctk.CTkToplevel):
         self.supervisor_var.set((self.controller.current_user or {}).get("name", ""))
         self.score_var.set("")
         self.status_var.set("Estable")
+        self.image_folder_var.set("")
 
         for variable in self.protocol_result_vars:
             variable.set("")
