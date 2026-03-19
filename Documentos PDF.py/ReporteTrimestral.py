@@ -27,6 +27,16 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 TEMPLATE_PATH = ROOT_DIR / "img" / "plantilla.png"
 
 
+def _status_color(status_text: str) -> str:
+	"""Return a readable hex color for a status label."""
+	tl = status_text.lower()
+	if "mayor" in tl:
+		return "#006B3C"
+	if "menor" in tl:
+		return "#B94A2C"
+	return DARK_HEX
+
+
 def _safe(value: object, fallback: str = "--") -> str:
 	text = str(value).strip() if value not in (None, "") else ""
 	return text or fallback
@@ -129,17 +139,7 @@ def build_trimestral_dashboard_pdf(output_path: str | Path, payload: dict) -> Pa
 		[Paragraph("Resumen", styles["VCBodySmallBold"]), _paragraph(summary_text, styles["VCBodySmall"])],
 	]
 
-	if can_edit:
-		summary_data.extend(
-			[
-				[Paragraph("Combinaciones", styles["VCBodySmallBold"]), _paragraph(metrics.get("total_combinations", 0), styles["VCBodySmall"])],
-				[Paragraph("Usos totales", styles["VCBodySmallBold"]), _paragraph(metrics.get("total_uses", 0), styles["VCBodySmall"])],
-				[Paragraph("Mayor demanda", styles["VCBodySmallBold"]), _paragraph(f'{metrics.get("highest_usage", 0)} usos', styles["VCBodySmall"])],
-				[Paragraph("Normas", styles["VCBodySmallBold"]), _paragraph(metrics.get("norms_used", 0), styles["VCBodySmall"])],
-				[Paragraph("Ejecutivos", styles["VCBodySmallBold"]), _paragraph(metrics.get("executivos", 0), styles["VCBodySmall"])],
-			]
-		)
-	else:
+	if not can_edit:
 		summary_data.extend(
 			[
 				[Paragraph("Normas acreditadas", styles["VCBodySmallBold"]), _paragraph(metrics.get("total_norms", 0), styles["VCBodySmall"])],
@@ -154,14 +154,15 @@ def build_trimestral_dashboard_pdf(output_path: str | Path, payload: dict) -> Pa
 		TableStyle(
 			[
 				("BACKGROUND", (0, 0), (0, -1), ACCENT),
+				("BACKGROUND", (1, 0), (1, -1), colors.white),
 				("TEXTCOLOR", (0, 0), (-1, -1), DARK),
-				("ROWBACKGROUNDS", (1, 0), (1, -1), [LIGHT, colors.white]),
-				("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D9DDE1")),
-				("VALIGN", (0, 0), (-1, -1), "TOP"),
-				("LEFTPADDING", (0, 0), (-1, -1), 8),
-				("RIGHTPADDING", (0, 0), (-1, -1), 8),
-				("TOPPADDING", (0, 0), (-1, -1), 6),
-				("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+				("BOX", (0, 0), (-1, -1), 0.75, colors.HexColor("#C8CDD2")),
+				("LINEBELOW", (0, 0), (-1, -2), 0.5, colors.HexColor("#D9DDE1")),
+				("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+				("LEFTPADDING", (0, 0), (-1, -1), 10),
+				("RIGHTPADDING", (0, 0), (-1, -1), 10),
+				("TOPPADDING", (0, 0), (-1, -1), 7),
+				("BOTTOMPADDING", (0, 0), (-1, -1), 7),
 			]
 		)
 	)
@@ -206,9 +207,9 @@ def build_trimestral_dashboard_pdf(output_path: str | Path, payload: dict) -> Pa
 			usage_count = _as_int(item.get("usage_count"), 0)
 			status_text = _safe(item.get("status"), "--")
 			frequency_text = "1 uso" if usage_count == 1 else f"{usage_count} usos"
-			usage_hex = ACCENT_HEX
-			usage_paragraph = Paragraph(f'<font color="{usage_hex}"><b>{usage_count}</b></font>', styles["VCBodySmall"])
-			status_paragraph = Paragraph(f'<font color="{usage_hex}"><b>{escape(status_text)}</b></font>', styles["VCBodySmall"])
+			usage_paragraph = Paragraph(f"<b>{usage_count}</b>", styles["VCBodySmall"])
+			status_color_hex = _status_color(status_text)
+			status_paragraph = Paragraph(f'<font color="{status_color_hex}"><b>{escape(status_text)}</b></font>', styles["VCBodySmall"])
 
 			if can_edit:
 				table_rows.append(
@@ -236,15 +237,17 @@ def build_trimestral_dashboard_pdf(output_path: str | Path, payload: dict) -> Pa
 		style_commands: list[tuple[object, ...]] = [
 			("BACKGROUND", (0, 0), (-1, 0), ACCENT),
 			("TEXTCOLOR", (0, 0), (-1, 0), DARK),
-			("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D9DDE1")),
 			("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-			("VALIGN", (0, 0), (-1, -1), "TOP"),
-			("LEFTPADDING", (0, 0), (-1, -1), 6),
-			("RIGHTPADDING", (0, 0), (-1, -1), 6),
-			("TOPPADDING", (0, 0), (-1, 0), 8),
-			("BOTTOMPADDING", (0, 0), (-1, 0), 8),
-			("TOPPADDING", (0, 1), (-1, -1), 6),
-			("BOTTOMPADDING", (0, 1), (-1, -1), 6),
+			("BOX", (0, 0), (-1, -1), 0.75, colors.HexColor("#C8CDD2")),
+			("LINEBELOW", (0, 0), (-1, 0), 1.5, colors.HexColor("#B8A200")),
+			("LINEBELOW", (0, 1), (-1, -1), 0.5, colors.HexColor("#D9DDE1")),
+			("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+			("LEFTPADDING", (0, 0), (-1, -1), 8),
+			("RIGHTPADDING", (0, 0), (-1, -1), 8),
+			("TOPPADDING", (0, 0), (-1, 0), 9),
+			("BOTTOMPADDING", (0, 0), (-1, 0), 9),
+			("TOPPADDING", (0, 1), (-1, -1), 7),
+			("BOTTOMPADDING", (0, 1), (-1, -1), 7),
 			("ALIGN", (0, 0), (0, -1), "CENTER"),
 			("ALIGN", (usage_col, 1), (usage_col, -1), "CENTER"),
 			("ALIGN", (state_col, 1), (state_col, -1), "CENTER"),

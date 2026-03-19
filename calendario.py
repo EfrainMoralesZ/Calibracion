@@ -108,8 +108,6 @@ class CalendarView(ctk.CTkFrame):
         if self.can_edit:
             tabs.add("Visitas asignadas")
             self._build_visits_tab(tabs.tab("Visitas asignadas"))
-            tabs.add("Dashboard")
-            self._build_dashboard_tab(tabs.tab("Dashboard"))
 
     def _build_calendar_tab(self, tab) -> None:
         tab.grid_columnconfigure(0, weight=1, minsize=340)
