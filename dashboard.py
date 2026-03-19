@@ -24,6 +24,9 @@ class DashboardView(ctk.CTkFrame):
         self._recent_visits: list[dict] = []
         self._active_inspector_name: str | None = None
         self.selected_norm_token: str | None = None
+        self._cards_signature: tuple | None = None
+        self._visits_text_cache: str | None = None
+        self._learning_curve_signature: tuple | None = None
 
         self.executive_var = ctk.StringVar()
         self.focus_var = ctk.StringVar(value="Sin seguimiento")
@@ -200,6 +203,25 @@ class DashboardView(ctk.CTkFrame):
         if self.cards_frame is None:
             return
 
+        signature = (
+            inspector_mode,
+            self.selected_norm_token if inspector_mode else "",
+            tuple(
+                (
+                    str(item.get("token", "Sin norma")).strip() or "Sin norma",
+                    str(item.get("full_nom") or item.get("label") or item.get("token", "Sin norma")),
+                    self._compact_description(item.get("description", "Catalogo no definido"), limit=102),
+                    self._coerce_score(item.get("average_score")),
+                    int(item.get("evaluations", 0)),
+                    int(item.get("count", 0)),
+                )
+                for item in metrics
+            ),
+        )
+        if signature == self._cards_signature and self.cards_frame.winfo_children():
+            return
+        self._cards_signature = signature
+
         for child in self.cards_frame.winfo_children():
             child.destroy()
 
@@ -374,38 +396,35 @@ class DashboardView(ctk.CTkFrame):
         mode = self.visits_mode_var.get().strip() or "Visitas asignadas"
         if not self._active_inspector_name:
             if mode == "Visitas asignadas":
-                self._set_textbox(
-                    self.visits_box,
-                    "Selecciona un ejecutivo tecnico para ver sus visitas asignadas.",
-                )
+                content = "Selecciona un ejecutivo tecnico para ver sus visitas asignadas."
             else:
-                self._set_textbox(
-                    self.visits_box,
-                    "Selecciona un ejecutivo tecnico para ver sus visitas recientes.",
-                )
-            return
-
-        if mode == "Recientes":
-            visits = list(self._recent_visits)
-            title = f"Visitas recientes de {self._active_inspector_name}"
+                content = "Selecciona un ejecutivo tecnico para ver sus visitas recientes."
         else:
-            visits = self.controller.list_visits(name=self._active_inspector_name)
-            title = f"Visitas asignadas de {self._active_inspector_name}"
+            if mode == "Recientes":
+                visits = list(self._recent_visits)
+                title = f"Visitas recientes de {self._active_inspector_name}"
+            else:
+                visits = self.controller.list_visits(name=self._active_inspector_name)
+                title = f"Visitas asignadas de {self._active_inspector_name}"
 
-        if not visits:
-            self._set_textbox(self.visits_box, f"{title}\n\nSin visitas registradas.")
+            if not visits:
+                content = f"{title}\n\nSin visitas registradas."
+            else:
+                lines = [title, ""]
+                for visit in visits:
+                    lines.append(
+                        "- "
+                        f"{visit.get('visit_date', '--')} | "
+                        f"{visit.get('client', 'Sin cliente')} | "
+                        f"{visit.get('service', 'Sin servicio')} | "
+                        f"{visit.get('status', 'Sin estado')}"
+                    )
+                content = "\n".join(lines)
+
+        if content == self._visits_text_cache:
             return
-
-        lines = [title, ""]
-        for visit in visits:
-            lines.append(
-                "- "
-                f"{visit.get('visit_date', '--')} | "
-                f"{visit.get('client', 'Sin cliente')} | "
-                f"{visit.get('service', 'Sin servicio')} | "
-                f"{visit.get('status', 'Sin estado')}"
-            )
-        self._set_textbox(self.visits_box, "\n".join(lines))
+        self._visits_text_cache = content
+        self._set_textbox(self.visits_box, content)
 
     def _open_norm_detail(self, token: str) -> None:
         if not self._active_inspector_name:
@@ -614,6 +633,23 @@ class DashboardView(ctk.CTkFrame):
         self._draw_learning_curve()
 
     def _draw_learning_curve(self) -> None:
+        canvas_size = (0, 0)
+        if self.learning_canvas is not None:
+            canvas_size = (self.learning_canvas.winfo_width(), self.learning_canvas.winfo_height())
+
+        signature = (
+            canvas_size,
+            tuple(
+                (
+                    self._normalize_label(item.get("label", "")),
+                    self._coerce_score(item.get("score")),
+                )
+                for item in self._learning_history
+            ),
+        )
+        if signature == self._learning_curve_signature:
+            return
+        self._learning_curve_signature = signature
         self._draw_curve_on_canvas(
             self.learning_canvas,
             self._learning_history,

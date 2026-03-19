@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import ctypes
 import os
 import re
+import threading
+from collections.abc import Callable
 from datetime import datetime
 from tkinter import TclError, filedialog, messagebox, ttk
 
@@ -43,6 +46,124 @@ BASE_FONTS = {
 }
 
 FONTS = dict(BASE_FONTS)
+
+
+_MONITOR_DEFAULTTONEAREST = 2
+
+
+class _WinRect(ctypes.Structure):
+    _fields_ = [
+        ("left", ctypes.c_long),
+        ("top", ctypes.c_long),
+        ("right", ctypes.c_long),
+        ("bottom", ctypes.c_long),
+    ]
+
+
+class _MonitorInfo(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", ctypes.c_ulong),
+        ("rcMonitor", _WinRect),
+        ("rcWork", _WinRect),
+        ("dwFlags", ctypes.c_ulong),
+    ]
+
+
+def _configure_windows_dpi_behavior() -> None:
+    if os.name != "nt":
+        return
+
+    try:
+        ctk.deactivate_automatic_dpi_awareness()
+    except AttributeError:
+        pass
+
+    try:
+        user32 = ctypes.windll.user32
+    except AttributeError:
+        return
+
+    for context in (ctypes.c_void_p(-2),):
+        try:
+            if user32.SetProcessDpiAwarenessContext(context):
+                return
+        except (AttributeError, OSError):
+            pass
+
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        return
+    except (AttributeError, OSError):
+        pass
+
+    try:
+        user32.SetProcessDPIAware()
+    except (AttributeError, OSError):
+        return
+
+
+def _get_window_work_area(window) -> tuple[int, int, int, int] | None:
+    if os.name != "nt" or window is None:
+        return None
+
+    try:
+        hwnd = int(window.winfo_id())
+    except (AttributeError, TclError, ValueError):
+        return None
+
+    try:
+        user32 = ctypes.windll.user32
+        monitor = user32.MonitorFromWindow(hwnd, _MONITOR_DEFAULTTONEAREST)
+        if not monitor:
+            return None
+
+        monitor_info = _MonitorInfo()
+        monitor_info.cbSize = ctypes.sizeof(_MonitorInfo)
+        if not user32.GetMonitorInfoW(monitor, ctypes.byref(monitor_info)):
+            return None
+
+        work_area = monitor_info.rcWork
+        return work_area.left, work_area.top, work_area.right, work_area.bottom
+    except (AttributeError, OSError):
+        return None
+
+
+def _position_toplevel(window, parent, width: int, height: int) -> None:
+    try:
+        window.update_idletasks()
+    except TclError:
+        return
+
+    work_area = _get_window_work_area(parent or window)
+    if work_area is None:
+        left = 0
+        top = 0
+        right = max(width, int(window.winfo_screenwidth()))
+        bottom = max(height, int(window.winfo_screenheight()))
+    else:
+        left, top, right, bottom = work_area
+
+    x = left + max(0, ((right - left) - width) // 2)
+    y = top + max(0, ((bottom - top) - height) // 2)
+
+    if parent is not None:
+        try:
+            if parent.winfo_exists():
+                parent.update_idletasks()
+                parent_width = max(parent.winfo_width(), parent.winfo_reqwidth())
+                parent_height = max(parent.winfo_height(), parent.winfo_reqheight())
+                if parent_width > 1 and parent_height > 1:
+                    x = parent.winfo_rootx() + (parent_width - width) // 2
+                    y = parent.winfo_rooty() + (parent_height - height) // 2
+        except TclError:
+            pass
+
+    padding = 16
+    max_x = max(left + padding, right - width - padding)
+    max_y = max(top + padding, bottom - height - padding)
+    x = min(max(left + padding, x), max_x)
+    y = min(max(top + padding, y), max_y)
+    window.geometry(f"{width}x{height}+{x}+{y}")
 
 
 # ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -188,6 +309,7 @@ class InspectorEditDialog(ctk.CTkToplevel):
             command=self._save,
         ).grid(row=0, column=1, padx=(8, 0), sticky="ew")
 
+        _position_toplevel(self, master, 720, 620)
         _safe_focus(name_entry)
 
     def _save(self) -> None:
@@ -311,6 +433,8 @@ class NormSelectionDialog(ctk.CTkToplevel):
             hover_color="#E9ECEF",
             command=self.destroy,
         ).grid(row=0, column=0, sticky="e")
+
+        _position_toplevel(self, master, 940, 640)
 
     def _norm_name(self, norm_token: str) -> str:
         return self.norm_labels.get(norm_token, "Formulario operativo disponible para esta norma.")
@@ -534,6 +658,8 @@ class NormSelectionDialog(ctk.CTkToplevel):
             command=dialog.destroy,
         ).grid(row=0, column=0, sticky="e")
 
+        _position_toplevel(dialog, self, 1180, 560)
+
     def _norm_icon(self, norm_token: str) -> str:
         norm_name = self._norm_name(norm_token).lower()
         if "textil" in norm_name or "vestir" in norm_name:
@@ -591,6 +717,8 @@ class EvaluationDialog(ctk.CTkToplevel):
         self.norm_display_to_token: dict[str, str] = {}
         self.applicable_norm_values: list[str] = []
         self._is_loading_latest = False
+        self._document_generation_in_progress = False
+        self._document_worker: threading.Thread | None = None
         self._observed_vars: list[ctk.StringVar] = []
 
         self.protocol_result_vars: list[ctk.StringVar] = []
@@ -606,17 +734,12 @@ class EvaluationDialog(ctk.CTkToplevel):
         self.configure(fg_color=STYLE["fondo"])
         self.transient(master)
         self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self._handle_close_request)
 
         self._build_ui()
         self._configure_form_state_tracking()
         self._load_latest(preload_saved=False)
-
-        # Centre on screen so nothing is clipped on smaller displays
-        self.update_idletasks()
-        _w, _h = 960, 660
-        _x = max(0, (self.winfo_screenwidth() - _w) // 2)
-        _y = max(30, (self.winfo_screenheight() - _h) // 2)
-        self.geometry(f"{_w}x{_h}+{_x}+{_y}")
+        _position_toplevel(self, master, 960, 660)
 
     def _build_ui(self) -> None:
         wrapper = ctk.CTkFrame(self, fg_color=STYLE["surface"], corner_radius=24)
@@ -666,7 +789,7 @@ class EvaluationDialog(ctk.CTkToplevel):
             fg_color=STYLE["fondo"],
             text_color=STYLE["texto_oscuro"],
             hover_color="#E9ECEF",
-            command=self.destroy,
+            command=self._handle_close_request,
         )
         self.close_button.grid(row=0, column=0, sticky="e")
 
@@ -1502,22 +1625,66 @@ class EvaluationDialog(ctk.CTkToplevel):
 
     def _sync_download_state(self) -> None:
         enabled = self._is_form_complete()
-        self.form_status_var.set(
-            "Formulario completo. Ya puedes generar el Formato de Supervisión."
-            if enabled
-            else "Completa los 4 apartados para habilitar el Formato de Supervisión."
-        )
+        if not self._document_generation_in_progress:
+            self.form_status_var.set(
+                "Formulario completo. Ya puedes generar el Formato de Supervisión."
+                if enabled
+                else "Completa los 4 apartados para habilitar el Formato de Supervisión."
+            )
         if self.download_button is None:
             return
 
         if enabled:
             self.download_button.grid()
-            self.download_button.configure(state="normal" if self.can_edit else "disabled")
+            button_enabled = self.can_edit and not self._document_generation_in_progress
+            self.download_button.configure(state="normal" if button_enabled else "disabled")
         else:
             self.download_button.grid_remove()
 
+    def _handle_close_request(self) -> None:
+        if self._document_generation_in_progress:
+            return
+        self.destroy()
+
+    def _set_document_busy(self, busy: bool, status_message: str | None = None) -> None:
+        self._document_generation_in_progress = busy
+        if status_message is not None:
+            self.form_status_var.set(status_message)
+        if self.close_button is not None:
+            self.close_button.configure(state="disabled" if busy else "normal")
+        self._sync_download_state()
+
+    def _run_document_generation(self, kind: str, destination: str, selected_norm: str) -> None:
+        try:
+            output = self.controller.generate_document(self.inspector_name, kind, destination, selected_norm)
+        except Exception as error:
+            self.after(0, lambda error=error: self._finish_document_generation(error=error))
+            return
+
+        self.after(0, lambda output=output: self._finish_document_generation(output=output))
+
+    def _finish_document_generation(self, output=None, error: Exception | None = None) -> None:
+        self._document_worker = None
+        self._set_document_busy(False)
+
+        if error is not None:
+            messagebox.showerror("Documentos", str(error), parent=self)
+            return
+
+        if output is None:
+            return
+
+        if hasattr(os, "startfile"):
+            try:
+                os.startfile(output)
+            except OSError:
+                pass
+
+        messagebox.showinfo("Documentos", f"Archivo generado en:\n{output}", parent=self)
+        self._clear_form()
+
     def _download_document(self, kind: str) -> None:
-        if not self.can_edit:
+        if not self.can_edit or self._document_generation_in_progress:
             return
 
         payload = self._build_evaluation_payload(show_errors=True)
@@ -1540,20 +1707,13 @@ class EvaluationDialog(ctk.CTkToplevel):
         if self._persist_evaluation(payload) is None:
             return
 
-        try:
-            output = self.controller.generate_document(self.inspector_name, kind, destination, selected_norm)
-        except ValueError as error:
-            messagebox.showerror("Documentos", str(error), parent=self)
-            return
-
-        if hasattr(os, "startfile"):
-            try:
-                os.startfile(output)
-            except OSError:
-                pass
-
-        messagebox.showinfo("Documentos", f"Archivo generado en:\n{output}", parent=self)
-        self._clear_form()
+        self._set_document_busy(True, "Generando Formato de Supervisión. Espera un momento...")
+        self._document_worker = threading.Thread(
+            target=self._run_document_generation,
+            args=(kind, destination, selected_norm),
+            daemon=True,
+        )
+        self._document_worker.start()
 
     def _reset_form_fields(self) -> None:
         self.client_var.set("")
@@ -1585,7 +1745,7 @@ class EvaluationDialog(ctk.CTkToplevel):
 
 class PrincipalView(ctk.CTkFrame):
     FILTER_OPTIONS = ["Todos", "Pendientes", "En enfoque", "Completos"]
-    PAGE_SIZE = 8
+    PAGE_SIZE = 10
 
     def __init__(self, master, controller, can_edit: bool, on_change) -> None:
         super().__init__(master, fg_color=STYLE["fondo"])
@@ -1694,6 +1854,7 @@ class PrincipalView(ctk.CTkFrame):
         self.cards_frame.grid_columnconfigure(1, weight=1, uniform="principal_cards")
         self.cards_frame.grid_columnconfigure(2, weight=1, uniform="principal_cards")
         self.cards_frame.grid_columnconfigure(3, weight=1, uniform="principal_cards")
+        self.cards_frame.grid_columnconfigure(4, weight=1, uniform="principal_cards")
 
         self._pager_frame = ctk.CTkFrame(panel, fg_color="transparent")
         self._pager_frame.grid(row=2, column=0, padx=20, pady=(0, 16), sticky="ew")
@@ -1875,7 +2036,7 @@ class PrincipalView(ctk.CTkFrame):
             border_color="#E3E6EA",
             height=248,
         )
-        card.grid(row=index // 4, column=index % 4, padx=6, pady=6, sticky="nsew")
+        card.grid(row=index // 5, column=index % 5, padx=6, pady=6, sticky="nsew")
         card.grid_propagate(False)
         card.grid_columnconfigure(1, weight=1)
         # row 2 (norms box) absorbs extra vertical space so the button stays at bottom
@@ -2032,11 +2193,13 @@ class PrincipalView(ctk.CTkFrame):
 
 class CalibrationApp(ctk.CTk):
     def __init__(self) -> None:
+        _configure_windows_dpi_behavior()
         ctk.set_appearance_mode("light")
         super().__init__(fg_color=STYLE["fondo"])
 
         self.controller = CalibrationController()
         self.pages: dict[str, ctk.CTkFrame] = {}
+        self.page_factories: dict[str, Callable[[], ctk.CTkFrame]] = {}
         self.nav_buttons: dict[str, ctk.CTkButton] = {}
         self.summary_labels: dict[str, ctk.CTkLabel] = {}
         self.main_frame: ctk.CTkFrame | None = None
@@ -2054,8 +2217,16 @@ class CalibrationApp(ctk.CTk):
         self._show_login()
 
     def _configure_ui_scale(self) -> float:
-        screen_width = max(1, int(self.winfo_screenwidth()))
-        screen_height = max(1, int(self.winfo_screenheight()))
+        work_area = _get_window_work_area(self)
+        if work_area is None:
+            left = 0
+            top = 0
+            screen_width = max(1, int(self.winfo_screenwidth()))
+            screen_height = max(1, int(self.winfo_screenheight()))
+        else:
+            left, top, right, bottom = work_area
+            screen_width = max(1, int(right - left))
+            screen_height = max(1, int(bottom - top))
 
         if screen_width <= 1366 or screen_height <= 768:
             scale = 0.88
@@ -2073,7 +2244,9 @@ class CalibrationApp(ctk.CTk):
         min_width = min(1200, max(960, int(screen_width * 0.75)))
         min_height = min(760, max(640, int(screen_height * 0.72)))
 
-        self.geometry(f"{default_width}x{default_height}")
+        origin_x = left + max(0, (screen_width - default_width) // 2)
+        origin_y = top + max(0, (screen_height - default_height) // 2)
+        self.geometry(f"{default_width}x{default_height}+{origin_x}+{origin_y}")
         self.minsize(min_width, min_height)
         return scale
 
@@ -2111,10 +2284,17 @@ class CalibrationApp(ctk.CTk):
         style.map("Treeview", background=[("selected", "#F2F2F2")], foreground=[("selected", STYLE["texto_oscuro"])])
 
     def _clear_root(self) -> None:
+        if self._section_refresh_job is not None:
+            self.after_cancel(self._section_refresh_job)
+            self._section_refresh_job = None
         for child in self.winfo_children():
             child.destroy()
 
     def _show_login(self) -> None:
+        self.current_section = ""
+        self.pages = {}
+        self.page_factories = {}
+        self.page_dirty = {}
         self._clear_root()
         shell = ctk.CTkFrame(self, fg_color="transparent")
         shell_pad_x = 16 if self.ui_scale < 0.95 else 24
@@ -2277,31 +2457,60 @@ class CalibrationApp(ctk.CTk):
         self.content_frame.grid_rowconfigure(0, weight=1)
 
         can_edit = self.controller.is_admin()
+        self.pages = {}
+        self.page_factories = self._build_page_factories(can_edit)
+        self.page_dirty = {name: True for name in self.page_factories}
+
+    def _build_page_factories(self, can_edit: bool) -> dict[str, Callable[[], ctk.CTkFrame]]:
         if can_edit:
-            self.pages = {
-                "Principal": PrincipalView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
-                "Calendario": CalendarView(self.content_frame, self.controller, STYLE, FONTS, can_edit),
+            return {
+                "Principal": lambda: PrincipalView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
+                "Dashboard": lambda: DashboardView(self.content_frame, self.controller, STYLE, FONTS),
+                "Calendario": lambda: CalendarView(self.content_frame, self.controller, STYLE, FONTS, can_edit),
+                "Trimestral": lambda: TrimestralView(self.content_frame, self.controller, STYLE, FONTS, True),
+                "Configuraciones": lambda: ConfigurationView(self.content_frame, self.controller, STYLE, FONTS, True, self.refresh_all_views),
             }
-            self.pages["Dashboard"] = DashboardView(self.content_frame, self.controller, STYLE, FONTS)
-            self.pages["Trimestral"] = TrimestralView(self.content_frame, self.controller, STYLE, FONTS, True)
-            self.pages["Configuraciones"] = ConfigurationView(self.content_frame, self.controller, STYLE, FONTS, True)
-        else:
-            self.pages = {
-                "Calendario": CalendarView(self.content_frame, self.controller, STYLE, FONTS, can_edit),
-            }
-            self.pages["Trimestral"] = TrimestralView(self.content_frame, self.controller, STYLE, FONTS, False)
+        return {
+            "Calendario": lambda: CalendarView(self.content_frame, self.controller, STYLE, FONTS, can_edit),
+            "Trimestral": lambda: TrimestralView(self.content_frame, self.controller, STYLE, FONTS, False),
+        }
 
-        self.page_dirty = {name: True for name in self.pages}
+    def _get_or_create_page(self, section: str) -> ctk.CTkFrame | None:
+        page = self.pages.get(section)
+        if page is not None and page.winfo_exists():
+            return page
 
-        for page in self.pages.values():
-            page.grid(row=0, column=0, sticky="nsew")
+        factory = self.page_factories.get(section)
+        if factory is None or self.content_frame is None:
+            return None
+
+        page = factory()
+        page.grid(row=0, column=0, sticky="nsew")
+        page.grid_remove()
+        self.pages[section] = page
+        return page
 
     def show_section(self, section: str) -> None:
-        if section not in self.pages:
+        if section not in self.page_factories:
             return
+
+        previous_section = self.current_section
+        page = self._get_or_create_page(section)
+        if page is None:
+            return
+
+        previous_page = self.pages.get(previous_section)
+        if previous_page is not None and previous_page is not page:
+            try:
+                if previous_page.winfo_exists():
+                    previous_page.grid_remove()
+            except TclError:
+                pass
+
         self.current_section = section
-        self.pages[section].tkraise()
-        self.update()
+        page.grid()
+        page.tkraise()
+        self.update_idletasks()
         for name, button in self.nav_buttons.items():
             if name == section:
                 button.configure(fg_color=STYLE["primario"], text_color=STYLE["texto_oscuro"], hover_color="#D8C220")
@@ -2322,7 +2531,7 @@ class CalibrationApp(ctk.CTk):
         self._set_summary_value("average_score", f"{average:.1f}%" if average is not None else "--")
         self._set_summary_value("alerts", str(metrics.get("alerts", 0)))
 
-        for section in self.pages:
+        for section in self.page_factories:
             self.page_dirty[section] = True
         if self.current_section:
             self._schedule_refresh_section(self.current_section)
@@ -2340,6 +2549,10 @@ class CalibrationApp(ctk.CTk):
     def _refresh_section(self, section: str) -> None:
         self._section_refresh_job = None
         page = self.pages.get(section)
+        if page is None:
+            if section != self.current_section:
+                return
+            page = self._get_or_create_page(section)
         if page is None or not hasattr(page, "refresh"):
             self.page_dirty[section] = False
             return

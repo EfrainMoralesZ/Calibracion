@@ -1203,6 +1203,7 @@ class CalibrationController:
 	def list_trimestral_scores(
 		self,
 		inspector_name: str | None = None,
+		norm: str | None = None,
 		year: int | None = None,
 		quarter: str | None = None,
 		current_user: dict[str, Any] | None = None,
@@ -1214,6 +1215,13 @@ class CalibrationController:
 		if inspector_name:
 			target = str(inspector_name).strip()
 			scores = [item for item in scores if str(item.get("inspector", "")).strip() == target]
+		if norm:
+			norm_value = _extract_norm_token(str(norm)) or str(norm).strip().upper()
+			scores = [
+				item
+				for item in scores
+				if (_extract_norm_token(str(item.get("norm", ""))) or str(item.get("norm", "")).strip().upper()) == norm_value
+			]
 		if year is not None:
 			year_value = int(year)
 			scores = [item for item in scores if int(item.get("year", 0)) == year_value]
@@ -1225,6 +1233,7 @@ class CalibrationController:
 
 	def save_trimestral_score(self, payload: dict[str, Any], score_id: str | None = None) -> dict[str, Any]:
 		inspector = str(payload.get("inspector", "")).strip()
+		norm = _extract_norm_token(str(payload.get("norm", ""))) or str(payload.get("norm", "")).strip().upper()
 		quarter = str(payload.get("quarter", "")).strip().upper()
 		year_value = str(payload.get("year", "")).strip()
 		notes = str(payload.get("notes", "")).strip()
@@ -1232,6 +1241,8 @@ class CalibrationController:
 
 		if not inspector:
 			raise ValueError("Debes seleccionar un ejecutivo tecnico.")
+		if not norm:
+			raise ValueError("Debes seleccionar la norma de la calificacion trimestral.")
 		if quarter not in {"T1", "T2", "T3", "T4"}:
 			raise ValueError("El trimestre debe ser T1, T2, T3 o T4.")
 		if not year_value.isdigit():
@@ -1261,19 +1272,75 @@ class CalibrationController:
 		record = dict(existing or {})
 		record["id"] = record.get("id") or uuid4().hex
 		record["inspector"] = inspector
+		record["norm"] = norm
 		record["quarter"] = quarter
 		record["year"] = year
 		record["score"] = score
 		record["notes"] = notes
 		record["evaluator"] = (self.current_user or {}).get("name", "Sistema")
+		record["confirmed_at"] = None
+		record["confirmed_by"] = ""
+		record["sent_at"] = _timestamp()
 		record["updated_at"] = _timestamp()
 
 		q_dir = _quarter_dir(quarter, year)
 		q_scores = _read_json(q_dir / "trimestral.json", [])
 		q_scores.append(record)
 		_write_json(q_dir / "trimestral.json", q_scores)
+
+		# Persist boleta by inspector / year / quarter
+		boleta_dir = self._history_dir(inspector) / "boletas" / str(year)
+		boleta_dir.mkdir(parents=True, exist_ok=True)
+		boleta_path = boleta_dir / f"{quarter}_boleta.json"
+		boleta_records = _read_json(boleta_path, [])
+		boleta_records = [r for r in boleta_records if str(r.get("id", "")) != str(record["id"])]
+		boleta_records.append(record)
+		_write_json(boleta_path, boleta_records)
+
 		self.reload()
 		return record
+
+	def confirm_trimestral_scores(self, inspector_name: str, score_ids: list[str]) -> int:
+		target_identity = _normalize_person_name(inspector_name)
+		pending_ids = {str(score_id).strip() for score_id in score_ids if str(score_id).strip()}
+		if not pending_ids:
+			return 0
+
+		viewer_name = str((self.current_user or {}).get("name", "")).strip() or inspector_name
+		confirmed = 0
+		if not TRIMESTRAL_DIR.exists():
+			return 0
+
+		for folder in TRIMESTRAL_DIR.iterdir():
+			if not folder.is_dir():
+				continue
+
+			scores_path = folder / "trimestral.json"
+			scores = _read_json(scores_path, [])
+			changed = False
+			for row in scores:
+				if not isinstance(row, dict):
+					continue
+				score_id = str(row.get("id", "")).strip()
+				if score_id not in pending_ids:
+					continue
+				if target_identity and _normalize_person_name(str(row.get("inspector", ""))) != target_identity:
+					continue
+				if str(row.get("confirmed_at", "")).strip():
+					continue
+
+				row["confirmed_at"] = _timestamp()
+				row["confirmed_by"] = viewer_name
+				changed = True
+				confirmed += 1
+
+			if changed:
+				_write_json(scores_path, scores)
+
+		if confirmed:
+			self.reload()
+
+		return confirmed
 
 	def delete_trimestral_score(self, score_id: str) -> None:
 		if not TRIMESTRAL_DIR.exists():
@@ -1554,6 +1621,138 @@ class CalibrationController:
 		self.users_catalog.remove(original)
 		_write_json(USERS_FILE, {"users": self.users_catalog})
 		self.reload()
+
+	def save_client(self, payload: dict[str, Any], original_client: str | None = None) -> dict[str, Any]:
+		client_name = str(payload.get("CLIENTE", "")).strip()
+		rfc = str(payload.get("RFC", "")).strip()
+		contract_number = str(payload.get("NÚMERO_DE_CONTRATO", payload.get("NUMERO_DE_CONTRATO", ""))).strip()
+		contract_date = str(payload.get("FECHA_DE_CONTRATO", "")).strip()
+		activity = str(payload.get("ACTIVIDAD", "")).strip().upper() or "ACTIVO"
+		curp = str(payload.get("CURP", "")).strip()
+		street = str(payload.get("CALLE Y NO", "")).strip()
+		colony = str(payload.get("COLONIA O POBLACION", "")).strip()
+		municipality = str(payload.get("MUNICIPIO O ALCADIA", "")).strip()
+		state = str(payload.get("CIUDAD O ESTADO", "")).strip()
+		postal_code = str(payload.get("CP", "")).strip()
+		service = str(payload.get("SERVICIO", "")).strip()
+
+		if not client_name:
+			raise ValueError("El nombre del cliente es obligatorio.")
+
+		normalized_client = client_name.casefold()
+		duplicate = next(
+			(
+				item
+				for item in self.clients_catalog
+				if str(item.get("CLIENTE", "")).strip().casefold() == normalized_client
+			),
+			None,
+		)
+		if duplicate and str(duplicate.get("CLIENTE", "")).strip() != str(original_client or "").strip():
+			raise ValueError("Ya existe un cliente con ese nombre.")
+
+		if original_client:
+			original = next(
+				(item for item in self.clients_catalog if str(item.get("CLIENTE", "")).strip() == str(original_client).strip()),
+				None,
+			)
+			if original is None:
+				raise ValueError("No se encontro el cliente a editar.")
+		else:
+			original = None
+
+		existing_addresses = []
+		if original and isinstance(original.get("DIRECCIONES"), list):
+			existing_addresses = [
+				dict(address)
+				for address in original.get("DIRECCIONES", [])
+				if isinstance(address, dict)
+			]
+
+		has_address_data = any([street, colony, municipality, state, postal_code, service])
+		if has_address_data:
+			primary_address = {
+				"CALLE Y NO": street,
+				"COLONIA O POBLACION": colony,
+				"MUNICIPIO O ALCADIA": municipality,
+				"CIUDAD O ESTADO": state,
+				"CP": postal_code,
+				"SERVICIO": service or "DICTAMEN",
+			}
+			if existing_addresses:
+				existing_addresses[0] = primary_address
+			else:
+				existing_addresses = [primary_address]
+
+		updated = dict(original or {})
+		updated["RFC"] = rfc
+		updated["CLIENTE"] = client_name
+		updated["NÚMERO_DE_CONTRATO"] = contract_number
+		updated["FECHA_DE_CONTRATO"] = contract_date
+		updated["ACTIVIDAD"] = activity
+		if curp or "CURP" in updated:
+			updated["CURP"] = curp
+		updated["DIRECCIONES"] = existing_addresses
+
+		if original is None:
+			self.clients_catalog.append(updated)
+		else:
+			index = self.clients_catalog.index(original)
+			self.clients_catalog[index] = updated
+
+		_write_json(CLIENTS_FILE, self.clients_catalog)
+		self.reload()
+		return updated
+
+	def delete_client(self, client_name: str) -> None:
+		original = next(
+			(item for item in self.clients_catalog if str(item.get("CLIENTE", "")).strip() == str(client_name).strip()),
+			None,
+		)
+		if original is None:
+			return
+
+		self.clients_catalog.remove(original)
+		_write_json(CLIENTS_FILE, self.clients_catalog)
+		self.reload()
+
+	def save_client_address(self, client_name: str, address: dict[str, Any], address_index: int | None = None) -> None:
+		client = next(
+			(item for item in self.clients_catalog if str(item.get("CLIENTE", "")).strip() == str(client_name).strip()),
+			None,
+		)
+		if client is None:
+			raise ValueError("No se encontro el cliente.")
+		addresses = list(client.get("DIRECCIONES") or [])
+		addr: dict[str, Any] = {
+			"CALLE Y NO": str(address.get("CALLE Y NO", "")).strip(),
+			"COLONIA O POBLACION": str(address.get("COLONIA O POBLACION", "")).strip(),
+			"MUNICIPIO O ALCADIA": str(address.get("MUNICIPIO O ALCADIA", "")).strip(),
+			"CIUDAD O ESTADO": str(address.get("CIUDAD O ESTADO", "")).strip(),
+			"CP": str(address.get("CP", "")).strip(),
+			"SERVICIO": str(address.get("SERVICIO", "DICTAMEN")).strip() or "DICTAMEN",
+		}
+		if address_index is not None and 0 <= address_index < len(addresses):
+			addresses[address_index] = addr
+		else:
+			addresses.append(addr)
+		client["DIRECCIONES"] = addresses
+		_write_json(CLIENTS_FILE, self.clients_catalog)
+		self.reload()
+
+	def delete_client_address(self, client_name: str, address_index: int) -> None:
+		client = next(
+			(item for item in self.clients_catalog if str(item.get("CLIENTE", "")).strip() == str(client_name).strip()),
+			None,
+		)
+		if client is None:
+			return
+		addresses = list(client.get("DIRECCIONES") or [])
+		if 0 <= address_index < len(addresses):
+			addresses.pop(address_index)
+			client["DIRECCIONES"] = addresses
+			_write_json(CLIENTS_FILE, self.clients_catalog)
+			self.reload()
 
 	def get_default_document_path(self, inspector_name: str, document_kind: str) -> Path:
 		documents_dir = self._history_dir(inspector_name) / "documentos"
