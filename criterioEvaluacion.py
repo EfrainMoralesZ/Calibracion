@@ -122,21 +122,115 @@ class CriteriaNormDialog(ctk.CTkToplevel):
 		self.destroy()
 
 
+class CriteriaInspectorDialog(ctk.CTkToplevel):
+	def __init__(self, master, inspectors: list[str], on_select) -> None:
+		super().__init__(master)
+		self.on_select = on_select
+		self.inspectors = inspectors or ["Sin ejecutivo"]
+		self.inspector_var = ctk.StringVar(value=self.inspectors[0])
+
+		self.title("Seleccionar ejecutivo")
+		self.geometry("560x260")
+		self.resizable(False, False)
+		self.configure(fg_color=STYLE["fondo"])
+		self.transient(master)
+		self.grab_set()
+
+		wrapper = ctk.CTkFrame(self, fg_color=STYLE["surface"], corner_radius=20)
+		wrapper.pack(fill="both", expand=True, padx=18, pady=18)
+		wrapper.grid_columnconfigure(0, weight=1)
+
+		ctk.CTkLabel(
+			wrapper,
+			text="Selecciona ejecutivo para abrir criterios",
+			font=FONTS["subtitle"],
+			text_color=STYLE["texto_oscuro"],
+		).grid(row=0, column=0, padx=16, pady=(18, 8), sticky="w")
+
+		ctk.CTkComboBox(
+			wrapper,
+			variable=self.inspector_var,
+			values=self.inspectors,
+			height=38,
+			fg_color="#FFFFFF",
+			border_color="#94A3B8",
+			button_color=STYLE["primario"],
+			dropdown_hover_color=STYLE["primario"],
+			state="readonly",
+		).grid(row=1, column=0, padx=16, pady=(0, 16), sticky="ew")
+
+		actions = ctk.CTkFrame(wrapper, fg_color="transparent")
+		actions.grid(row=2, column=0, padx=16, pady=(0, 16), sticky="ew")
+		actions.grid_columnconfigure(0, weight=1)
+		actions.grid_columnconfigure(1, weight=1)
+
+		ctk.CTkButton(
+			actions,
+			text="Cancelar",
+			fg_color=STYLE["fondo"],
+			text_color=STYLE["texto_oscuro"],
+			hover_color="#E9ECEF",
+			command=self.destroy,
+		).grid(row=0, column=0, padx=(0, 8), sticky="ew")
+
+		ctk.CTkButton(
+			actions,
+			text="Continuar",
+			fg_color=STYLE["secundario"],
+			hover_color="#1D1D1D",
+			command=self._submit,
+		).grid(row=0, column=1, padx=(8, 0), sticky="ew")
+
+		_position_toplevel(self, master, 560, 260)
+
+	def _submit(self) -> None:
+		self.on_select(self.inspector_var.get().strip())
+		self.destroy()
+
+
 class CriteriaEvaluationDialog(ctk.CTkToplevel):
-	def __init__(self, master, controller, inspector_name: str, can_edit: bool, on_saved, initial_norm: str) -> None:
+	def __init__(
+		self,
+		master,
+		controller,
+		inspector_name: str | None,
+		can_edit: bool,
+		on_saved,
+		initial_norm: str | None = None,
+		initial_client: str | None = None,
+	) -> None:
 		super().__init__(master)
 		self.controller = controller
-		self.inspector_name = inspector_name
+		self.inspector_name = str(inspector_name or "").strip()
 		self.can_edit = can_edit
 		self.on_saved = on_saved
-		self.initial_norm = initial_norm
+		self.initial_norm = str(initial_norm or "").strip()
+		self.initial_client = str(initial_client or "").strip()
 
-		self.norm_var = ctk.StringVar(value=initial_norm)
+		current_user = controller.current_user or {}
+		self._inspector_locked = controller.is_executive_role(current_user)
+		if self._inspector_locked:
+			current_name = str(current_user.get("name", "")).strip()
+			base_name = current_name or self.inspector_name
+			self.inspector_options = [base_name] if base_name else []
+		else:
+			self.inspector_options = controller.get_assignable_inspectors() or []
+			if self.inspector_name and self.inspector_name not in self.inspector_options:
+				self.inspector_options.insert(0, self.inspector_name)
+
+		default_inspector = self.inspector_name
+		if not default_inspector and self.inspector_options:
+			default_inspector = self.inspector_options[0]
+
+		self.inspector_var = ctk.StringVar(value=default_inspector)
+		self.norm_options: list[str] = []
+		self.norm_var = ctk.StringVar(value=self.initial_norm or "Sin norma")
 		self.client_var = ctk.StringVar(value="")
 		self.date_var = ctk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
 		self.supervisor_var = ctk.StringVar(value=str((controller.current_user or {}).get("name", "")).strip())
 		self.image_folder_var = ctk.StringVar(value="")
 		self.form_status_var = ctk.StringVar(value="")
+		self.header_title_var = ctk.StringVar(value="")
 
 		self.protocol_result_vars: list[ctk.StringVar] = []
 		self.protocol_obs_vars: list[ctk.StringVar] = []
@@ -146,10 +240,14 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 
 		self.download_formato_button: ctk.CTkButton | None = None
 		self.download_criterio_button: ctk.CTkButton | None = None
+		self.norm_combo: ctk.CTkComboBox | None = None
 		self._document_generation_in_progress = False
 		self._document_worker: threading.Thread | None = None
 
-		self.title(f"Criterios por cliente - {inspector_name}")
+		self._refresh_norms_for_inspector(self.initial_norm)
+		self._update_header_title()
+
+		self.title("Criterios por cliente")
 		self.geometry("980x700")
 		self.configure(fg_color=STYLE["fondo"])
 		self.transient(master)
@@ -168,7 +266,7 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 
 		ctk.CTkLabel(
 			wrapper,
-			text=f"Criterios de evaluacion por cliente - {self.inspector_name}",
+			textvariable=self.header_title_var,
 			font=FONTS["subtitle"],
 			text_color=STYLE["texto_oscuro"],
 		).grid(row=0, column=0, padx=18, pady=(16, 8), sticky="w")
@@ -223,19 +321,51 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 	def _build_info_tab(self, parent: ctk.CTkFrame) -> None:
 		parent.grid_columnconfigure(0, weight=1)
 		clients = self.controller.get_client_names() or ["Sin cliente"]
-		if clients and not self.client_var.get().strip():
+		if self.initial_client and self.initial_client in clients:
+			self.client_var.set(self.initial_client)
+		elif clients and not self.client_var.get().strip():
 			self.client_var.set(clients[0])
 
 		body = ctk.CTkFrame(parent, fg_color="transparent")
 		body.pack(fill="both", expand=True, padx=12, pady=12)
 		body.grid_columnconfigure(0, weight=1)
 
-		self._add_field(
+		if self._inspector_locked or len(self.inspector_options) <= 1:
+			executive_widget = ctk.CTkEntry(
+				body,
+				height=38,
+				border_color="#94A3B8",
+				state="readonly",
+				textvariable=self.inspector_var,
+			)
+		else:
+			executive_widget = ctk.CTkComboBox(
+				body,
+				variable=self.inspector_var,
+				values=self.inspector_options,
+				height=38,
+				fg_color="#FFFFFF",
+				border_color="#94A3B8",
+				button_color=STYLE["primario"],
+				dropdown_hover_color=STYLE["primario"],
+				state="readonly",
+			)
+			self.inspector_var.trace_add("write", lambda *_args: self._on_inspector_change())
+
+		self._add_field(body, 0, "Ejecutivo supervisado", executive_widget)
+
+		self.norm_combo = ctk.CTkComboBox(
 			body,
-			0,
-			"NOM evaluada",
-			ctk.CTkEntry(body, textvariable=self.norm_var, height=38, border_color="#94A3B8", state="readonly"),
+			variable=self.norm_var,
+			values=self.norm_options or ["Sin norma"],
+			height=38,
+			fg_color="#FFFFFF",
+			border_color="#94A3B8",
+			button_color=STYLE["primario"],
+			dropdown_hover_color=STYLE["primario"],
+			state="readonly",
 		)
+		self._add_field(body, 1, "NOM evaluada", self.norm_combo)
 		client_combo = ctk.CTkComboBox(
 			body,
 			variable=self.client_var,
@@ -247,18 +377,12 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			dropdown_hover_color=STYLE["primario"],
 			state="readonly",
 		)
-		self._add_field(body, 1, "Cliente", client_combo)
-		self._add_field(
-			body,
-			2,
-			"Fecha",
-			ctk.CTkEntry(body, textvariable=self.date_var, height=38, border_color="#94A3B8", state="readonly"),
-		)
+		self._add_field(body, 2, "Cliente", client_combo)
 		self._add_field(
 			body,
 			3,
-			"Ejecutivo supervisado",
-			ctk.CTkEntry(body, height=38, border_color="#94A3B8", state="readonly", textvariable=ctk.StringVar(value=self.inspector_name)),
+			"Fecha",
+			ctk.CTkEntry(body, textvariable=self.date_var, height=38, border_color="#94A3B8", state="readonly"),
 		)
 		self._add_field(
 			body,
@@ -266,6 +390,34 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			"Supervisor",
 			ctk.CTkEntry(body, textvariable=self.supervisor_var, height=38, border_color="#94A3B8"),
 		)
+
+	def _get_selected_inspector(self) -> str:
+		return self.inspector_var.get().strip() or self.inspector_name
+
+	def _update_header_title(self) -> None:
+		inspector = self._get_selected_inspector()
+		if inspector:
+			self.header_title_var.set(f"Criterios de evaluacion por cliente - {inspector}")
+			self.title(f"Criterios por cliente - {inspector}")
+		else:
+			self.header_title_var.set("Criterios de evaluacion por cliente")
+			self.title("Criterios por cliente")
+
+	def _refresh_norms_for_inspector(self, preferred_norm: str | None = None) -> None:
+		inspector = self._get_selected_inspector()
+		norms = self.controller.get_accredited_norms(inspector) or ["Sin norma"]
+		self.norm_options = norms
+		if self.norm_combo is not None:
+			self.norm_combo.configure(values=self.norm_options)
+
+		wanted = str(preferred_norm or "").strip()
+		if not wanted or wanted not in self.norm_options:
+			wanted = self.norm_options[0]
+		self.norm_var.set(wanted)
+
+	def _on_inspector_change(self) -> None:
+		self._refresh_norms_for_inspector()
+		self._update_header_title()
 
 	def _build_answers_tab(self, parent: ctk.CTkFrame, questions: list[str], result_vars: list[ctk.StringVar], obs_vars: list[ctk.StringVar]) -> None:
 		parent.grid_columnconfigure(0, weight=1)
@@ -558,6 +710,10 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 		return final_score, status, breakdown, score_by_norm
 
 	def _build_evaluation_payload(self) -> dict[str, object] | None:
+		inspector_name = self._get_selected_inspector()
+		if not inspector_name:
+			messagebox.showerror("Criterios", "Debes seleccionar un ejecutivo supervisado.", parent=self)
+			return None
 		if not self.client_var.get().strip():
 			messagebox.showerror("Criterios", "Debes seleccionar un cliente.", parent=self)
 			return None
@@ -606,7 +762,7 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			"observations": "",
 			"corrective_actions": "",
 			"evaluator": self.supervisor_var.get().strip(),
-			"inspector_supervised": self.inspector_name,
+			"inspector_supervised": inspector_name,
 			"protocol_answers": protocol_answers,
 			"process_answers": process_answers,
 			"technical_normative_rows": technical_rows,
@@ -620,8 +776,9 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 		}
 
 	def _persist_evaluation(self, payload: dict[str, object]) -> bool:
+		inspector_name = self._get_selected_inspector()
 		try:
-			self.controller.save_evaluation(self.inspector_name, payload)
+			self.controller.save_evaluation(inspector_name, payload)
 		except ValueError as error:
 			messagebox.showerror("Criterios", str(error), parent=self)
 			return False
@@ -646,9 +803,9 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			self.form_status_var.set(status_message)
 		self._sync_download_state()
 
-	def _run_document_generation(self, kind: str, destination: str, selected_norm: str) -> None:
+	def _run_document_generation(self, inspector_name: str, kind: str, destination: str, selected_norm: str) -> None:
 		try:
-			output = self.controller.generate_document(self.inspector_name, kind, destination, selected_norm)
+			output = self.controller.generate_document(inspector_name, kind, destination, selected_norm)
 		except Exception as error:
 			self.after(0, lambda error=error: self._finish_document_generation(error=error))
 			return
@@ -679,8 +836,13 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 		if payload is None:
 			return
 
-		selected_norm = self.norm_var.get().strip() or self.initial_norm
-		default_path = self.controller.get_default_document_path(self.inspector_name, kind, selected_norm)
+		inspector_name = self._get_selected_inspector()
+		if not inspector_name:
+			messagebox.showerror("Criterios", "Debes seleccionar un ejecutivo supervisado.", parent=self)
+			return
+
+		selected_norm = self.norm_var.get().strip() or self.initial_norm or "Sin norma"
+		default_path = self.controller.get_default_document_path(inspector_name, kind, selected_norm)
 		destination = filedialog.asksaveasfilename(
 			parent=self,
 			title="Guardar documento",
@@ -699,7 +861,7 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 		self._set_document_busy(True, f"Generando PDF de {mode_text}. Espera un momento...")
 		self._document_worker = threading.Thread(
 			target=self._run_document_generation,
-			args=(kind, destination, selected_norm),
+			args=(inspector_name, kind, destination, selected_norm),
 			daemon=True,
 		)
 		self._document_worker.start()
@@ -711,20 +873,26 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 
 
 class CriteriaEvaluationView(ctk.CTkFrame):
+	PAGE_SIZE = 20
+	CARD_COLUMNS = 5
+
 	def __init__(self, master, controller, can_edit: bool, on_change) -> None:
 		super().__init__(master, fg_color=STYLE["fondo"])
 		self.controller = controller
 		self.can_edit = can_edit
 		self.on_change = on_change
 		self.search_var = ctk.StringVar(value="")
-		self.results_var = ctk.StringVar(value="0 ejecutivos visibles")
+		self.results_var = ctk.StringVar(value="0 clientes visibles")
 		self.cards_frame: ctk.CTkScrollableFrame | None = None
+		self.pager_frame: ctk.CTkFrame | None = None
+		self.current_page = 0
+		self._filtered_clients: list[str] = []
 
 		self.grid_columnconfigure(0, weight=1)
 		self.grid_rowconfigure(1, weight=1)
 
 		self._build_ui()
-		self.search_var.trace_add("write", lambda *_args: self.refresh())
+		self.search_var.trace_add("write", lambda *_args: self._on_search_change())
 		self.refresh()
 
 	def _build_ui(self) -> None:
@@ -732,7 +900,7 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 		toolbar.grid(row=0, column=0, padx=16, pady=(16, 10), sticky="ew")
 		toolbar.grid_columnconfigure(1, weight=1)
 
-		ctk.CTkLabel(toolbar, text="Buscar ejecutivo", font=FONTS["small_bold"], text_color=STYLE["texto_oscuro"]).grid(row=0, column=0, padx=(14, 10), pady=(12, 4), sticky="w")
+		ctk.CTkLabel(toolbar, text="Buscar cliente", font=FONTS["small_bold"], text_color=STYLE["texto_oscuro"]).grid(row=0, column=0, padx=(14, 10), pady=(12, 4), sticky="w")
 		entry = ctk.CTkEntry(toolbar, textvariable=self.search_var, height=36, border_color="#94A3B8")
 		entry.grid(row=0, column=1, padx=(0, 10), pady=(12, 4), sticky="ew")
 
@@ -750,10 +918,17 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 
 		self.cards_frame = ctk.CTkScrollableFrame(self, fg_color=STYLE["fondo"], corner_radius=20)
 		self.cards_frame.grid(row=1, column=0, padx=16, pady=(0, 14), sticky="nsew")
-		for col in range(4):
+		for col in range(self.CARD_COLUMNS):
 			self.cards_frame.grid_columnconfigure(col, weight=1, uniform="criteria_cards")
 
+		self.pager_frame = ctk.CTkFrame(self, fg_color="transparent")
+		self.pager_frame.grid(row=2, column=0, padx=16, pady=(0, 12), sticky="ew")
+
 		_safe_focus(entry)
+
+	def _on_search_change(self) -> None:
+		self.current_page = 0
+		self.refresh()
 
 	def refresh(self) -> None:
 		if self.cards_frame is None:
@@ -761,30 +936,62 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 		for child in self.cards_frame.winfo_children():
 			child.destroy()
 
-		rows = self.controller.get_principal_rows(self.search_var.get(), "Todos")
-		self.results_var.set(f"{len(rows)} ejecutivos visibles para criterios por cliente.")
+		search_text = self.search_var.get().strip().casefold()
+		clients = self.controller.get_client_names() or []
+		if search_text:
+			clients = [name for name in clients if search_text in str(name).casefold()]
+		self._filtered_clients = clients
 
-		if not rows:
+		total = len(clients)
+		total_pages = max(1, (total + self.PAGE_SIZE - 1) // self.PAGE_SIZE)
+		self.current_page = max(0, min(self.current_page, total_pages - 1))
+
+		start = self.current_page * self.PAGE_SIZE
+		page_clients = clients[start : start + self.PAGE_SIZE]
+		if total > 0:
+			self.results_var.set(
+				f"{total} clientes visibles para criterios por cliente. "
+				f"Pagina {self.current_page + 1} de {total_pages}."
+			)
+		else:
+			self.results_var.set("0 clientes visibles para criterios por cliente.")
+
+		if not page_clients:
 			empty = ctk.CTkFrame(self.cards_frame, fg_color="#FFFFFF", corner_radius=18, border_width=1, border_color="#E3E6EA")
-			empty.grid(row=0, column=0, columnspan=4, padx=8, pady=8, sticky="ew")
-			ctk.CTkLabel(empty, text="No hay ejecutivos para mostrar.", font=FONTS["label_bold"], text_color=STYLE["texto_oscuro"]).grid(row=0, column=0, padx=14, pady=(14, 6), sticky="w")
+			empty.grid(row=0, column=0, columnspan=self.CARD_COLUMNS, padx=8, pady=8, sticky="ew")
+			ctk.CTkLabel(empty, text="No hay clientes para mostrar.", font=FONTS["label_bold"], text_color=STYLE["texto_oscuro"]).grid(row=0, column=0, padx=14, pady=(14, 6), sticky="w")
 			ctk.CTkLabel(empty, text="Ajusta la busqueda para abrir un formulario de criterios.", font=FONTS["small"], text_color="#6D7480").grid(row=1, column=0, padx=14, pady=(0, 14), sticky="w")
+			self._rebuild_pager(total)
 			return
 
-		for index, row in enumerate(rows):
-			self._build_card(index, row)
+		for index, client_name in enumerate(page_clients):
+			self._build_card(index, client_name)
 
-	def _build_card(self, index: int, row: dict) -> None:
+		self._rebuild_pager(total)
+
+	def _build_card(self, index: int, client_name: str) -> None:
 		if self.cards_frame is None:
 			return
 
-		card = ctk.CTkFrame(self.cards_frame, fg_color="#FFFFFF", corner_radius=18, border_width=1, border_color="#E3E6EA")
-		card.grid(row=index // 4, column=index % 4, padx=8, pady=8, sticky="nsew")
+		card = ctk.CTkFrame(self.cards_frame, fg_color="#FFFFFF", corner_radius=14, border_width=1, border_color="#E3E6EA")
+		card.grid(row=index // self.CARD_COLUMNS, column=index % self.CARD_COLUMNS, padx=6, pady=6, sticky="nsew")
 		card.grid_columnconfigure(0, weight=1)
 
-		ctk.CTkLabel(card, text=self._truncate_text(str(row.get("name", "")), 34), font=FONTS["label_bold"], text_color=STYLE["texto_oscuro"], wraplength=220, justify="left").grid(row=0, column=0, padx=12, pady=(12, 6), sticky="w")
-		ctk.CTkLabel(card, text=f"Normas: {row.get('norm_count', 0)}", font=FONTS["small"], text_color="#6D7480").grid(row=1, column=0, padx=12, pady=(0, 2), sticky="w")
-		ctk.CTkLabel(card, text=f"Estado: {row.get('status', '--')}", font=FONTS["small"], text_color="#6D7480").grid(row=2, column=0, padx=12, pady=(0, 8), sticky="w")
+		ctk.CTkLabel(
+			card,
+			text=client_name,
+			font=FONTS["small_bold"],
+			text_color=STYLE["texto_oscuro"],
+			wraplength=180,
+			justify="left",
+		).grid(row=0, column=0, padx=8, pady=(8, 3), sticky="w")
+		ctk.CTkLabel(
+			card,
+			text="Cliente para formulario de criterios",
+			font=FONTS["small"],
+			text_color="#6D7480",
+			wraplength=180,
+		).grid(row=1, column=0, padx=8, pady=(0, 6), sticky="w")
 
 		ctk.CTkButton(
 			card,
@@ -792,33 +999,92 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 			fg_color=STYLE["primario"],
 			text_color=STYLE["texto_oscuro"],
 			hover_color="#D8C220",
-			command=lambda name=str(row.get("name", "")).strip(): self._open_criteria(name),
-		).grid(row=3, column=0, padx=12, pady=(0, 12), sticky="ew")
+			height=28,
+			command=lambda client=client_name: self._open_criteria(client),
+		).grid(row=2, column=0, padx=8, pady=(0, 8), sticky="ew")
 
-	def _open_criteria(self, inspector_name: str) -> None:
-		if not inspector_name:
+	def _open_criteria(self, client_name: str) -> None:
+		if not client_name:
 			return
-		norms = self.controller.get_accredited_norms(inspector_name) or ["Sin norma"]
 
-		def _open_form(norm_token: str) -> None:
-			CriteriaEvaluationDialog(
-				self,
-				self.controller,
-				inspector_name,
-				self.can_edit,
-				self._handle_change,
-				initial_norm=norm_token,
-			)
+		current_user = self.controller.current_user or {}
+		selected_inspector: str | None = None
+		if self.controller.is_executive_role(current_user):
+			selected_inspector = str(current_user.get("name", "")).strip()
+			if not selected_inspector:
+				messagebox.showerror("Criterios", "No se pudo identificar al ejecutivo actual.", parent=self)
+				return
+		elif not (self.controller.get_assignable_inspectors() or []):
+			messagebox.showinfo("Criterios", "No hay ejecutivos disponibles para abrir criterios.", parent=self)
+			return
 
-		CriteriaNormDialog(self, inspector_name, norms, _open_form)
+		CriteriaEvaluationDialog(
+			self,
+			self.controller,
+			selected_inspector,
+			self.can_edit,
+			self._handle_change,
+			initial_client=client_name,
+		)
+
+	def _rebuild_pager(self, total: int) -> None:
+		if self.pager_frame is None:
+			return
+
+		for child in self.pager_frame.winfo_children():
+			child.destroy()
+
+		if total == 0:
+			return
+
+		total_pages = max(1, (total + self.PAGE_SIZE - 1) // self.PAGE_SIZE)
+		if total_pages <= 1:
+			return
+
+		inner = ctk.CTkFrame(self.pager_frame, fg_color="transparent")
+		inner.pack(anchor="center")
+
+		ctk.CTkButton(
+			inner,
+			text="← Anterior",
+			width=110,
+			height=32,
+			fg_color=STYLE["fondo"],
+			text_color=STYLE["texto_oscuro"],
+			hover_color="#E9ECEF",
+			state="normal" if self.current_page > 0 else "disabled",
+			command=lambda: self._go_page(-1),
+		).pack(side="left", padx=(0, 8))
+
+		ctk.CTkLabel(
+			inner,
+			text=f"Pagina {self.current_page + 1} de {total_pages}  —  {total} clientes",
+			font=FONTS["small"],
+			text_color="#6D7480",
+		).pack(side="left", padx=12)
+
+		ctk.CTkButton(
+			inner,
+			text="Siguiente →",
+			width=110,
+			height=32,
+			fg_color=STYLE["fondo"],
+			text_color=STYLE["texto_oscuro"],
+			hover_color="#E9ECEF",
+			state="normal" if self.current_page < total_pages - 1 else "disabled",
+			command=lambda: self._go_page(1),
+		).pack(side="left", padx=(8, 0))
+
+	def _go_page(self, delta: int) -> None:
+		total = len(self._filtered_clients)
+		total_pages = max(1, (total + self.PAGE_SIZE - 1) // self.PAGE_SIZE)
+		new_page = max(0, min(total_pages - 1, self.current_page + delta))
+		if new_page == self.current_page:
+			return
+		self.current_page = new_page
+		self.refresh()
 
 	def _handle_change(self) -> None:
 		self.refresh()
 		self.on_change()
 
-	@staticmethod
-	def _truncate_text(text: str, limit: int) -> str:
-		clean = re.sub(r"\s+", " ", text or "").strip()
-		if len(clean) <= limit:
-			return clean
-		return clean[: limit - 3].rstrip() + "..."

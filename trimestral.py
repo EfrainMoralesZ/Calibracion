@@ -255,7 +255,7 @@ class TrimestralView(ctk.CTkFrame):
 			legend_row,
 			text="Alta demanda (más usos)",
 			font=self.fonts["small"],
-			text_color="#FFFFFF",
+			text_color="#282828",
 			fg_color=self.style["primario"],
 			corner_radius=999,
 			height=26,
