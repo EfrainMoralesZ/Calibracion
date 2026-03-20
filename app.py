@@ -327,7 +327,6 @@ class InspectorEditDialog(ctk.CTkToplevel):
         self.on_saved()
         self.destroy()
 
-
 class NormSelectionDialog(ctk.CTkToplevel):
     def __init__(
         self,
@@ -680,7 +679,6 @@ class NormSelectionDialog(ctk.CTkToplevel):
         self.on_select(norm_token.strip() or "Sin norma")
         self.withdraw()
         self.after(120, self.destroy)
-
 
 class EvaluationDialog(ctk.CTkToplevel):
     def __init__(
@@ -1777,7 +1775,6 @@ class EvaluationDialog(ctk.CTkToplevel):
         self._refresh_applicable_norm_values()
         self._load_latest(preload_saved=False)
 
-
 class PrincipalView(ctk.CTkFrame):
     FILTER_OPTIONS = ["Todos", "Pendientes", "En enfoque", "Completos"]
     PAGE_SIZE = 10
@@ -2224,8 +2221,6 @@ class PrincipalView(ctk.CTkFrame):
     def _handle_change(self) -> None:
         self.refresh()
         self.on_change()
-
-
 class CalibrationApp(ctk.CTk):
     def __init__(self) -> None:
         _configure_windows_dpi_behavior()
@@ -2606,14 +2601,9 @@ class CalibrationApp(ctk.CTk):
         self.controller.logout()
         self._show_login()
 
-
 def main() -> None:
     app = CalibrationApp()
     app.mainloop()
 
-
 if __name__ == "__main__":
     main()
-
-
-
