@@ -29,7 +29,7 @@ class ConfigurationView(ctk.CTkFrame):
         self.user_name_var = ctk.StringVar()
         self.user_username_var = ctk.StringVar()
         self.user_password_var = ctk.StringVar()
-        self.user_role_var = ctk.StringVar(value="ejecutivo")
+        self.user_role_var = ctk.StringVar(value="ejecutivo tecnico")
         self.client_name_var = ctk.StringVar()
         self.client_rfc_var = ctk.StringVar()
         self.client_contract_var = ctk.StringVar()
@@ -220,7 +220,16 @@ class ConfigurationView(ctk.CTkFrame):
         role_combo = ctk.CTkComboBox(
             form_panel,
             variable=self.user_role_var,
-            values=["admin", "ejecutivo"],
+            values=[
+                "admin",
+                "gerente",
+                "sub gerente",
+                "coordinador operativo",
+                "coordinadora en fiabilidad",
+                "supervisor",
+                "ejecutivo tecnico",
+                "especialidades",
+            ],
             height=38,
             fg_color="#FFFFFF",
             border_color="#D5D8DC",
@@ -687,7 +696,7 @@ class ConfigurationView(ctk.CTkFrame):
         self.user_name_var.set("")
         self.user_username_var.set("")
         self.user_password_var.set("")
-        self.user_role_var.set("ejecutivo")
+        self.user_role_var.set("ejecutivo tecnico")
 
     def clear_client_form(self) -> None:
         self.selected_client = None
@@ -814,7 +823,7 @@ class ConfigurationView(ctk.CTkFrame):
         self.user_name_var.set(user.get("name", ""))
         self.user_username_var.set(user.get("username", ""))
         self.user_password_var.set(user.get("password", ""))
-        self.user_role_var.set(user.get("role", "ejecutivo"))
+        self.user_role_var.set(user.get("role", "ejecutivo tecnico"))
 
     def _on_client_select(self, _event=None) -> None:
         if self.client_tree is None:

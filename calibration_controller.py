@@ -198,6 +198,31 @@ def _normalize_person_name(value: str) -> str:
 	return re.sub(r"\s+", " ", without_symbols).strip()
 
 
+def _normalize_role_name(value: str | None) -> str:
+	raw_value = str(value or "").strip()
+	if not raw_value:
+		return ""
+
+	role_key = _normalize_person_name(raw_value).replace(" ", "_")
+	role_aliases = {
+		"admin": "admin",
+		"administrador": "admin",
+		"gerente": "gerente",
+		"subgerente": "sub gerente",
+		"sub_gerente": "sub gerente",
+		"coordinador_operativo": "coordinador operativo",
+		"coordinadora_en_fiabilidad": "coordinadora en fiabilidad",
+		"supervisor": "supervisor",
+		"ejecutivo": "ejecutivo tecnico",
+		"ejecutivo_tecnico": "ejecutivo tecnico",
+		"ejecutivo_tecnica": "ejecutivo tecnico",
+		"especialista": "especialidades",
+		"especialidad": "especialidades",
+		"especialidades": "especialidades",
+	}
+	return role_aliases.get(role_key, raw_value.lower())
+
+
 def _extract_norm_token(value: str) -> str | None:
 	match = re.search(r"NOM-\d{3}", value.upper())
 	return match.group(0) if match else None
@@ -795,6 +820,7 @@ class CalibrationController:
 				continue
 
 			self.current_user = dict(user)
+			self.current_user["role"] = _normalize_role_name(self.current_user.get("role"))
 			return self.current_user
 
 		return None
@@ -803,12 +829,32 @@ class CalibrationController:
 		self.current_user = None
 
 	def is_admin(self, user: dict[str, Any] | None = None) -> bool:
+		return self.has_full_access(user)
+
+	def _role_name(self, user: dict[str, Any] | None = None) -> str:
 		candidate = user or self.current_user or {}
-		return candidate.get("role") == "admin"
+		return _normalize_role_name(candidate.get("role"))
+
+	def has_full_access(self, user: dict[str, Any] | None = None) -> bool:
+		return self._role_name(user) in {
+			"admin",
+			"gerente",
+			"sub gerente",
+			"coordinador operativo",
+			"coordinadora en fiabilidad",
+		}
+
+	def is_executive_role(self, user: dict[str, Any] | None = None) -> bool:
+		return self._role_name(user) in {"ejecutivo tecnico", "especialidades"}
 
 	def available_sections(self, user: dict[str, Any] | None = None) -> list[str]:
-		if self.is_admin(user):
-			return ["Principal", "Dashboard", "Calendario", "Trimestral", "Configuraciones"]
+		if self.has_full_access(user):
+			return ["Principal", "Criterios", "Dashboard", "Calendario", "Trimestral", "Configuraciones"]
+		role_name = self._role_name(user)
+		if role_name == "supervisor":
+			return ["Principal", "Calendario"]
+		if self.is_executive_role(user):
+			return ["Calendario", "Trimestral", "Criterios"]
 		return ["Calendario", "Trimestral"]
 
 	def _resolve_canonical_person_name(self, value: str | None) -> str:
@@ -975,7 +1021,8 @@ class CalibrationController:
 		executives = sorted(
 			str(user.get("name", "")).strip()
 			for user in self.users_catalog
-			if user.get("role") == "ejecutivo" and str(user.get("name", "")).strip()
+			if _normalize_role_name(user.get("role")) in {"ejecutivo tecnico", "especialidades"}
+			and str(user.get("name", "")).strip()
 		)
 		self._assignable_inspectors_cache = executives or self.get_dashboard_people()
 		return list(self._assignable_inspectors_cache)
@@ -1096,7 +1143,7 @@ class CalibrationController:
 				"latest_score_text": f"{latest_score:.1f}%" if latest_score is not None else "--",
 				"status": status,
 				"form_completed": form_completed,
-				"actions_text": "Calibrar",
+				"actions_text": "Supervisar",
 			}
 
 			searchable_blob = f"{name} {row['norms_text']} {status}".lower()
@@ -1354,7 +1401,7 @@ class CalibrationController:
 			visits = [visit for visit in visits if name in visit.get("inspectors", [])]
 
 		candidate = current_user or self.current_user
-		if candidate and candidate.get("role") == "ejecutivo":
+		if candidate and self.is_executive_role(candidate):
 			visits = [visit for visit in visits if candidate.get("name") in visit.get("inspectors", [])]
 
 		return [dict(item) for item in visits]
@@ -1370,7 +1417,7 @@ class CalibrationController:
 	) -> list[dict[str, Any]]:
 		scores = self._get_all_quarterly_scores_cached()
 		candidate = current_user or self.current_user
-		is_executive_view = bool(candidate and candidate.get("role") == "ejecutivo")
+		is_executive_view = bool(candidate and self.is_executive_role(candidate))
 		if not inspector_name and is_executive_view:
 			inspector_name = str(candidate.get("name", "")).strip() or None
 		if inspector_name:
@@ -1870,8 +1917,7 @@ class CalibrationController:
 
 		viewer = self.current_user or {}
 		viewer_name = str(viewer.get("name", "")).strip()
-		viewer_role = str(viewer.get("role", "")).strip().lower()
-		if viewer_role != "ejecutivo":
+		if not self.is_executive_role(viewer):
 			raise ValueError("Solo un ejecutivo tecnico puede confirmar la visita.")
 		if not viewer_name:
 			raise ValueError("No se pudo identificar al ejecutivo que confirma.")
@@ -2044,7 +2090,7 @@ class CalibrationController:
 		if not target_name:
 			raise ValueError("No se pudo identificar al ejecutivo tecnico del reporte.")
 
-		if self.current_user and self.current_user.get("role") == "ejecutivo":
+		if self.current_user and self.is_executive_role(self.current_user):
 			if target_name != viewer_name:
 				raise ValueError("Solo puedes reportar normas para tus propias visitas.")
 			if target_name not in visit_inspectors:
@@ -2188,12 +2234,21 @@ class CalibrationController:
 		name = str(payload.get("name", "")).strip()
 		username = str(payload.get("username", "")).strip()
 		password = str(payload.get("password", "")).strip()
-		role = str(payload.get("role", "")).strip().lower() or "ejecutivo"
+		role = _normalize_role_name(payload.get("role")) or "ejecutivo tecnico"
 
 		if not all([name, username, password]):
 			raise ValueError("Nombre, usuario y contrasena son obligatorios.")
-		if role not in {"admin", "ejecutivo"}:
-			raise ValueError("El rol debe ser admin o ejecutivo.")
+		if role not in {
+			"admin",
+			"gerente",
+			"sub gerente",
+			"coordinador operativo",
+			"coordinadora en fiabilidad",
+			"supervisor",
+			"ejecutivo tecnico",
+			"especialidades",
+		}:
+			raise ValueError("El rol no es valido para este sistema.")
 
 		duplicate = next((item for item in self.users_catalog if item.get("username") == username), None)
 		if duplicate and username != original_username:
@@ -2658,7 +2713,7 @@ def _controller_get_principal_rows(self, search_text: str = "", status_filter: s
 		else:
 			status = "Estable"
 
-		actions_text = "Calibrar"
+		actions_text = "Supervisar"
 
 		norms_text = ", ".join(accredited_norms) if accredited_norms else "Sin acreditacion"
 		row = {
@@ -2875,8 +2930,12 @@ def _controller_get_default_trimestral_report_path(self) -> Path:
 
 	current_user = self.current_user or {}
 	viewer_name = str(current_user.get("name", "reporte_trimestral")).strip() or "reporte_trimestral"
-	viewer_role = str(current_user.get("role", "")).strip().lower()
-	scope_slug = "global" if viewer_role == "admin" else _safe_slug(viewer_name).lower()
+	viewer_role = _normalize_role_name(current_user.get("role"))
+	scope_slug = (
+		"global"
+		if viewer_role in {"admin", "gerente", "sub gerente", "coordinador operativo", "coordinadora en fiabilidad"}
+		else _safe_slug(viewer_name).lower()
+	)
 	timestamp = datetime.now().strftime("%Y%m%d_%H%M")
 	filename = f"reporte_trimestral_{scope_slug}_{timestamp}.pdf"
 	return reports_dir / filename

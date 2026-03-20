@@ -226,10 +226,10 @@ class NormSelectionDialog(ctk.CTkToplevel):
                 row=row,
                 col=col,
                 icon=self._norm_icon(norm_token),
-                badge_text="Calibrar",
+                badge_text="Supervisar",
                 title=full_titles[norm_token],
                 description="Abre la captura operativa de esta norma acreditada.",
-                button_text="Calibrar",
+                button_text="Supervisar",
                 command=lambda token=norm_token: self._open_form(token),
                 accent=False,
             )
@@ -1978,7 +1978,7 @@ class PrincipalView(ctk.CTkFrame):
 
         ctk.CTkButton(
             card,
-            text="📋  Calibrar",
+            text="📋  Supervisar",
             height=34,
             font=FONTS["small_bold"],
             fg_color=STYLE["primario"],

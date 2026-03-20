@@ -4,25 +4,37 @@
       "name": "Marcos Uriel Flores Gomez",
       "username": "mflores",
       "password": "kzqrv",
-      "role": "admin"
+      "role": "Sub Gerente"
     },
     {
       "name": "Mario Terrez Gonzalez",
       "username": "mterrez",
       "password": "mbyht",
-      "role": "admin"
+      "role": "coordinador operativo"
+    },
+    {
+      "name": "Andrea Paola Ramos Santos",
+      "username": "aramos",
+      "password": "qvljn",
+      "role": "Coordinadora en fiabilidad"
     },
     {
       "name": "Arturo Flores Gómez",
       "username": "aflores",
       "password": "plxwn",
-      "role": "admin"
+      "role": "Gerente"
     },
     {
       "name": "Arturo Ivan Cortes Flores",
       "username": "acortes",
       "password": "fudqs",
-      "role": "admin"
+      "role": "Supervisor"
+    },
+    {
+      "name": "Angel Imanol Pozos Zertuche",
+      "username": "apozos",
+      "password": "zqvhd",
+      "role": "Supervisor"
     },
     {
       "name": "Efrain Morales Zamarrón",
@@ -61,22 +73,10 @@
       "role": "ejecutivo"
     },
     {
-      "name": "Andrea Paola Ramos Santos",
-      "username": "aramos",
-      "password": "qvljn",
-      "role": "admin"
-    },
-    {
-      "name": "Angel Imanol Pozos Zertuche",
-      "username": "apozos",
-      "password": "zqvhd",
-      "role": "admin"
-    },
-    {
       "name": "Braulio Saul Garcia Maganda",
       "username": "bgarcia",
       "password": "lqteu",
-      "role": "admin"
+      "role": "ejecutivo"
     },
     {
       "name": "David Garcia Alcantara",
@@ -94,19 +94,19 @@
       "name": "Flor Selenia Marquez Rivera",
       "username": "fmarquez",
       "password": "mqlps",
-      "role": "ejecutivo"
+      "role": "Especialista"
     },
     {
       "name": "Gabriel Ramirez Castillo",
       "username": "gramirez",
       "password": "hzyrn",
-      "role": "ejecutivo"
+      "role": "Especialista"
     },
     {
       "name": "Jesus Eduardo Reyes Lozano",
       "username": "jreyes",
       "password": "bdwkx",
-      "role": "ejecutivo"
+      "role": "Especialista"
     },
     {
       "name": "Jose Alberto Zuñiga Estrada",
@@ -130,7 +130,7 @@
       "name": "Brenda Abigail Velázquez Cisneros",
       "username": "bvelazquez",
       "password": "yjmqc",
-      "role": "ejecutivo"
+      "role": "Especialista"
     }
 
   ]

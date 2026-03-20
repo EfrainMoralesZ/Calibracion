@@ -50,8 +50,8 @@ class TrimestralView(ctk.CTkFrame):
 		self.history_dashboard_frame: ctk.CTkScrollableFrame | None = None
 		self.history_dashboard_summary_label: ctk.CTkLabel | None = None
 		self.cards_medal_filter_combo: ctk.CTkComboBox | None = None
-		self.medal_images = self._load_medal_images()
-		self.medal_images_small = self._load_medal_images(size=(22, 22))
+		self.medal_images = self._load_medal_images(size=(64, 64))
+		self.medal_images_small = self._load_medal_images(size=(24, 24))
 		self.alert_images = self._load_alert_images()
 		self.tabview: ctk.CTkTabview | None = None
 		self.capture_tab_name = "Captura trimestral"
@@ -711,7 +711,7 @@ class TrimestralView(ctk.CTkFrame):
 			saludo = "Buenas noches"
 
 		greeting_text = f"{saludo}, {current_name}."
-		if not self.controller.current_user or str((self.controller.current_user or {}).get("role", "")).strip().lower() != "ejecutivo":
+		if not self.controller.current_user or not self.controller.is_executive_role(self.controller.current_user):
 			return greeting_text, "Monitorea resultados trimestrales y reconoce el desempeno destacado del equipo."
 
 		scores = self.controller.list_trimestral_scores(inspector_name=current_name, include_unsent=True)
@@ -1355,20 +1355,20 @@ class TrimestralView(ctk.CTkFrame):
 
 			medal_panel = ctk.CTkFrame(
 				card,
-				fg_color="#FFFFFF",
+				fg_color="transparent",
 				corner_radius=0,
 				border_width=0,
-				width=190,
-				height=110,
+				width=250,
+				height=154,
 			)
 			medal_panel.grid(row=0, column=1, rowspan=4, padx=(0, 8), pady=(8, 4), sticky="new")
 			medal_panel.grid_propagate(False)
 			ctk.CTkLabel(
 				medal_panel,
-				text="Medallas",
-				font=self.fonts["small_bold"],
-				text_color="#6D7480",
-			).pack(padx=8, pady=(4, 2), anchor="center")
+				text="🏆  Medallas",
+				font=self.fonts["label_bold"],
+				text_color="#8A6A17",
+			).pack(padx=8, pady=(8, 2), anchor="center")
 
 			achieved = []
 			for key, count_key, color, emoji in [
@@ -1389,24 +1389,24 @@ class TrimestralView(ctk.CTkFrame):
 					text="Sin medallas",
 					font=self.fonts["small"],
 					text_color="#9AA1AB",
-				).pack(padx=8, pady=(16, 0))
+				).pack(padx=8, pady=(26, 0))
 			else:
 				row_frame = ctk.CTkFrame(medal_panel, fg_color="transparent")
-				row_frame.pack(padx=4, pady=(4, 4), fill="x")
+				row_frame.pack(padx=6, pady=(8, 6), fill="x")
 				for key, count_value, color, emoji in achieved:
 					pill = ctk.CTkFrame(row_frame, fg_color="transparent", corner_radius=0, border_width=0)
-					pill.pack(side="left", padx=4)
+					pill.pack(side="left", padx=8)
 					image_ref = self.medal_images.get(key)
 					if image_ref is not None:
-						ctk.CTkLabel(pill, text="", image=image_ref).pack(side="left", padx=(0, 2), pady=0)
+						ctk.CTkLabel(pill, text="", image=image_ref).pack(side="left", padx=(0, 4), pady=0)
 					else:
-						ctk.CTkLabel(pill, text=emoji, font=("Segoe UI Emoji", 22), text_color=color).pack(side="left", padx=(0, 2), pady=0)
+						ctk.CTkLabel(pill, text=emoji, font=("Segoe UI Emoji", 34), text_color=color).pack(side="left", padx=(0, 4), pady=0)
 					ctk.CTkLabel(
 						pill,
 						text=f"x{count_value}",
-						font=self.fonts["small_bold"],
+						font=("Inter", 17, "bold"),
 						text_color=color,
-					).pack(side="left", padx=(0, 2))
+					).pack(side="left", padx=(0, 2), pady=(12, 0))
 
 			actions_row = ctk.CTkFrame(card, fg_color="transparent")
 			actions_row.grid(row=5, column=0, columnspan=2, padx=12, pady=(2, 10), sticky="ew")

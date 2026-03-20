@@ -196,6 +196,7 @@ def _safe_focus(widget) -> None:
 # Se importa aquí, después de que STYLE, FONTS y utilidades están definidos,
 # para que el import circular (principal → app) funcione correctamente.
 from Principal import PrincipalView  # noqa: E402
+from criterioEvaluacion import CriteriaEvaluationView  # noqa: E402
 
 
 
@@ -220,6 +221,7 @@ class CalibrationApp(ctk.CTk):
         self._section_refresh_job: str | None = None
         self.ui_scale = 1.0
         self._kpi_medal_images: dict[str, ctk.CTkImage | None] = {}
+        self._kpi_medal_images_exec: dict[str, ctk.CTkImage | None] = {}
 
         self.title("Sistema de Calibracion V&C")
         self._set_window_icon()
@@ -229,7 +231,7 @@ class CalibrationApp(ctk.CTk):
         self._configure_treeview_style()
         self._show_login()
 
-    def _load_kpi_medal_images(self) -> dict[str, ctk.CTkImage | None]:
+    def _load_kpi_medal_images(self, size: tuple[int, int] = (26, 26)) -> dict[str, ctk.CTkImage | None]:
         files = {
             "ORO": "medalla_oro.png",
             "PLATINO": "medalla_plata.png",
@@ -247,7 +249,7 @@ class CalibrationApp(ctk.CTk):
                 continue
             try:
                 src = Image.open(img_path)
-                images[key] = ctk.CTkImage(light_image=src, dark_image=src, size=(18, 18))
+                images[key] = ctk.CTkImage(light_image=src, dark_image=src, size=size)
             except OSError:
                 images[key] = None
         return images
@@ -265,32 +267,179 @@ class CalibrationApp(ctk.CTk):
     def _format_medals_text(counts: dict[str, int]) -> str:
         return f"O:{counts.get('ORO', 0)} P:{counts.get('PLATINO', 0)} B:{counts.get('BRONCE', 0)}"
 
+    @staticmethod
+    def _build_yearly_phrase_catalog(openings: list[str], focuses: list[str]) -> list[str]:
+        phrases: list[str] = []
+        for opening in openings:
+            for focus in focuses:
+                phrases.append(f"{opening} {focus}")
+                if len(phrases) == 366:
+                    return phrases
+        return phrases
+
+    @staticmethod
+    def _message_for_day(messages: list[str], fallback: str) -> str:
+        if not messages:
+            return fallback
+        day_index = max(0, datetime.now().timetuple().tm_yday - 1)
+        return messages[day_index % len(messages)]
+
     def _build_header_messages(self) -> tuple[str, str]:
         current_user = self.controller.current_user or {}
         greeting, emoji = self._part_of_day_greeting()
         greeting_line = f"{emoji}  {greeting}"
 
         if not self.controller.is_admin(current_user):
-            encouragements = [
-                "Tu trabajo en campo hace la diferencia.",
-                "Cada visita suma, da tu mejor esfuerzo.",
-                "La constancia es el camino al exito.",
-                "Tu esfuerzo es reconocido por el equipo.",
-                "Hoy es un gran dia para brillar en campo.",
-                "Cada norma revisada fortalece al equipo.",
-            ]
-            message = encouragements[datetime.now().toordinal() % len(encouragements)]
+            encouragements = self._build_yearly_phrase_catalog(
+                [
+                    "Hoy tu trabajo en campo",
+                    "Este dia tu disciplina operativa",
+                    "Tu constancia en cada visita",
+                    "La calidad de tu seguimiento",
+                    "Tu atencion en cada cliente",
+                    "El enfoque que llevas a cada jornada",
+                ],
+                [
+                    "marca una diferencia real en el servicio.",
+                    "refuerza la confianza del cliente.",
+                    "sostiene el nivel operativo del equipo.",
+                    "eleva la calidad de cada revision.",
+                    "fortalece la ejecucion en campo.",
+                    "mejora la experiencia de supervision.",
+                    "da valor a cada norma revisada.",
+                    "mantiene el orden en cada proceso.",
+                    "ayuda a prevenir errores antes de que crezcan.",
+                    "convierte el detalle en resultados visibles.",
+                    "hace mas solida la entrega al cliente.",
+                    "impulsa el avance diario del equipo.",
+                    "demuestra compromiso con el resultado final.",
+                    "ayuda a cerrar cada visita con claridad.",
+                    "refleja profesionalismo en cada decision.",
+                    "convierte cada inspeccion en una oportunidad de mejora.",
+                    "aporta orden y criterio a la operacion.",
+                    "mantiene el ritmo correcto de trabajo.",
+                    "genera confianza en cada seguimiento.",
+                    "refuerza la imagen del equipo frente al cliente.",
+                    "hace visible tu nivel de compromiso.",
+                    "suma precision a cada evaluacion.",
+                    "hace que cada evidencia cuente.",
+                    "te acerca a resultados mas consistentes.",
+                    "fortalece el cumplimiento diario.",
+                    "ayuda a sostener una ejecucion limpia y ordenada.",
+                    "mejora la lectura tecnica de cada caso.",
+                    "te distingue por tu enfoque profesional.",
+                    "abre espacio para mejores resultados.",
+                    "convierte la constancia en desempeno.",
+                    "mejora la forma en que el cliente percibe el servicio.",
+                    "mantiene el control sobre cada detalle.",
+                    "te permite construir mejores cierres de visita.",
+                    "refuerza el valor de cada accion en campo.",
+                    "demuestra solidez en la operacion.",
+                    "ayuda a que el trabajo del equipo se note.",
+                    "hace mas fuerte cada entrega realizada.",
+                    "suma claridad a cada intervencion.",
+                    "convierte la preparacion en confianza.",
+                    "hace que cada jornada deje aprendizaje.",
+                    "mantiene la calidad aun en dias exigentes.",
+                    "te ayuda a responder mejor ante cada reto.",
+                    "sostiene una ejecucion profesional de principio a fin.",
+                    "impulsa mejoras que el cliente si percibe.",
+                    "fortalece el criterio con el que operas.",
+                    "te permite avanzar con seguridad y orden.",
+                    "mantiene enfocado lo importante de cada visita.",
+                    "genera resultados que se construyen desde el detalle.",
+                    "ayuda a que cada revision tenga mayor valor.",
+                    "demuestra que la consistencia si hace diferencia.",
+                    "protege la calidad en cada entrega.",
+                    "suma confianza a cada paso del proceso.",
+                    "hace que tu trabajo hable por si mismo.",
+                    "fortalece la forma en que representas al equipo.",
+                    "impulsa una operacion mas clara y estable.",
+                    "te posiciona como parte clave del resultado.",
+                    "refuerza cada avance conseguido durante el dia.",
+                    "te permite sostener un buen nivel de ejecucion.",
+                    "hace de cada visita una oportunidad para destacar.",
+                    "mantiene el servicio alineado con lo esperado.",
+                    "hace que el esfuerzo diario se convierta en valor.",
+                ],
+            )
+            message = self._message_for_day(encouragements, "Tu trabajo en campo hace la diferencia.")
             return greeting_line, message
 
-        admin_messages = [
-            "Revisa el desempeno de tu equipo hoy.",
-            "Mantén el equipo enfocado y motivado.",
-            "Un equipo calibrado, un equipo exitoso.",
-            "Analiza tendencias y lidera con datos.",
-            "El seguimiento constante marca la diferencia.",
-            "Tus decisiones impulsan el desempeno del equipo.",
-        ]
-        message = admin_messages[datetime.now().toordinal() % len(admin_messages)]
+        admin_messages = self._build_yearly_phrase_catalog(
+            [
+                "Hoy tu liderazgo",
+                "La lectura que haces del desempeno",
+                "Tu seguimiento del equipo",
+                "La forma en que diriges la operacion",
+                "Tu criterio para priorizar",
+                "El control que mantienes del sistema",
+            ],
+            [
+                "impulsa mejores decisiones para el equipo.",
+                "ayuda a traducir datos en accion.",
+                "fortalece el rumbo operativo del dia.",
+                "convierte el seguimiento en resultados medibles.",
+                "mantiene al equipo enfocado en lo importante.",
+                "sostiene una operacion mas ordenada y clara.",
+                "te da visibilidad para actuar a tiempo.",
+                "hace posible corregir con rapidez.",
+                "refuerza el desempeno colectivo.",
+                "marca el paso para un mejor cierre diario.",
+                "te permite liderar con datos y contexto.",
+                "genera claridad en cada frente operativo.",
+                "ayuda a detectar oportunidades reales de mejora.",
+                "hace mas precisa la toma de decisiones.",
+                "convierte la supervision en una ventaja del equipo.",
+                "refuerza el seguimiento constante del resultado.",
+                "da forma a una operacion mas solida.",
+                "te permite anticiparte a los riesgos.",
+                "ayuda a mantener el nivel del servicio.",
+                "hace visible donde intervenir primero.",
+                "mantiene alineadas las prioridades del equipo.",
+                "suma direccion y enfoque al trabajo diario.",
+                "te permite decidir con mayor confianza.",
+                "fortalece la consistencia del sistema.",
+                "impulsa una ejecucion mejor coordinada.",
+                "hace que cada indicador tenga utilidad practica.",
+                "te ayuda a liderar con mas claridad.",
+                "mantiene viva la mejora continua.",
+                "genera una operacion mas estable y predecible.",
+                "hace mas visibles los avances del equipo.",
+                "refuerza el impacto de tus decisiones.",
+                "te ayuda a mover al equipo con precision.",
+                "mejora la forma en que respondes a cada reto.",
+                "convierte el monitoreo en direccion efectiva.",
+                "hace mas clara la ruta de trabajo.",
+                "sostiene el ritmo correcto de la operacion.",
+                "te permite identificar focos de accion con rapidez.",
+                "impulsa el balance entre seguimiento y ejecucion.",
+                "fortalece la confianza del equipo en el rumbo.",
+                "te da base para liderar con objetividad.",
+                "mantiene enfocado el esfuerzo colectivo.",
+                "te ayuda a proteger la calidad del servicio.",
+                "hace que cada revision tenga proposito.",
+                "convierte la informacion en decisiones concretas.",
+                "te permite sostener una mejora mas consistente.",
+                "ayuda a elevar el nivel de respuesta del equipo.",
+                "hace del seguimiento una ventaja operativa.",
+                "refuerza una cultura de ejecucion con criterio.",
+                "te permite ver tendencias antes de que escalen.",
+                "mantiene conectado el dato con la accion correcta.",
+                "genera direccion en cada cierre del dia.",
+                "hace que el sistema trabaje a tu favor.",
+                "fortalece la disciplina operativa del equipo.",
+                "te ayuda a mantener el control sin perder agilidad.",
+                "impulsa resultados mas claros y sostenibles.",
+                "convierte cada lectura del sistema en una oportunidad.",
+                "te permite liderar con enfoque y consistencia.",
+                "mantiene la operacion orientada al resultado.",
+                "hace que la supervision se traduzca en desempeno.",
+                "refuerza el valor de cada decision tomada hoy.",
+                "da contexto para liderar mejor cada jornada.",
+            ],
+        )
+        message = self._message_for_day(admin_messages, "Analiza tendencias y lidera con datos.")
         return greeting_line, message
 
     def _set_window_icon(self) -> None:
@@ -471,16 +620,6 @@ class CalibrationApp(ctk.CTk):
         )
         greeting_card.grid(row=0, column=0, padx=(0, 8), sticky="e")
 
-        self.header_identity_label = ctk.CTkLabel(
-            greeting_card,
-            text=f"{current_user.get('name', 'Sin sesion')}  |  {role_text}",
-            font=FONTS["small_bold"],
-            text_color="#4A3B00",
-            anchor="e",
-            justify="right",
-        )
-        self.header_identity_label.grid(row=0, column=0, padx=(14, 14), pady=(8, 0), sticky="e")
-
         self.header_greeting_label = ctk.CTkLabel(
             greeting_card,
             text=greeting_text,
@@ -489,7 +628,17 @@ class CalibrationApp(ctk.CTk):
             anchor="e",
             justify="right",
         )
-        self.header_greeting_label.grid(row=1, column=0, padx=(14, 14), pady=(0, 0), sticky="e")
+        self.header_greeting_label.grid(row=0, column=0, padx=(14, 14), pady=(8, 0), sticky="e")
+
+        self.header_identity_label = ctk.CTkLabel(
+            greeting_card,
+            text=f"{current_user.get('name', 'Sin sesion')}  |  {role_text}",
+            font=FONTS["small_bold"],
+            text_color="#4A3B00",
+            anchor="e",
+            justify="right",
+        )
+        self.header_identity_label.grid(row=1, column=0, padx=(14, 14), pady=(0, 0), sticky="e")
 
         self.header_message_label = ctk.CTkLabel(
             greeting_card,
@@ -514,6 +663,7 @@ class CalibrationApp(ctk.CTk):
         ).grid(row=0, column=1, sticky="e")
 
     def _build_navigation(self, parent) -> None:
+        current_user = self.controller.current_user or {}
         nav = ctk.CTkFrame(parent, fg_color="transparent")
         nav.grid(row=1, column=0, sticky="ew", pady=(10, 12))
         nav.grid_columnconfigure(0, weight=1)
@@ -557,7 +707,11 @@ class CalibrationApp(ctk.CTk):
             summary_keys = ["average_score", "alerts", "medals"]
 
         if not self._kpi_medal_images:
-            self._kpi_medal_images = self._load_kpi_medal_images()
+            self._kpi_medal_images = self._load_kpi_medal_images(size=(26, 26))
+        if not self._kpi_medal_images_exec:
+            self._kpi_medal_images_exec = self._load_kpi_medal_images(size=(38, 38))
+
+        highlight_exec_medals = self.controller.is_executive_role(current_user)
 
         medal_colors = {"ORO": "#B98500", "PLATINO": "#4F5D73", "BRONCE": "#8C4B20"}
 
@@ -565,33 +719,44 @@ class CalibrationApp(ctk.CTk):
             if key == "medals":
                 card = ctk.CTkFrame(
                     summary_row,
-                    fg_color="#FFFFFF",
+                    fg_color="#FFF8CC" if highlight_exec_medals else "#FFFFFF",
                     corner_radius=12,
-                    border_width=1,
-                    border_color="#E3E6EA",
-                    height=40,
+                    border_width=2 if highlight_exec_medals else 1,
+                    border_color="#E5C100" if highlight_exec_medals else "#E3E6EA",
+                    width=286 if highlight_exec_medals else 232,
+                    height=78 if highlight_exec_medals else 56,
                 )
                 card.grid(row=0, column=index, padx=(0 if index == 0 else 6, 0), sticky="e")
+                card.grid_propagate(False)
                 ctk.CTkLabel(
                     card,
                     text=title_map[key],
-                    font=FONTS["small"],
-                    text_color="#6D7480",
-                ).grid(row=0, column=0, padx=(8, 6), pady=9, sticky="w")
+                    font=("Inter", int(FONTS["small_bold"][1]) + (2 if highlight_exec_medals else 0), "bold"),
+                    text_color="#7A6000" if highlight_exec_medals else "#6D7480",
+                ).grid(row=0, column=0, padx=(12, 8), pady=(18 if highlight_exec_medals else 12), sticky="w")
                 for m_idx, medal_key in enumerate(["ORO", "PLATINO", "BRONCE"]):
                     col_base = 1 + m_idx * 2
-                    img = self._kpi_medal_images.get(medal_key)
+                    image_set = self._kpi_medal_images_exec if highlight_exec_medals else self._kpi_medal_images
+                    img = image_set.get(medal_key)
                     if img is not None:
                         ctk.CTkLabel(card, text="", image=img).grid(
-                            row=0, column=col_base, padx=(0, 1), pady=9
+                            row=0,
+                            column=col_base,
+                            padx=(0, 3),
+                            pady=(14 if highlight_exec_medals else 10),
                         )
                     count_lbl = ctk.CTkLabel(
                         card,
                         text="0",
-                        font=("Inter", int(FONTS["small_bold"][1]), "bold"),
+                        font=("Inter", int(FONTS["small_bold"][1]) + (7 if highlight_exec_medals else 3), "bold"),
                         text_color=medal_colors[medal_key],
                     )
-                    count_lbl.grid(row=0, column=col_base + 1, padx=(0, 5), pady=9)
+                    count_lbl.grid(
+                        row=0,
+                        column=col_base + 1,
+                        padx=(0, 7),
+                        pady=(14 if highlight_exec_medals else 10),
+                    )
                     self.summary_labels[f"medals_{medal_key}"] = count_lbl
                 continue
 
@@ -601,8 +766,8 @@ class CalibrationApp(ctk.CTk):
                 corner_radius=12,
                 border_width=1,
                 border_color="#E3E6EA",
-                width=148,
-                height=40,
+                width=170,
+                height=52,
             )
             card.grid(row=0, column=index, padx=(0 if index == 0 else 6, 0), sticky="e")
             card.grid_propagate(False)
@@ -611,17 +776,17 @@ class CalibrationApp(ctk.CTk):
             ctk.CTkLabel(
                 card,
                 text=title_map[key],
-                font=FONTS["small"],
+                font=FONTS["small_bold"],
                 text_color="#6D7480",
-            ).grid(row=0, column=0, padx=(8, 4), pady=9, sticky="w")
+            ).grid(row=0, column=0, padx=(10, 4), pady=12, sticky="w")
 
             value_label = ctk.CTkLabel(
                 card,
                 text="--",
-                font=("Inter", int(FONTS["small_bold"][1]), "bold"),
+                font=("Inter", int(FONTS["small_bold"][1]) + 2, "bold"),
                 text_color=STYLE["texto_oscuro"],
             )
-            value_label.grid(row=0, column=1, padx=(4, 8), sticky="e")
+            value_label.grid(row=0, column=1, padx=(4, 10), sticky="e")
             self.summary_labels[key] = value_label
 
     def _build_content(self, parent) -> None:
@@ -639,12 +804,15 @@ class CalibrationApp(ctk.CTk):
         if can_edit:
             return {
                 "Principal": lambda: PrincipalView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
+                "Criterios": lambda: CriteriaEvaluationView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
                 "Dashboard": lambda: DashboardView(self.content_frame, self.controller, STYLE, FONTS),
                 "Calendario": lambda: CalendarView(self.content_frame, self.controller, STYLE, FONTS, can_edit),
                 "Trimestral": lambda: TrimestralView(self.content_frame, self.controller, STYLE, FONTS, True),
                 "Configuraciones": lambda: ConfigurationView(self.content_frame, self.controller, STYLE, FONTS, True, self.refresh_all_views),
             }
         return {
+            "Principal": lambda: PrincipalView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
+            "Criterios": lambda: CriteriaEvaluationView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
             "Calendario": lambda: CalendarView(self.content_frame, self.controller, STYLE, FONTS, can_edit),
             "Trimestral": lambda: TrimestralView(self.content_frame, self.controller, STYLE, FONTS, False),
         }
