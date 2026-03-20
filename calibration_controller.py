@@ -12,8 +12,10 @@ from statistics import mean
 from typing import Any
 from uuid import uuid4
 
+from runtime_paths import app_dir, resource_path
 
-ROOT_DIR = Path(__file__).resolve().parent
+
+ROOT_DIR = app_dir()
 DATA_DIR = ROOT_DIR / "data"
 BD_FILE = DATA_DIR / "BD-Calibracion.json"
 CLIENTS_FILE = DATA_DIR / "Clientes.json"
@@ -24,7 +26,34 @@ HISTORY_DIR = DATA_DIR / "historico"
 VISITS_DIR = DATA_DIR / "visitas"
 TRIMESTRAL_DIR = DATA_DIR / "trimestral"
 NORMS_REPORT_FILE = DATA_DIR / "reporte de normas.json"
-DOCUMENT_MODULE_DIR = ROOT_DIR / "Documentos PDF.py"
+DOCUMENT_MODULE_DIR = resource_path("Documentos PDF.py")
+
+
+TRIMESTRAL_MEDAL_RULES: tuple[tuple[float, str, str, str], ...] = (
+	(100.0, "ORO", "Excelente", "bono garantizado + extra por alto desempeno"),
+	(90.0, "PLATINO", "Optimo", "bono garantizado"),
+	(80.0, "BRONCE", "Aceptable", "favor de reforzar"),
+)
+
+
+def _seed_runtime_data_dir() -> None:
+	"""Copy seed JSON data from bundle to runtime dir when needed."""
+	bundle_data = resource_path("data")
+	if not bundle_data.exists() or not bundle_data.is_dir():
+		return
+
+	if not DATA_DIR.exists():
+		shutil.copytree(bundle_data, DATA_DIR)
+		return
+
+	for source in bundle_data.iterdir():
+		target = DATA_DIR / source.name
+		if target.exists():
+			continue
+		if source.is_dir():
+			shutil.copytree(source, target)
+		else:
+			shutil.copy2(source, target)
 
 
 def _read_json(path: Path, default: Any) -> Any:
@@ -519,6 +548,7 @@ def _load_module(module_path: str):
 
 class CalibrationController:
 	def __init__(self, root_dir: Path | None = None) -> None:
+		_seed_runtime_data_dir()
 		self.root_dir = root_dir or ROOT_DIR
 		self.current_user: dict[str, Any] | None = None
 		self.raw_records: list[dict[str, Any]] = []
@@ -1066,7 +1096,7 @@ class CalibrationController:
 				"latest_score_text": f"{latest_score:.1f}%" if latest_score is not None else "--",
 				"status": status,
 				"form_completed": form_completed,
-				"actions_text": "Formulario",
+				"actions_text": "Calibrar",
 			}
 
 			searchable_blob = f"{name} {row['norms_text']} {status}".lower()
@@ -1370,7 +1400,82 @@ class CalibrationController:
 			quarter_value = str(quarter).strip().upper()
 			scores = [item for item in scores if str(item.get("quarter", "")).strip().upper() == quarter_value]
 
-		return [dict(item) for item in scores]
+		enriched_scores: list[dict[str, Any]] = []
+		for item in scores:
+			if not isinstance(item, dict):
+				continue
+			row = dict(item)
+			medal_payload = self.get_trimestral_medal(row.get("score"))
+			row["medal"] = medal_payload["key"]
+			row["medal_title"] = medal_payload["title"]
+			row["medal_label"] = medal_payload["label"]
+			row["medal_message"] = medal_payload["message"]
+			enriched_scores.append(row)
+
+		return enriched_scores
+
+	def get_trimestral_medals_summary(
+		self,
+		inspector_name: str | None = None,
+		current_user: dict[str, Any] | None = None,
+		include_unsent: bool = True,
+	) -> dict[str, Any]:
+		scores = self.list_trimestral_scores(
+			inspector_name=inspector_name,
+			current_user=current_user,
+			include_unsent=include_unsent,
+		)
+		counts = {"ORO": 0, "PLATINO": 0, "BRONCE": 0}
+		for row in scores:
+			medal_key = str(row.get("medal", "")).strip().upper()
+			if medal_key in counts:
+				counts[medal_key] += 1
+
+		latest = None
+		if scores:
+			latest = max(
+				scores,
+				key=lambda item: (
+					int(item.get("year", 0) or 0),
+					str(item.get("quarter", "")),
+					str(item.get("updated_at", "")),
+				),
+			)
+		latest_medal = self.get_trimestral_medal((latest or {}).get("score"))
+
+		return {
+			"counts": counts,
+			"total": sum(counts.values()),
+			"latest_medal": latest_medal,
+			"scores_count": len(scores),
+		}
+
+	@staticmethod
+	def get_trimestral_medal(score_value: Any) -> dict[str, str]:
+		score = _coerce_score(score_value)
+		if score is None:
+			return {
+				"key": "",
+				"title": "Sin medalla",
+				"label": "Sin medalla",
+				"message": "Sigue mejorando para alcanzar una medalla.",
+			}
+
+		for minimum, key, title, message in TRIMESTRAL_MEDAL_RULES:
+			if score >= minimum:
+				return {
+					"key": key,
+					"title": title,
+					"label": f"{title} {key}",
+					"message": message,
+				}
+
+		return {
+			"key": "",
+			"title": "Sin medalla",
+			"label": "Sin medalla",
+			"message": "Sigue mejorando para alcanzar una medalla.",
+		}
 
 	def _boleta_path_for_score(self, score_row: dict[str, Any]) -> Path | None:
 		inspector_name = str(score_row.get("inspector", "")).strip()
@@ -1535,6 +1640,11 @@ class CalibrationController:
 		previous_sent_at = str(record.get("sent_at", "")).strip()
 		record["sent_at"] = previous_sent_at if previous_sent_at else ""
 		record["boleta_status"] = "CRITICO" if score < 90 else "CALIFICADO"
+		medal_payload = self.get_trimestral_medal(score)
+		record["medal"] = medal_payload["key"]
+		record["medal_title"] = medal_payload["title"]
+		record["medal_label"] = medal_payload["label"]
+		record["medal_message"] = medal_payload["message"]
 		record["updated_at"] = _timestamp()
 
 		q_dir = _quarter_dir(quarter, year)
@@ -2548,7 +2658,7 @@ def _controller_get_principal_rows(self, search_text: str = "", status_filter: s
 		else:
 			status = "Estable"
 
-		actions_text = "Formulario"
+		actions_text = "Calibrar"
 
 		norms_text = ", ".join(accredited_norms) if accredited_norms else "Sin acreditacion"
 		row = {

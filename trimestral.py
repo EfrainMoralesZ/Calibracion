@@ -3,11 +3,15 @@ from __future__ import annotations
 import re
 import unicodedata
 from datetime import datetime
+from pathlib import Path
 from statistics import mean
 from tkinter import filedialog, messagebox, ttk
 import tkinter as tk
 
 import customtkinter as ctk
+from PIL import Image
+
+from runtime_paths import resource_path, writable_path
 
 
 class TrimestralView(ctk.CTkFrame):
@@ -24,6 +28,7 @@ class TrimestralView(ctk.CTkFrame):
 		self._cards_signature: tuple | None = None
 		self.cards_page_size = 9
 		self.current_cards_page = 0
+		self.cards_medal_filter_var = ctk.StringVar(value="Todas")
 
 		self.inspector_var = ctk.StringVar()
 		self.norm_var = ctk.StringVar()
@@ -44,6 +49,10 @@ class TrimestralView(ctk.CTkFrame):
 		self.cards_pager_frame: ctk.CTkFrame | None = None
 		self.history_dashboard_frame: ctk.CTkScrollableFrame | None = None
 		self.history_dashboard_summary_label: ctk.CTkLabel | None = None
+		self.cards_medal_filter_combo: ctk.CTkComboBox | None = None
+		self.medal_images = self._load_medal_images()
+		self.medal_images_small = self._load_medal_images(size=(22, 22))
+		self.alert_images = self._load_alert_images()
 		self.tabview: ctk.CTkTabview | None = None
 		self.capture_tab_name = "Captura trimestral"
 		self.history_tab_name = "Historial trimestral"
@@ -75,18 +84,70 @@ class TrimestralView(ctk.CTkFrame):
 			text_color="#6D7480",
 		).grid(row=1, column=0, sticky="w", pady=(4, 0))
 
-		self.tabview = ctk.CTkTabview(
-			self,
-			fg_color=self.style["surface"],
-			segmented_button_selected_color=self.style["secundario"],
-			segmented_button_selected_hover_color="#1D1D1D",
-		)
-		self.tabview.grid(row=1, column=0, sticky="nsew")
-		self.tabview.add(self.capture_tab_name)
-		self.tabview.add(self.history_tab_name)
+		if self.can_edit:
+			self.tabview = ctk.CTkTabview(
+				self,
+				fg_color=self.style["surface"],
+				segmented_button_selected_color=self.style["secundario"],
+				segmented_button_selected_hover_color="#1D1D1D",
+			)
+			self.tabview.grid(row=1, column=0, sticky="nsew")
+			self.tabview.add(self.capture_tab_name)
+			self.tabview.add(self.history_tab_name)
 
-		self._build_capture_tab(self.tabview.tab(self.capture_tab_name))
-		self._build_history_tab(self.tabview.tab(self.history_tab_name))
+			self._build_capture_tab(self.tabview.tab(self.capture_tab_name))
+			self._build_history_tab(self.tabview.tab(self.history_tab_name))
+		else:
+			executive_panel = ctk.CTkFrame(self, fg_color="transparent")
+			executive_panel.grid(row=1, column=0, sticky="nsew")
+			executive_panel.grid_columnconfigure(0, weight=1)
+			executive_panel.grid_rowconfigure(0, weight=1)
+			self._build_capture_tab(executive_panel)
+
+	def _load_medal_images(self, size: tuple[int, int] = (46, 46)) -> dict[str, ctk.CTkImage | None]:
+		files = {
+			"ORO": "medalla_oro.png",
+			"PLATINO": "medalla_plata.png",
+			"BRONCE": "medalla_bronce.png",
+		}
+		images: dict[str, ctk.CTkImage | None] = {}
+		for key, file_name in files.items():
+			image_path: Path | None = None
+			for candidate in [resource_path("img", file_name), writable_path("img", file_name)]:
+				if candidate.exists():
+					image_path = candidate
+					break
+			if image_path is None:
+				images[key] = None
+				continue
+
+			try:
+				source = Image.open(image_path)
+			except OSError:
+				images[key] = None
+				continue
+
+			images[key] = ctk.CTkImage(light_image=source, dark_image=source, size=size)
+		return images
+
+	def _load_alert_images(self) -> dict[str, ctk.CTkImage | None]:
+		image_path: Path | None = None
+		for candidate in [resource_path("img", "alerta.png"), writable_path("img", "alerta.png")]:
+			if candidate.exists():
+				image_path = candidate
+				break
+		if image_path is None:
+			return {"small": None, "large": None}
+
+		try:
+			source = Image.open(image_path)
+		except OSError:
+			return {"small": None, "large": None}
+
+		return {
+			"small": ctk.CTkImage(light_image=source, dark_image=source, size=(20, 20)),
+			"large": ctk.CTkImage(light_image=source, dark_image=source, size=(26, 26)),
+		}
 
 	def _build_capture_tab(self, tab) -> None:
 		tab.grid_columnconfigure(0, weight=1)
@@ -95,7 +156,8 @@ class TrimestralView(ctk.CTkFrame):
 		cards_wrapper = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=22)
 		cards_wrapper.grid(row=0, column=0, sticky="nsew", pady=12)
 		cards_wrapper.grid_columnconfigure(0, weight=1)
-		cards_wrapper.grid_rowconfigure(2, weight=1)
+		cards_row_for_scroll = 3 if self.can_edit else 2
+		cards_wrapper.grid_rowconfigure(cards_row_for_scroll, weight=1)
 
 		cards_title = "Inspectores y normas acreditadas" if self.can_edit else "Tu card trimestral"
 		cards_hint = (
@@ -116,13 +178,43 @@ class TrimestralView(ctk.CTkFrame):
 			text_color="#6D7480",
 		).grid(row=1, column=0, padx=18, pady=(0, 8), sticky="w")
 
+		if self.can_edit:
+			filter_row = ctk.CTkFrame(cards_wrapper, fg_color="transparent")
+			filter_row.grid(row=2, column=0, padx=18, pady=(0, 8), sticky="ew")
+			filter_row.grid_columnconfigure(3, weight=1)
+			ctk.CTkLabel(
+				filter_row,
+				text="Filtro por medallas",
+				font=self.fonts["small_bold"],
+				text_color="#6D7480",
+			).grid(row=0, column=0, padx=(0, 8), sticky="w")
+			self.cards_medal_filter_combo = ctk.CTkComboBox(
+				filter_row,
+				variable=self.cards_medal_filter_var,
+				values=["Todas", "Oro", "Platino", "Bronce", "Sin medalla"],
+				width=170,
+				height=34,
+				fg_color="#FFFFFF",
+				border_color="#D5D8DC",
+				button_color=self.style["primario"],
+				dropdown_hover_color=self.style["primario"],
+				command=lambda _value: self._render_inspector_cards(),
+			)
+			self.cards_medal_filter_combo.grid(row=0, column=1, sticky="w")
+			ctk.CTkLabel(
+				filter_row,
+				text="Rangos: 80 Bronce | 90 Platino | 100 Oro",
+				font=self.fonts["small"],
+				text_color="#6D7480",
+			).grid(row=0, column=2, padx=(12, 0), sticky="w")
+
 		self.cards_frame = ctk.CTkScrollableFrame(cards_wrapper, fg_color="transparent")
-		self.cards_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="nsew")
+		self.cards_frame.grid(row=cards_row_for_scroll, column=0, padx=10, pady=(0, 10), sticky="nsew")
 		for card_col in range(3):
 			self.cards_frame.grid_columnconfigure(card_col, weight=1, uniform="trimestral_cards")
 
 		self.cards_pager_frame = ctk.CTkFrame(cards_wrapper, fg_color="transparent")
-		self.cards_pager_frame.grid(row=3, column=0, padx=18, pady=(0, 14), sticky="ew")
+		self.cards_pager_frame.grid(row=cards_row_for_scroll + 1, column=0, padx=18, pady=(0, 14), sticky="ew")
 
 	def _build_history_tab(self, tab) -> None:
 		tab.grid_columnconfigure(0, weight=1)
@@ -418,6 +510,8 @@ class TrimestralView(ctk.CTkFrame):
 				for item in scores[:8]:
 					score_value = self._coerce_score(item.get("score"))
 					score_text = f"{score_value:.1f}%" if score_value is not None else "--"
+					medal = self._score_medal(item)
+					medal_text = medal["title"] if medal["key"] else "Sin medalla"
 					period = f"{item.get('quarter', '--')} {item.get('year', '--')}"
 					updated = str(item.get("updated_at", "--"))
 					sent_at = str(item.get("sent_at", "")).strip()
@@ -428,7 +522,7 @@ class TrimestralView(ctk.CTkFrame):
 						state = "Confirmado"
 					else:
 						state = "Pendiente"
-					lines.append(f"- {period} | {score_text} | {updated} | {state}")
+					lines.append(f"- {period} | {score_text} | {medal_text} | {updated} | {state}")
 
 		self.capture_history_box.configure(state="normal")
 		self.capture_history_box.delete("1.0", "end")
@@ -605,6 +699,98 @@ class TrimestralView(ctk.CTkFrame):
 		self._refresh_capture_history_preview()
 		self._update_capture_title()
 		self._sync_capture_delete_state()
+
+	def _build_personalized_messages(self) -> tuple[str, str]:
+		current_name = str((self.controller.current_user or {}).get("name", "")).strip() or "Equipo"
+		hour = datetime.now().hour
+		if hour < 12:
+			saludo = "Buenos dias"
+		elif hour < 19:
+			saludo = "Buenas tardes"
+		else:
+			saludo = "Buenas noches"
+
+		greeting_text = f"{saludo}, {current_name}."
+		if not self.controller.current_user or str((self.controller.current_user or {}).get("role", "")).strip().lower() != "ejecutivo":
+			return greeting_text, "Monitorea resultados trimestrales y reconoce el desempeno destacado del equipo."
+
+		scores = self.controller.list_trimestral_scores(inspector_name=current_name, include_unsent=True)
+		totals = self._accumulated_medals(scores)
+		if totals["ORO"] > 0:
+			message = (
+				f"{current_name}, llevas {totals['ORO']} medalla(s) Oro. "
+				"Excelente: bono garantizado + extra por alto desempeno."
+			)
+		elif totals["PLATINO"] > 0:
+			message = (
+				f"{current_name}, llevas {totals['PLATINO']} medalla(s) Platino. "
+				"Optimo: bono garantizado."
+			)
+		elif totals["BRONCE"] > 0:
+			message = (
+				f"{current_name}, ya obtuviste {totals['BRONCE']} medalla(s) Bronce. "
+				"Vas bien: favor de reforzar para subir al siguiente nivel."
+			)
+		else:
+			message = f"{current_name}, cada trimestre cuenta: apunta a 80 para tu primera medalla Bronce."
+
+		return greeting_text, message
+
+	def _score_medal(self, score_row_or_value) -> dict[str, str]:
+		if isinstance(score_row_or_value, dict):
+			score_value = score_row_or_value.get("score")
+		else:
+			score_value = score_row_or_value
+		medal = self.controller.get_trimestral_medal(score_value)
+		key = str(medal.get("key", "")).strip().upper()
+		color = "#6D7480"
+		if key == "ORO":
+			color = "#B98500"
+		elif key == "PLATINO":
+			color = "#4F5D73"
+		elif key == "BRONCE":
+			color = "#8C4B20"
+		return {
+			"key": key,
+			"label": str(medal.get("label", "Sin medalla")),
+			"title": str(medal.get("title", "Sin medalla")),
+			"message": str(medal.get("message", "")),
+			"color": color,
+		}
+
+	def _accumulated_medals(self, scores: list[dict]) -> dict[str, int]:
+		totals = {"ORO": 0, "PLATINO": 0, "BRONCE": 0}
+		for item in scores:
+			medal_key = self._score_medal(item).get("key", "")
+			if medal_key in totals:
+				totals[medal_key] += 1
+		return totals
+
+	def _medal_summary_text(self, scores: list[dict]) -> str:
+		totals = self._accumulated_medals(scores)
+		parts = []
+		if totals["ORO"]:
+			parts.append(f"Oro x{totals['ORO']}")
+		if totals["PLATINO"]:
+			parts.append(f"Platino x{totals['PLATINO']}")
+		if totals["BRONCE"]:
+			parts.append(f"Bronce x{totals['BRONCE']}")
+		return " | ".join(parts) if parts else "Sin medallas acumuladas"
+
+	def _match_medal_filter(self, scores: list[dict]) -> bool:
+		selected = str(self.cards_medal_filter_var.get() or "Todas").strip().lower()
+		if selected == "todas":
+			return True
+		totals = self._accumulated_medals(scores)
+		if selected == "oro":
+			return totals["ORO"] > 0
+		if selected == "platino":
+			return totals["PLATINO"] > 0
+		if selected == "bronce":
+			return totals["BRONCE"] > 0
+		if selected == "sin medalla":
+			return sum(totals.values()) == 0
+		return True
 
 	def _refresh_history_table(self) -> None:
 		if self.tree is None:
@@ -1024,7 +1210,10 @@ class TrimestralView(ctk.CTkFrame):
 			assigned_scores = scores_by_inspector.get(inspector_identity, [])
 			if not assigned_scores and not self.can_edit and current_name:
 				assigned_scores = scores_by_inspector.get(self._normalize_identity(current_name), [])
+			if not self._match_medal_filter(assigned_scores):
+				continue
 			summary = self._format_assigned_scores(assigned_scores)
+			medals = self._accumulated_medals(assigned_scores)
 			norm_count = len({self._norm_key(item) for item in assigned_scores})
 			card_models.append(
 				{
@@ -1033,10 +1222,15 @@ class TrimestralView(ctk.CTkFrame):
 					"skills_text": f"Normas calificadas: {norm_count}",
 					"pending_text": summary["pending_text"],
 					"califications_hint": summary["califications_hint"],
+					"medal_summary": self._medal_summary_text(assigned_scores),
+					"medal_oro": str(medals["ORO"]),
+					"medal_platino": str(medals["PLATINO"]),
+					"medal_bronce": str(medals["BRONCE"]),
 					"send_ready": "1" if summary["send_ready"] else "0",
 					"confirm_ready": "1" if summary["confirm_ready"] else "0",
 					"check_text": summary["check_text"],
 					"check_ok": "1" if summary["check_ok"] else "0",
+					"workshop_alert": summary.get("workshop_alert", ""),
 				}
 			)
 
@@ -1047,10 +1241,16 @@ class TrimestralView(ctk.CTkFrame):
 				model["skills_text"],
 				model["pending_text"],
 				model["califications_hint"],
+				model["workshop_alert"],
+				model["medal_summary"],
+				model["medal_oro"],
+				model["medal_platino"],
+				model["medal_bronce"],
 				model["send_ready"],
 				model["confirm_ready"],
 				model["check_text"],
 				model["check_ok"],
+				str(self.cards_medal_filter_var.get() or ""),
 			)
 			for model in card_models
 		)
@@ -1068,7 +1268,7 @@ class TrimestralView(ctk.CTkFrame):
 		if not card_models:
 			ctk.CTkLabel(
 				self.cards_frame,
-				text="Sin inspectores disponibles para mostrar en Trimestral.",
+				text="Sin resultados para el filtro de medallas seleccionado.",
 				font=self.fonts["small"],
 				text_color="#6D7480",
 			).grid(row=0, column=0, padx=10, pady=8, sticky="w")
@@ -1091,11 +1291,12 @@ class TrimestralView(ctk.CTkFrame):
 				corner_radius=20,
 				border_width=1,
 				border_color="#E3E6EA",
-				height=292,
+				height=268,
 			)
 			card.grid(row=0, column=0, sticky="nsew")
 			card.grid_propagate(False)
 			card.grid_columnconfigure(0, weight=1)
+			card.grid_columnconfigure(1, minsize=178)
 
 			ctk.CTkLabel(
 				card,
@@ -1104,62 +1305,115 @@ class TrimestralView(ctk.CTkFrame):
 				text_color=self.style["texto_oscuro"],
 				anchor="w",
 				justify="left",
-				wraplength=240,
+				wraplength=200,
 			).grid(row=0, column=0, padx=12, pady=(12, 4), sticky="ew")
-
-			ctk.CTkLabel(
-				card,
-				text="Normas acreditadas",
-				font=self.fonts["small_bold"],
-				text_color="#6D7480",
-			).grid(row=1, column=0, padx=12, sticky="w")
-
-			ctk.CTkLabel(
-				card,
-				text=model["norms_text"],
-				font=self.fonts["small"],
-				text_color=self.style["texto_oscuro"],
-				justify="left",
-				wraplength=240,
-			).grid(row=2, column=0, padx=12, pady=(0, 6), sticky="ew")
 
 			ctk.CTkLabel(
 				card,
 				text=model["skills_text"],
 				font=self.fonts["small_bold"],
 				text_color="#6D7480",
-			).grid(row=3, column=0, padx=12, pady=(0, 8), sticky="w")
+			).grid(row=1, column=0, padx=12, pady=(0, 6), sticky="w")
 
 			ctk.CTkLabel(
 				card,
 				text=model["pending_text"],
 				font=self.fonts["small_bold"],
 				text_color="#6D7480",
-			).grid(row=4, column=0, padx=12, pady=(0, 4), sticky="w")
+			).grid(row=2, column=0, padx=12, pady=(0, 4), sticky="w")
 
-			ctk.CTkLabel(
-				card,
-				text=model["califications_hint"],
-				font=self.fonts["small"],
-				text_color="#6D7480",
-				justify="left",
-				wraplength=250,
-			).grid(row=5, column=0, padx=12, pady=(0, 6), sticky="w")
+			hint_frame = ctk.CTkFrame(card, fg_color="transparent")
+			hint_frame.grid(row=3, column=0, padx=12, pady=(0, 4), sticky="w")
+			if model["califications_hint"]:
+				ctk.CTkLabel(
+					hint_frame,
+					text=model["califications_hint"],
+					font=self.fonts["small"],
+					text_color="#6D7480",
+					justify="left",
+					wraplength=220,
+				).pack(anchor="w")
+			if model["workshop_alert"] == "1":
+				alert_row = ctk.CTkFrame(hint_frame, fg_color="transparent")
+				alert_row.pack(anchor="w", pady=(2, 0))
+				alert_img = self.alert_images.get("small")
+				if alert_img is not None:
+					ctk.CTkLabel(alert_row, text="", image=alert_img).pack(side="left", padx=(0, 4))
+				ctk.CTkLabel(
+					alert_row,
+					text="Requiere tomar taller",
+					font=self.fonts["small_bold"],
+					text_color="#E67E22",
+				).pack(side="left")
 
 			ctk.CTkLabel(
 				card,
 				text=model["check_text"],
 				font=self.fonts["small_bold"],
 				text_color=self.style["exito"] if model["check_ok"] == "1" else "#6D7480",
-			).grid(row=6, column=0, padx=12, pady=(0, 8), sticky="w")
+			).grid(row=4, column=0, padx=12, pady=(0, 8), sticky="w")
+
+			medal_panel = ctk.CTkFrame(
+				card,
+				fg_color="#FFFFFF",
+				corner_radius=0,
+				border_width=0,
+				width=190,
+				height=110,
+			)
+			medal_panel.grid(row=0, column=1, rowspan=4, padx=(0, 8), pady=(8, 4), sticky="new")
+			medal_panel.grid_propagate(False)
+			ctk.CTkLabel(
+				medal_panel,
+				text="Medallas",
+				font=self.fonts["small_bold"],
+				text_color="#6D7480",
+			).pack(padx=8, pady=(4, 2), anchor="center")
+
+			achieved = []
+			for key, count_key, color, emoji in [
+				("ORO", "medal_oro", "#B98500", "🥇"),
+				("PLATINO", "medal_platino", "#4F5D73", "🥈"),
+				("BRONCE", "medal_bronce", "#8C4B20", "🥉"),
+			]:
+				try:
+					count_value = int(model[count_key])
+				except (TypeError, ValueError):
+					count_value = 0
+				if count_value > 0:
+					achieved.append((key, count_value, color, emoji))
+
+			if not achieved:
+				ctk.CTkLabel(
+					medal_panel,
+					text="Sin medallas",
+					font=self.fonts["small"],
+					text_color="#9AA1AB",
+				).pack(padx=8, pady=(16, 0))
+			else:
+				row_frame = ctk.CTkFrame(medal_panel, fg_color="transparent")
+				row_frame.pack(padx=4, pady=(4, 4), fill="x")
+				for key, count_value, color, emoji in achieved:
+					pill = ctk.CTkFrame(row_frame, fg_color="transparent", corner_radius=0, border_width=0)
+					pill.pack(side="left", padx=4)
+					image_ref = self.medal_images.get(key)
+					if image_ref is not None:
+						ctk.CTkLabel(pill, text="", image=image_ref).pack(side="left", padx=(0, 2), pady=0)
+					else:
+						ctk.CTkLabel(pill, text=emoji, font=("Segoe UI Emoji", 22), text_color=color).pack(side="left", padx=(0, 2), pady=0)
+					ctk.CTkLabel(
+						pill,
+						text=f"x{count_value}",
+						font=self.fonts["small_bold"],
+						text_color=color,
+					).pack(side="left", padx=(0, 2))
 
 			actions_row = ctk.CTkFrame(card, fg_color="transparent")
-			actions_row.grid(row=7, column=0, padx=12, pady=(0, 12), sticky="ew")
+			actions_row.grid(row=5, column=0, columnspan=2, padx=12, pady=(2, 10), sticky="ew")
 			actions_row.grid_columnconfigure(0, weight=1)
 			if self.can_edit:
 				actions_row.grid_columnconfigure(1, weight=1)
 				actions_row.grid_columnconfigure(2, weight=1)
-				actions_row.grid_columnconfigure(3, weight=1)
 			else:
 				actions_row.grid_columnconfigure(1, weight=1)
 
@@ -1169,20 +1423,10 @@ class TrimestralView(ctk.CTkFrame):
 				fg_color=self.style["primario"],
 				text_color=self.style["texto_oscuro"],
 				hover_color="#D8C220",
-				command=lambda name=inspector_name: self._open_inspector_detail(name),
+				command=lambda name=inspector_name: self._open_preview_popup(name),
 			).grid(row=0, column=0, padx=(0, 4 if self.can_edit else 3), sticky="ew")
 
 			if self.can_edit:
-				ctk.CTkButton(
-					actions_row,
-					text="Preview",
-					fg_color=self.style["surface"],
-					text_color=self.style["texto_oscuro"],
-					hover_color="#E9ECEF",
-					border_width=1,
-					border_color="#D5D8DC",
-					command=lambda name=inspector_name: self._open_preview_popup(name),
-				).grid(row=0, column=1, padx=4, sticky="ew")
 				ctk.CTkButton(
 					actions_row,
 					text="Captura",
@@ -1190,7 +1434,7 @@ class TrimestralView(ctk.CTkFrame):
 					text_color=self.style["texto_oscuro"],
 					hover_color="#E9ECEF",
 					command=lambda name=inspector_name: self._open_capture_for_inspector(name),
-				).grid(row=0, column=2, padx=4, sticky="ew")
+				).grid(row=0, column=1, padx=4, sticky="ew")
 				ctk.CTkButton(
 					actions_row,
 					text="Enviar",
@@ -1199,7 +1443,7 @@ class TrimestralView(ctk.CTkFrame):
 					hover_color="#1D1D1D",
 					state="normal" if model["send_ready"] == "1" else "disabled",
 					command=lambda name=inspector_name: self._send_scores_for_inspector(name),
-				).grid(row=0, column=3, padx=(4, 0), sticky="ew")
+				).grid(row=0, column=2, padx=(4, 0), sticky="ew")
 			else:
 				ctk.CTkButton(
 					actions_row,
@@ -1216,7 +1460,7 @@ class TrimestralView(ctk.CTkFrame):
 		if not scores:
 			return {
 				"pending_text": "Estado: Sin calificaciones",
-				"califications_hint": "Registra calificaciones trimestrales para habilitar su envio.",
+				"califications_hint": "Registra calificaciones trimestrales.",
 				"send_ready": "",
 				"confirm_ready": "",
 				"check_text": "Check ejecutivo: --",
@@ -1227,21 +1471,31 @@ class TrimestralView(ctk.CTkFrame):
 		sent_rows = [item for item in scores if str(item.get("sent_at", "")).strip()]
 		pending_confirm = [item for item in sent_rows if not str(item.get("confirmed_at") or "").strip()]
 		confirmed_rows = [item for item in sent_rows if str(item.get("confirmed_at") or "").strip()]
+		medals = self._accumulated_medals(scores)
 		critical_count = 0
+		workshop_count = 0
+		latest_score_value = None
 		for item in scores:
 			score_value = self._coerce_score(item.get("score"))
+			if latest_score_value is None and score_value is not None:
+				latest_score_value = score_value
 			if score_value is not None and score_value < 90:
 				critical_count += 1
+			if score_value is not None and score_value <= 80:
+				workshop_count += 1
 
 		if unsent_rows:
 			state_text = "Estado: Calificaciones asignadas"
-			hint_text = f"Pendientes de envio: {len(unsent_rows)} | Enviadas: {len(sent_rows)}"
+			hint_text = f"Envio: {len(sent_rows)} enviadas | {len(unsent_rows)} pendientes"
 		else:
 			state_text = "Estado: Calificado"
-			hint_text = f"Pendientes de enterado: {len(pending_confirm)} | Confirmadas: {len(confirmed_rows)}"
+			hint_text = ""
 
-		if critical_count:
-			hint_text = f"{hint_text} | Critico (<90%): {critical_count}"
+		workshop_alert = ""
+		if latest_score_value is not None and latest_score_value <= 80:
+			workshop_alert = "1"
+		elif workshop_count > 0:
+			workshop_alert = "1"
 
 		if sent_rows:
 			if pending_confirm:
@@ -1257,6 +1511,7 @@ class TrimestralView(ctk.CTkFrame):
 		return {
 			"pending_text": state_text,
 			"califications_hint": hint_text,
+			"workshop_alert": workshop_alert,
 			"send_ready": "1" if len(unsent_rows) > 0 else "",
 			"confirm_ready": "1" if len(pending_confirm) > 0 else "",
 			"check_text": check_text,
@@ -1333,7 +1588,7 @@ class TrimestralView(ctk.CTkFrame):
 		wrapper = ctk.CTkFrame(dialog, fg_color=self.style["surface"], corner_radius=20)
 		wrapper.pack(fill="both", expand=True, padx=18, pady=18)
 		wrapper.grid_columnconfigure(0, weight=1)
-		wrapper.grid_rowconfigure(3, weight=1)
+		wrapper.grid_rowconfigure(4, weight=1)
 
 		ctk.CTkLabel(
 			wrapper,
@@ -1344,7 +1599,7 @@ class TrimestralView(ctk.CTkFrame):
 
 		filters = ctk.CTkFrame(wrapper, fg_color="transparent")
 		filters.grid(row=1, column=0, padx=18, pady=(0, 10), sticky="ew")
-		filters.grid_columnconfigure(5, weight=1)
+		filters.grid_columnconfigure(9, weight=1)
 
 		valid_years: list[int] = []
 		for score_row in scores:
@@ -1358,6 +1613,11 @@ class TrimestralView(ctk.CTkFrame):
 
 		year_var = ctk.StringVar(value="Todos")
 		quarter_var = ctk.StringVar(value="Todos")
+		medal_var = ctk.StringVar(value="Todas")
+		norm_var = ctk.StringVar(value="Todas")
+
+		norm_tokens = sorted({self._norm_key(item) for item in scores if self._norm_key(item)})
+		norm_options = ["Todas", *norm_tokens]
 
 		ctk.CTkLabel(
 			filters,
@@ -1399,14 +1659,52 @@ class TrimestralView(ctk.CTkFrame):
 
 		ctk.CTkLabel(
 			filters,
+			text="Medalla",
+			font=self.fonts["small_bold"],
+			text_color="#6D7480",
+		).grid(row=0, column=4, padx=(0, 8), sticky="w")
+		medal_selector = ctk.CTkComboBox(
+			filters,
+			variable=medal_var,
+			values=["Todas", "Oro", "Platino", "Bronce", "Sin medalla"],
+			width=140,
+			height=34,
+			fg_color="#FFFFFF",
+			border_color="#D5D8DC",
+			button_color=self.style["primario"],
+			dropdown_hover_color=self.style["primario"],
+		)
+		medal_selector.grid(row=0, column=5, padx=(0, 12), sticky="w")
+
+		ctk.CTkLabel(
+			filters,
+			text="Norma",
+			font=self.fonts["small_bold"],
+			text_color="#6D7480",
+		).grid(row=0, column=6, padx=(0, 8), sticky="w")
+		norm_selector = ctk.CTkComboBox(
+			filters,
+			variable=norm_var,
+			values=norm_options,
+			width=180,
+			height=34,
+			fg_color="#FFFFFF",
+			border_color="#D5D8DC",
+			button_color=self.style["primario"],
+			dropdown_hover_color=self.style["primario"],
+		)
+		norm_selector.grid(row=0, column=7, padx=(0, 12), sticky="w")
+
+		ctk.CTkLabel(
+			filters,
 			text=(
-				"Vista admin: se muestran solo calificaciones criticas (<90%) filtradas por año y trimestre."
+				"Vista admin: se muestran solo calificaciones criticas (<90%) filtradas por año, trimestre y medalla."
 				if self.can_edit
-				else "Consulta las calificaciones pasadas filtrando por año y trimestre."
+				else "Consulta las calificaciones pasadas filtrando por año, trimestre y medalla."
 			),
 			font=self.fonts["small"],
 			text_color="#6D7480",
-		).grid(row=0, column=4, sticky="w")
+		).grid(row=0, column=8, sticky="w")
 
 		summary_label = ctk.CTkLabel(
 			wrapper,
@@ -1417,8 +1715,16 @@ class TrimestralView(ctk.CTkFrame):
 		)
 		summary_label.grid(row=2, column=0, padx=18, pady=(0, 8), sticky="w")
 
+		curve_canvas = tk.Canvas(
+			wrapper,
+			height=170,
+			bg=self.style["surface"],
+			highlightthickness=0,
+		)
+		curve_canvas.grid(row=3, column=0, padx=18, pady=(0, 8), sticky="ew")
+
 		results_frame = ctk.CTkScrollableFrame(wrapper, fg_color="#FFFFFF", corner_radius=16)
-		results_frame.grid(row=3, column=0, padx=18, pady=(0, 10), sticky="nsew")
+		results_frame.grid(row=4, column=0, padx=18, pady=(0, 10), sticky="nsew")
 		results_frame.grid_columnconfigure(0, weight=1)
 
 		def _score_state(score_row: dict) -> tuple[str, str]:
@@ -1448,11 +1754,27 @@ class TrimestralView(ctk.CTkFrame):
 		def _filtered_scores() -> list[dict]:
 			selected_year = year_var.get().strip()
 			selected_quarter = quarter_var.get().strip().upper()
+			selected_medal = medal_var.get().strip().lower()
+			selected_norm = norm_var.get().strip()
 			filtered = list(scores)
 			if selected_year != "Todos":
 				filtered = [item for item in filtered if str(item.get("year", "")).strip() == selected_year]
 			if selected_quarter != "TODOS":
 				filtered = [item for item in filtered if str(item.get("quarter", "")).strip().upper() == selected_quarter]
+			if selected_norm != "Todas":
+				filtered = [item for item in filtered if self._norm_key(item) == selected_norm]
+			if selected_medal != "todas":
+				medal_key = ""
+				if selected_medal == "oro":
+					medal_key = "ORO"
+				elif selected_medal == "platino":
+					medal_key = "PLATINO"
+				elif selected_medal == "bronce":
+					medal_key = "BRONCE"
+				if selected_medal == "sin medalla":
+					filtered = [item for item in filtered if not self._score_medal(item).get("key")]
+				else:
+					filtered = [item for item in filtered if self._score_medal(item).get("key") == medal_key]
 			if self.can_edit:
 				critical_only: list[dict] = []
 				for item in filtered:
@@ -1477,16 +1799,39 @@ class TrimestralView(ctk.CTkFrame):
 
 			selected_year = year_var.get().strip()
 			selected_quarter = quarter_var.get().strip().upper()
+			selected_medal = medal_var.get().strip()
 			filtered_scores = _filtered_scores()
 
 			period_label = selected_year if selected_year != "Todos" else "todos los años"
 			quarter_label = selected_quarter if selected_quarter != "TODOS" else "todos los trimestres"
+			norm_label = norm_var.get().strip()
+
+			curve_rows = sorted(
+				filtered_scores,
+				key=lambda item: (
+					int(item.get("year", 0) or 0),
+					self._quarter_sort_key(item.get("quarter", "")),
+					str(item.get("updated_at", "")),
+				),
+			)
+			curve_history = []
+			for item in curve_rows:
+				score_value = self._coerce_score(item.get("score"))
+				if score_value is None:
+					continue
+				curve_history.append(
+					{
+						"label": f"{item.get('quarter', '--')} {item.get('year', '--')}",
+						"score": score_value,
+					}
+				)
+			self._draw_curve_on_canvas(curve_canvas, curve_history, "Sin datos para dibujar curva de dispersion.")
 			if not filtered_scores:
 				summary_label.configure(
 					text=(
-						f"Sin calificaciones criticas (<90%) para {period_label} y {quarter_label}."
+						f"Sin calificaciones criticas (<90%) para {period_label}, {quarter_label}, norma {norm_label} y medalla {selected_medal}."
 						if self.can_edit
-						else f"Sin registros para {period_label} y {quarter_label}."
+						else f"Sin registros para {period_label}, {quarter_label}, norma {norm_label} y medalla {selected_medal}."
 					)
 				)
 				ctk.CTkLabel(
@@ -1509,10 +1854,10 @@ class TrimestralView(ctk.CTkFrame):
 			summary_label.configure(
 				text=(
 					f"Mostrando {len(filtered_scores)} calificaciones criticas (<90%) en {len(periods)} periodos | "
-					f"Normas: {len(norms)} | Año: {period_label} | Trimestre: {quarter_label}."
+					f"Normas: {len(norms)} | Año: {period_label} | Trimestre: {quarter_label} | Norma: {norm_label}."
 					if self.can_edit
 					else f"Mostrando {len(filtered_scores)} calificaciones en {len(periods)} periodos | "
-					f"Normas: {len(norms)} | Año: {period_label} | Trimestre: {quarter_label}."
+					f"Normas: {len(norms)} | Año: {period_label} | Trimestre: {quarter_label} | Norma: {norm_label}."
 				)
 			)
 
@@ -1561,8 +1906,9 @@ class TrimestralView(ctk.CTkFrame):
 				columns.grid_columnconfigure(0, weight=1)
 				columns.grid_columnconfigure(1, minsize=100)
 				columns.grid_columnconfigure(2, minsize=130)
-				columns.grid_columnconfigure(3, minsize=120)
-				for col_index, label_text in enumerate(["Norma", "Calificación", "Estado", "Actualizado"]):
+				columns.grid_columnconfigure(3, minsize=140)
+				columns.grid_columnconfigure(4, minsize=120)
+				for col_index, label_text in enumerate(["Norma", "Calificacion", "Estado", "Medalla", "Actualizado"]):
 					anchor = "w" if col_index == 0 else "center"
 					sticky = "w" if col_index == 0 else "ew"
 					ctk.CTkLabel(
@@ -1579,12 +1925,15 @@ class TrimestralView(ctk.CTkFrame):
 					row_frame.grid_columnconfigure(0, weight=1)
 					row_frame.grid_columnconfigure(1, minsize=100)
 					row_frame.grid_columnconfigure(2, minsize=130)
-					row_frame.grid_columnconfigure(3, minsize=120)
+					row_frame.grid_columnconfigure(3, minsize=140)
+					row_frame.grid_columnconfigure(4, minsize=120)
 
 					norm_text = self._norm_display(self._norm_key(score_row))
 					raw_score = self._coerce_score(score_row.get("score"))
 					score_text = f"{raw_score:.1f}%" if raw_score is not None else "--"
 					state_text, state_color = _score_state(score_row)
+					medal = self._score_medal(score_row)
+					medal_text = medal["title"] if medal["key"] else "Sin medalla"
 					updated_text = str(score_row.get("updated_at", "")).strip() or "--"
 
 					ctk.CTkLabel(
@@ -1608,12 +1957,30 @@ class TrimestralView(ctk.CTkFrame):
 						font=self.fonts["small_bold"],
 						text_color=state_color,
 					).grid(row=0, column=2, sticky="ew")
+					medal_cell = ctk.CTkFrame(row_frame, fg_color="transparent")
+					medal_cell.grid(row=0, column=3, sticky="ew")
+					medal_img = self.medal_images_small.get(medal["key"]) if medal["key"] else None
+					if medal_img is not None:
+						ctk.CTkLabel(medal_cell, text="", image=medal_img).pack(side="left", padx=(16, 4))
+						ctk.CTkLabel(
+							medal_cell,
+							text=medal_text,
+							font=self.fonts["small_bold"],
+							text_color=medal["color"],
+						).pack(side="left")
+					else:
+						ctk.CTkLabel(
+							medal_cell,
+							text=medal_text,
+							font=self.fonts["small_bold"],
+							text_color=medal["color"],
+						).pack(side="left", padx=16)
 					ctk.CTkLabel(
 						row_frame,
 						text=updated_text[:16],
 						font=self.fonts["small"],
 						text_color="#6D7480",
-					).grid(row=0, column=3, sticky="ew")
+					).grid(row=0, column=4, sticky="ew")
 
 		def _on_year_change(_value=None) -> None:
 			quarter_values = _available_quarters()
@@ -1624,6 +1991,9 @@ class TrimestralView(ctk.CTkFrame):
 
 		year_selector.configure(command=_on_year_change)
 		quarter_selector.configure(command=_render_preview)
+		medal_selector.configure(command=_render_preview)
+		norm_selector.configure(command=_render_preview)
+		curve_canvas.bind("<Configure>", _render_preview)
 		_on_year_change()
 
 		ctk.CTkButton(
@@ -1633,7 +2003,7 @@ class TrimestralView(ctk.CTkFrame):
 			text_color=self.style["texto_oscuro"],
 			hover_color="#E9ECEF",
 			command=dialog.destroy,
-		).grid(row=4, column=0, padx=18, pady=(0, 14), sticky="e")
+		).grid(row=5, column=0, padx=18, pady=(0, 14), sticky="e")
 
 	def _open_capture_for_inspector(self, inspector_name: str) -> None:
 		if not self.can_edit:
@@ -1767,6 +2137,7 @@ class TrimestralView(ctk.CTkFrame):
 				]
 				latest = selected_rows[0]
 				latest_score = self._coerce_score(latest.get("score"))
+				latest_medal = self._score_medal(latest)
 				latest_period = f"{latest.get('quarter', '--')} {latest.get('year', '--')}"
 				is_latest_confirmed = _is_conf(latest)
 				is_latest_sent = bool(str(latest.get("sent_at") or "").strip())
@@ -1774,18 +2145,53 @@ class TrimestralView(ctk.CTkFrame):
 				# ── Big score ────────────────────────────────────────
 				score_color = "#1E9E5F" if (latest_score or 0) >= 90 else "#C0392B"
 				score_display = f"{latest_score:.1f}%" if latest_score is not None else "--"
+				score_row = ctk.CTkFrame(info_scroll, fg_color="transparent")
+				score_row.pack(anchor="w", padx=14, pady=(0, 2))
+				if latest_score is not None and latest_score <= 80:
+					alert_large = self.alert_images.get("large")
+					if alert_large is not None:
+						ctk.CTkLabel(score_row, text="", image=alert_large).pack(side="left", padx=(0, 6))
+					else:
+						ctk.CTkLabel(score_row, text="!", font=("Arial", 18, "bold"), text_color="#C0392B").pack(side="left", padx=(0, 6))
 				ctk.CTkLabel(
-					info_scroll,
+					score_row,
 					text=score_display,
 					font=("Arial", 36, "bold"),
 					text_color=score_color,
-				).pack(anchor="w", padx=14, pady=(0, 2))
+				).pack(side="left")
 				ctk.CTkLabel(
 					info_scroll,
 					text=f"Periodo: {latest_period}",
 					font=("Arial", 11),
 					text_color="#6D7480",
 				).pack(anchor="w", padx=14, pady=(0, 6))
+
+				medal_row = ctk.CTkFrame(info_scroll, fg_color="transparent")
+				medal_row.pack(anchor="w", padx=14, pady=(0, 6))
+				medal_key = str(latest_medal.get("key", "")).strip().upper()
+				medal_image = self.medal_images.get(medal_key)
+				if medal_image is not None:
+					ctk.CTkLabel(
+						medal_row,
+						text="",
+						image=medal_image,
+					).pack(side="left", padx=(0, 6))
+				ctk.CTkLabel(
+					medal_row,
+					text=f"Medalla: {latest_medal['label'] if latest_medal['key'] else 'Sin medalla'}",
+					font=("Arial", 11, "bold"),
+					text_color=latest_medal["color"],
+				).pack(side="left")
+
+				if latest_score is not None and latest_score <= 80:
+					ctk.CTkLabel(
+						info_scroll,
+						text="Recomendacion: asistir a taller para reforzar conocimientos y aumentar su nivel.",
+						font=("Arial", 11, "bold"),
+						text_color="#C0392B",
+						wraplength=290,
+						justify="left",
+					).pack(anchor="w", padx=14, pady=(0, 8))
 
 				# ── Status badge ─────────────────────────────────────
 				if not is_latest_sent:
@@ -1821,7 +2227,15 @@ class TrimestralView(ctk.CTkFrame):
 					_cell = ctk.CTkFrame(stats_frame, fg_color="transparent")
 					_cell.grid(row=0, column=_ci, padx=8, pady=8)
 					ctk.CTkLabel(_cell, text=_lbl, font=("Arial", 9), text_color="#6D7480").pack()
-					ctk.CTkLabel(_cell, text=_val, font=("Arial", 13, "bold"), text_color=self.style["texto_oscuro"]).pack()
+					value_row = ctk.CTkFrame(_cell, fg_color="transparent")
+					value_row.pack()
+					if _lbl == "Mas baja" and worst_score is not None and worst_score <= 80:
+						alert_small = self.alert_images.get("small")
+						if alert_small is not None:
+							ctk.CTkLabel(value_row, text="", image=alert_small).pack(side="left", padx=(0, 4))
+						else:
+							ctk.CTkLabel(value_row, text="!", font=("Arial", 10, "bold"), text_color="#C0392B").pack(side="left", padx=(0, 4))
+					ctk.CTkLabel(value_row, text=_val, font=("Arial", 13, "bold"), text_color=self.style["texto_oscuro"]).pack(side="left")
 			else:
 				ctk.CTkLabel(
 					info_scroll,
@@ -1846,6 +2260,8 @@ class TrimestralView(ctk.CTkFrame):
 				for row in current_year_rows:
 					sv = self._coerce_score(row.get("score"))
 					score_txt = f"{sv:.1f}%" if sv is not None else "--"
+					medal = self._score_medal(row)
+					medal_txt = medal["title"] if medal["key"] else "Sin medalla"
 					period = f"{row.get('quarter', '--')} {row.get('year', '--')}"
 					sentv = str(row.get("sent_at") or "").strip()
 					if not sentv:
@@ -1857,7 +2273,15 @@ class TrimestralView(ctk.CTkFrame):
 					row_f = ctk.CTkFrame(info_scroll, fg_color="transparent")
 					row_f.pack(fill="x", padx=14, pady=2)
 					row_f.grid_columnconfigure(0, weight=1)
-					ctk.CTkLabel(row_f, text=f"{period}  {score_txt}", font=("Arial", 11), text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w")
+					left_row = ctk.CTkFrame(row_f, fg_color="transparent")
+					left_row.grid(row=0, column=0, sticky="w")
+					if sv is not None and sv <= 80:
+						alert_small = self.alert_images.get("small")
+						if alert_small is not None:
+							ctk.CTkLabel(left_row, text="", image=alert_small).pack(side="left", padx=(0, 4))
+						else:
+							ctk.CTkLabel(left_row, text="!", font=("Arial", 10, "bold"), text_color="#C0392B").pack(side="left", padx=(0, 4))
+					ctk.CTkLabel(left_row, text=f"{period}  {score_txt}  |  {medal_txt}", font=("Arial", 11), text_color=self.style["texto_oscuro"]).pack(side="left")
 					ctk.CTkLabel(row_f, text=st, font=("Arial", 10, "bold"), text_color=st_color).grid(row=0, column=1, sticky="e")
 			else:
 				ctk.CTkLabel(info_scroll, text=f"Sin calificaciones para {current_year}.", font=("Arial", 11), text_color="#6D7480").pack(anchor="w", padx=14)
@@ -1874,6 +2298,8 @@ class TrimestralView(ctk.CTkFrame):
 						continue
 					sv = self._coerce_score(row.get("score"))
 					score_txt = f"{sv:.1f}%" if sv is not None else "--"
+					medal = self._score_medal(row)
+					medal_txt = medal["title"] if medal["key"] else "Sin medalla"
 					period = f"{row.get('quarter', '--')} {row.get('year', '--')}"
 					sentv = str(row.get("sent_at") or "").strip()
 					if not sentv:
@@ -1885,7 +2311,15 @@ class TrimestralView(ctk.CTkFrame):
 					row_f = ctk.CTkFrame(info_scroll, fg_color="transparent")
 					row_f.pack(fill="x", padx=14, pady=2)
 					row_f.grid_columnconfigure(0, weight=1)
-					ctk.CTkLabel(row_f, text=f"{period}  {score_txt}", font=("Arial", 11), text_color="#6D7480").grid(row=0, column=0, sticky="w")
+					left_row = ctk.CTkFrame(row_f, fg_color="transparent")
+					left_row.grid(row=0, column=0, sticky="w")
+					if sv is not None and sv <= 80:
+						alert_small = self.alert_images.get("small")
+						if alert_small is not None:
+							ctk.CTkLabel(left_row, text="", image=alert_small).pack(side="left", padx=(0, 4))
+						else:
+							ctk.CTkLabel(left_row, text="!", font=("Arial", 10, "bold"), text_color="#C0392B").pack(side="left", padx=(0, 4))
+					ctk.CTkLabel(left_row, text=f"{period}  {score_txt}  |  {medal_txt}", font=("Arial", 11), text_color="#6D7480").pack(side="left")
 					ctk.CTkLabel(row_f, text=st, font=("Arial", 10), text_color=st_color).grid(row=0, column=1, sticky="e")
 
 			# ── Update confirm button state ───────────────────────────

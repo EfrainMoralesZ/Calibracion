@@ -5,6 +5,9 @@ from statistics import mean
 import tkinter as tk
 
 import customtkinter as ctk
+from PIL import Image
+
+from runtime_paths import resource_path, writable_path
 
 
 class DashboardView(ctk.CTkFrame):
@@ -30,6 +33,7 @@ class DashboardView(ctk.CTkFrame):
 
         self.executive_var = ctk.StringVar()
         self.focus_var = ctk.StringVar(value="Sin seguimiento")
+        self.medals_var = ctk.StringVar(value="O:0 P:0 B:0")
         self.norm_context_var = ctk.StringVar(value="Vista general de cobertura por norma.")
         self.chart_title_var = ctk.StringVar(value="Curva de aprendizaje general")
         self.visits_mode_var = ctk.StringVar(value="Visitas asignadas")
@@ -39,10 +43,35 @@ class DashboardView(ctk.CTkFrame):
         self.learning_canvas: tk.Canvas | None = None
         self.executive_selector: ctk.CTkComboBox | None = None
         self.visits_mode_selector: ctk.CTkOptionMenu | None = None
+        self.norm_medal_images = self._load_norm_medal_images()
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
         self._build_ui()
+
+    def _load_norm_medal_images(self) -> dict[str, ctk.CTkImage | None]:
+        files = {
+            "ORO": "medalla_oro.png",
+            "PLATINO": "medalla_plata.png",
+            "BRONCE": "medalla_bronce.png",
+        }
+        images: dict[str, ctk.CTkImage | None] = {}
+        for key, file_name in files.items():
+            image_path = None
+            for candidate in [resource_path("img", file_name), writable_path("img", file_name)]:
+                if candidate.exists():
+                    image_path = candidate
+                    break
+            if image_path is None:
+                images[key] = None
+                continue
+            try:
+                source = Image.open(image_path)
+            except OSError:
+                images[key] = None
+                continue
+            images[key] = ctk.CTkImage(light_image=source, dark_image=source, size=(34, 34))
+        return images
 
     def _build_ui(self) -> None:
         cards_wrapper = ctk.CTkFrame(self, fg_color=self.style["surface"], corner_radius=22)
@@ -134,6 +163,18 @@ class DashboardView(ctk.CTkFrame):
             font=self.fonts["small_bold"],
             text_color=self.style["texto_oscuro"],
         ).grid(row=0, column=1, padx=(0, 10), pady=8, sticky="w")
+        ctk.CTkLabel(
+            state_card,
+            text="Medallas",
+            font=self.fonts["small_bold"],
+            text_color="#6D7480",
+        ).grid(row=0, column=2, padx=(8, 6), pady=8, sticky="w")
+        ctk.CTkLabel(
+            state_card,
+            textvariable=self.medals_var,
+            font=self.fonts["small_bold"],
+            text_color=self.style["texto_oscuro"],
+        ).grid(row=0, column=3, padx=(0, 10), pady=8, sticky="w")
 
         ctk.CTkLabel(
             overview_panel,
@@ -198,6 +239,10 @@ class DashboardView(ctk.CTkFrame):
         if self.executive_selector is not None:
             self.executive_selector.configure(values=people)
         self._update_profile()
+
+    @staticmethod
+    def _format_medals(counts: dict[str, int]) -> str:
+        return f"O:{counts.get('ORO', 0)} P:{counts.get('PLATINO', 0)} B:{counts.get('BRONCE', 0)}"
 
     def _render_cards(self, metrics: list[dict], inspector_mode: bool) -> None:
         if self.cards_frame is None:
@@ -337,6 +382,8 @@ class DashboardView(ctk.CTkFrame):
 
             overview = self.controller.get_overview_metrics()
             self.focus_var.set(self._state_label(overview.get("average_score")))
+            global_medals = self.controller.get_trimestral_medals_summary(include_unsent=True)
+            self.medals_var.set(self._format_medals(global_medals.get("counts", {})))
             self.chart_title_var.set("Curva de aprendizaje general (todos los ejecutivos tecnicos)")
             self._learning_history = self._build_global_history()
             self._draw_learning_curve()
@@ -355,6 +402,7 @@ class DashboardView(ctk.CTkFrame):
             self._render_cards(self._last_norm_metrics, inspector_mode=False)
 
             self.focus_var.set("Sin capturas")
+            self.medals_var.set("O:0 P:0 B:0")
             self.chart_title_var.set(f"Curva de aprendizaje general - {selected_name}")
             self._learning_history = []
             self._draw_learning_curve()
@@ -371,6 +419,8 @@ class DashboardView(ctk.CTkFrame):
         self._render_cards(self._norm_snapshots, inspector_mode=True)
 
         self.focus_var.set(self._state_label(profile.get("average_score")))
+        own_medals = self.controller.get_trimestral_medals_summary(inspector_name=selected_name, include_unsent=True)
+        self.medals_var.set(self._format_medals(own_medals.get("counts", {})))
         self.chart_title_var.set(f"Curva de aprendizaje general - {selected_name}")
         self._learning_history = self._normalize_history(profile.get("history", []))
         self._draw_learning_curve()
@@ -468,25 +518,98 @@ class DashboardView(ctk.CTkFrame):
         )
         curve_canvas.grid(row=1, column=0, padx=(18, 10), pady=(0, 16), sticky="nsew")
 
-        info_box = ctk.CTkTextbox(wrapper, corner_radius=16)
-        info_box.grid(row=1, column=1, padx=(10, 18), pady=(0, 16), sticky="nsew")
+        info_panel = ctk.CTkScrollableFrame(wrapper, fg_color="#FFFFFF", corner_radius=16)
+        info_panel.grid(row=1, column=1, padx=(10, 18), pady=(0, 16), sticky="nsew")
+        info_panel.grid_columnconfigure(0, weight=1)
 
         average_score = snapshot.get("average_score")
         latest_score = snapshot.get("latest_score")
-        summary_lines = [
-            "Vista por norma",
-            "",
-            f"Ejecutivo Tecnico: {self._active_inspector_name}",
-            f"NOM completa: {snapshot.get('full_nom', token)}",
-            f"Token: {snapshot.get('token', token)}",
-            f"Nombre: {snapshot.get('description', 'Catalogo no definido')}",
-            f"Promedio: {average_score:.1f}%" if average_score is not None else "Promedio: Sin evaluaciones",
-            f"Ultima captura: {latest_score:.1f}%" if latest_score is not None else "Ultima captura: --",
-            f"Evaluaciones capturadas: {snapshot.get('evaluations', 0)}",
-            f"Estado: {self._state_label(average_score)}",
-        ]
-        info_box.insert("1.0", "\n".join(summary_lines))
-        info_box.configure(state="disabled")
+        latest_medal = self.controller.get_trimestral_medal(latest_score)
+        norm_medals = {"ORO": 0, "PLATINO": 0, "BRONCE": 0}
+        for point in list(snapshot.get("history", [])):
+            medal_key = str(self.controller.get_trimestral_medal(point.get("score")).get("key", "")).strip().upper()
+            if medal_key in norm_medals:
+                norm_medals[medal_key] += 1
+        medal_emoji = {"ORO": "🥇", "PLATINO": "🥈", "BRONCE": "🥉"}
+        medal_titles = {"ORO": "Oro", "PLATINO": "Platino", "BRONCE": "Bronce"}
+        latest_medal_key = str(latest_medal.get("key", "")).strip().upper()
+        latest_medal_title = latest_medal.get("title", "Sin medalla")
+        latest_medal_display = f"{medal_emoji.get(latest_medal_key, '🏅')} {latest_medal_title}" if latest_medal_key else latest_medal_title
+
+        ctk.CTkLabel(
+            info_panel,
+            text="RESUMEN DE NORMA",
+            font=self.fonts["label_bold"],
+            text_color=self.style["texto_oscuro"],
+        ).pack(anchor="w", padx=12, pady=(10, 4))
+
+        ctk.CTkLabel(
+            info_panel,
+            text=f"Ejecutivo tecnico: {self._active_inspector_name}\n"
+            f"Norma: {snapshot.get('full_nom', token)}\n"
+            f"Descripcion: {snapshot.get('description', 'Catalogo no definido')}",
+            font=self.fonts["small"],
+            text_color=self.style["texto_oscuro"],
+            justify="left",
+            anchor="w",
+            wraplength=320,
+        ).pack(anchor="w", padx=12)
+
+        ctk.CTkLabel(
+            info_panel,
+            text="DESEMPEÑO",
+            font=self.fonts["label_bold"],
+            text_color=self.style["texto_oscuro"],
+        ).pack(anchor="w", padx=12, pady=(10, 4))
+
+        ctk.CTkLabel(
+            info_panel,
+            text=(
+                (f"Promedio general: {average_score:.1f}%\n" if average_score is not None else "Promedio general: Sin evaluaciones\n")
+                + (f"Ultima captura: {latest_score:.1f}%\n" if latest_score is not None else "Ultima captura: --\n")
+                + f"Rango actual (medalla): {latest_medal_display}\n"
+                + f"Estado: {self._state_label(average_score)}\n"
+                + f"Evaluaciones registradas: {snapshot.get('evaluations', 0)}"
+            ),
+            font=self.fonts["small"],
+            text_color=self.style["texto_oscuro"],
+            justify="left",
+            anchor="w",
+            wraplength=320,
+        ).pack(anchor="w", padx=12)
+
+        ctk.CTkLabel(
+            info_panel,
+            text="MEDALLAS OBTENIDAS EN ESTA NORMA",
+            font=self.fonts["label_bold"],
+            text_color=self.style["texto_oscuro"],
+        ).pack(anchor="w", padx=12, pady=(10, 4))
+
+        earned_medals = [(key, norm_medals.get(key, 0)) for key in ["ORO", "PLATINO", "BRONCE"] if norm_medals.get(key, 0) > 0]
+        if not earned_medals:
+            ctk.CTkLabel(
+                info_panel,
+                text="Sin medallas registradas en esta norma.",
+                font=self.fonts["small"],
+                text_color="#6D7480",
+                justify="left",
+                anchor="w",
+            ).pack(anchor="w", padx=12, pady=(0, 8))
+        else:
+            for key, count in earned_medals:
+                row = ctk.CTkFrame(info_panel, fg_color="transparent")
+                row.pack(anchor="w", padx=12, pady=(2, 8))
+                medal_img = self.norm_medal_images.get(key)
+                if medal_img is not None:
+                    ctk.CTkLabel(row, text="", image=medal_img).pack(side="left", padx=(0, 10))
+                else:
+                    ctk.CTkLabel(row, text=medal_emoji.get(key, "🏅"), font=("Inter", 20, "bold")).pack(side="left", padx=(0, 10))
+                ctk.CTkLabel(
+                    row,
+                    text=f"{medal_titles.get(key, key)} x{count}",
+                    font=("Inter", 16, "bold"),
+                    text_color=self.style["texto_oscuro"],
+                ).pack(side="left")
 
         def _redraw_norm_curve(_event=None) -> None:
             self._draw_curve_on_canvas(

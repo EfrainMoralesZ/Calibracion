@@ -126,7 +126,7 @@ class CalendarView(ctk.CTkFrame):
         ).grid(row=0, column=0, padx=18, pady=(16, 8), sticky="w")
 
         calendar_panel = ctk.CTkFrame(calendar_shell, fg_color=self.style["fondo"], corner_radius=18)
-        calendar_panel.grid(row=1, column=0, padx=18, pady=(0, 18), sticky="w")
+        calendar_panel.grid(row=1, column=0, padx=18, pady=(0, 18), sticky="ew")
         calendar_panel.grid_columnconfigure(0, weight=1)
 
         month_nav = ctk.CTkFrame(calendar_panel, fg_color="transparent")
@@ -168,9 +168,9 @@ class CalendarView(ctk.CTkFrame):
         ).grid(row=0, column=3)
 
         week_header = ctk.CTkFrame(calendar_panel, fg_color="transparent")
-        week_header.grid(row=1, column=0, padx=10, sticky="w")
+        week_header.grid(row=1, column=0, padx=10, sticky="ew")
         for idx, day_name in enumerate(["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"]):
-            week_header.grid_columnconfigure(idx, weight=0, minsize=76)
+            week_header.grid_columnconfigure(idx, weight=1, minsize=96)
             ctk.CTkLabel(
                 week_header,
                 text=day_name,
@@ -179,7 +179,7 @@ class CalendarView(ctk.CTkFrame):
             ).grid(row=0, column=idx, padx=2, pady=(0, 2), sticky="nsew")
 
         self.calendar_grid_frame = ctk.CTkFrame(calendar_panel, fg_color="transparent")
-        self.calendar_grid_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="w")
+        self.calendar_grid_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="ew")
 
         # Leyenda de estados
         legend = ctk.CTkFrame(calendar_panel, fg_color="transparent")
@@ -210,7 +210,7 @@ class CalendarView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             self.side_panel,
-            text="Detalle de visita" if self.can_edit else "Detalle seleccionado",
+            text="Detalle de visita",
             font=self.fonts["label_bold"],
             text_color=self.style["texto_oscuro"],
         ).grid(row=0, column=0, padx=18, pady=(16, 4), sticky="w")
@@ -230,7 +230,7 @@ class CalendarView(ctk.CTkFrame):
             message = ctk.CTkLabel(
                 self.side_panel,
                 text=(
-                    "Selecciona una visita para revisar direccion, fecha, servicio y observaciones registradas."
+                    "Selecciona una visita para consultar la informacion principal y observaciones registradas."
                 ),
                 font=self.fonts["small"],
                 text_color="#6D7480",
@@ -1053,16 +1053,16 @@ class CalendarView(ctk.CTkFrame):
                 visits_by_date[v_date].append(visit)
 
         for row in range(6):
-            self.calendar_grid_frame.grid_rowconfigure(row, weight=0, minsize=34)
+            self.calendar_grid_frame.grid_rowconfigure(row, weight=1, minsize=44)
             for col in range(7):
-                self.calendar_grid_frame.grid_columnconfigure(col, weight=0, minsize=76)
+                self.calendar_grid_frame.grid_columnconfigure(col, weight=1, minsize=96)
                 day = month_matrix[row][col]
                 if day == 0:
                     cell = ctk.CTkButton(
                         self.calendar_grid_frame,
                         text="",
-                        width=76,
-                        height=28,
+                        width=96,
+                        height=42,
                         fg_color="#EEF0F2",
                         hover=False,
                         state="disabled",
@@ -1143,8 +1143,8 @@ class CalendarView(ctk.CTkFrame):
                 cell = ctk.CTkButton(
                     self.calendar_grid_frame,
                     text=label,
-                    width=76,
-                    height=28,
+                    width=96,
+                    height=42,
                     fg_color=fg_color,
                     text_color=text_color,
                     hover_color=hover_color,
@@ -1552,7 +1552,15 @@ class CalendarView(ctk.CTkFrame):
 
         visit_id = str(visit.get("id", "")).strip()
         viewer_name = str((self.controller.current_user or {}).get("name", "")).strip()
-        available_norms = self.controller.get_visit_available_norms(visit_id, viewer_name)
+        catalog_tokens = sorted(
+            {
+                str(item.get("token", "")).strip()
+                for item in self.controller.get_catalog_norms()
+                if str(item.get("token", "")).strip()
+            },
+            key=self.controller._norm_sort_key,
+        )
+        available_norms = catalog_tokens or self.controller.get_visit_available_norms(visit_id, viewer_name)
         selected_norms = set(self.controller.get_visit_reported_norms(visit_id, viewer_name))
         norm_display_map = {
             str(item.get("token", "")).strip(): (
@@ -1635,37 +1643,36 @@ class CalendarView(ctk.CTkFrame):
             self.notes_box.delete("1.0", "end")
             self.notes_box.insert(
                 "1.0",
-                "Selecciona una visita para revisar direccion, fecha, servicio y observaciones registradas.",
+                "Selecciona una visita para consultar la informacion principal y observaciones registradas.",
             )
             self.notes_box.configure(state="disabled")
             self._set_accept_button_state(None)
             self._render_visit_norm_checklist(None)
             return
 
-        confirmation_map = {
-            "asignada": "Asignada",
-            "reasignada": "Reasignada",
-            "aceptada": "Confirmada",
-            "finalizada": "Finalizada",
-            "cancelada": "Cancelada",
-        }
-        confirmation_status = confirmation_map.get(
-            str(visit.get("acceptance_status", "asignada")).strip().lower(),
-            "Asignada",
-        )
-        confirmation_details = self._build_acceptance_details_text(visit)
+        assignment_time = str(visit.get("assignment_time", "")).strip() or "--"
+        departure_time = str(visit.get("departure_time", "")).strip() or "--"
+        notes_text = str(visit.get("notes", "")).strip() or "Sin observaciones"
+        inspectors_text = str(visit.get("inspectors_text", visit.get("inspector", "--"))).strip() or "--"
+        client_text = str(visit.get("client", "--")).strip() or "--"
+        date_text = str(visit.get("visit_date", "--")).strip() or "--"
+        status_text = str(visit.get("status", "--")).strip() or "--"
+        address_text = str(visit.get("address", "--")).strip() or "--"
         text = (
-            f"Ejecutivos Tecnicos: {visit.get('inspectors_text', visit.get('inspector', '--'))}\n"
-            f"Cliente: {visit.get('client', '--')}\n"
-            f"Fecha: {visit.get('visit_date', '--')}\n"
-            f"Hora de asignacion: {visit.get('assignment_time', '--') or '--'}\n"
-            f"Hora de salida: {visit.get('departure_time', '--') or '--'}\n"
-            f"Servicio: {visit.get('service', '--')}\n"
-            f"Estado operativo: {visit.get('status', '--')}\n"
-            f"Confirmacion: {confirmation_status}\n"
-            f"{confirmation_details}\n"
-            f"Direccion: {visit.get('address', '--')}\n\n"
-            f"Notas:\n{visit.get('notes', 'Sin observaciones')}"
+            "DETALLE DE VISITA\n"
+            "==============================\n\n"
+            "1) INFORMACION PRINCIPAL\n"
+            f"• Ejecutivos tecnicos: {inspectors_text}\n"
+            f"• Cliente: {client_text}\n"
+            f"• Fecha: {date_text}\n"
+            f"• Estado operativo: {status_text}\n\n"
+            "2) HORARIOS\n"
+            f"• Hora de asignacion: {assignment_time}\n"
+            f"• Hora de salida: {departure_time}\n\n"
+            "3) UBICACION\n"
+            f"• Direccion: {address_text}\n\n"
+            "4) OBSERVACIONES\n"
+            f"{notes_text}"
         )
         self.notes_box.configure(state="normal")
         self.notes_box.delete("1.0", "end")

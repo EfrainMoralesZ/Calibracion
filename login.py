@@ -6,6 +6,8 @@ from tkinter import TclError
 import customtkinter as ctk
 from PIL import Image
 
+from runtime_paths import resource_path
+
 
 class LoginView(ctk.CTkFrame):
     def __init__(self, master, style: dict, fonts: dict, on_login) -> None:
@@ -24,7 +26,7 @@ class LoginView(ctk.CTkFrame):
         self._build_ui()
 
     def _load_logo_image(self) -> ctk.CTkImage | None:
-        image_dir = Path(__file__).resolve().parent / "img"
+        image_dir = resource_path("img")
         candidates = [image_dir / "logo.png", image_dir / "Logo.png"]
 
         for image_path in candidates:
@@ -35,8 +37,8 @@ class LoginView(ctk.CTkFrame):
             except OSError:
                 continue
 
-            max_width = 360
-            max_height = 320
+            max_width = 420
+            max_height = 380
             width, height = source.size
             ratio = min(max_width / width, max_height / height, 1)
             target_size = (max(1, int(width * ratio)), max(1, int(height * ratio)))
@@ -106,7 +108,7 @@ class LoginView(ctk.CTkFrame):
                 text="",
                 image=self.logo_image,
                 fg_color="transparent",
-            ).grid(row=3, column=0, padx=26, pady=(24, 26), sticky="n")
+            ).grid(row=3, column=0, padx=26, pady=(12, 12))
         else:
             ctk.CTkLabel(
                 visual_panel,
@@ -117,7 +119,7 @@ class LoginView(ctk.CTkFrame):
                 corner_radius=32,
                 width=240,
                 height=180,
-            ).grid(row=3, column=0, padx=26, pady=(24, 26), sticky="n")
+            ).grid(row=3, column=0, padx=26, pady=(12, 12))
 
         form_panel = ctk.CTkFrame(content, fg_color=self.style["fondo"], corner_radius=24)
         form_panel.grid(row=0, column=1, sticky="nsew")

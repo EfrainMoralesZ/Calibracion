@@ -35,19 +35,44 @@ python app.py
 
 ---
 
-## Módulos
+## Mapa de Archivos
 
-| Archivo | Rol |
+### Núcleo de aplicación
+
+| Archivo | Qué hace |
 |---|---|
-| `app.py` | Shell visual, navegación y vista principal (`EvaluationDialog`) |
-| `index.py` | `CalibrationController`: lógica de negocio, persistencia JSON y caché |
-| `dashboard.py` | Tarjetas de normas, curva de aprendizaje y panel de visitas |
-| `calendario.py` | Programación de visitas, cuadrícula mensual y reporte de normas |
-| `trimestral.py` | Captura y consulta de calificaciones trimestrales por norma |
-| `configuraciones.py` | Administración de normas, usuarios, clientes y acreditaciones |
-| `login.py` | Autenticación por roles (`admin` / `ejecutivo`) |
-| `Documentos PDF.py/FormatoSupervision.py` | Generación de PDF de supervisión con evidencias |
-| `Documentos PDF.py/ReporteTrimestral.py` | Generación de reporte trimestral en PDF |
+| `app.py` | Punto de entrada de la app, `CalibrationApp`, navegación, layout general e inicialización de UI. |
+| `calibration_controller.py` | `CalibrationController`: lógica de negocio, acceso/persistencia JSON, cachés, métricas y generación de documentos. |
+| `Principal.py` | Vistas y diálogos de la sección Principal: selección de norma, captura de supervisión y acciones de calibración. |
+| `ui_shared.py` | Estilos, tipografías y utilidades visuales compartidas (escalado, enfoque y centrado de ventanas). |
+| `runtime_paths.py` | Rutas de recursos/runtime para ejecución normal y empaquetada (`.exe`). |
+
+### Vistas funcionales
+
+| Archivo | Qué hace |
+|---|---|
+| `login.py` | Pantalla de acceso y autenticación por roles (`admin` / `ejecutivo`). |
+| `dashboard.py` | Panel de indicadores: tarjetas de normas, curva de aprendizaje y resumen operativo. |
+| `calendario.py` | Programación y seguimiento de visitas en calendario, con reporte de normas aplicadas. |
+| `trimestral.py` | Captura, consulta y envío de calificaciones trimestrales por inspector/norma. |
+| `configuraciones.py` | Administración de catálogos: normas, usuarios, clientes y direcciones. |
+| `formulario.py` | Utilidades/formulario legado de apoyo para flujos históricos del proyecto. |
+
+### Generación de PDF
+
+| Archivo | Qué hace |
+|---|---|
+| `Documentos PDF.py/FormatoSupervision.py` | Construye el PDF del formato de supervisión con resultados y evidencias. |
+| `Documentos PDF.py/ReporteTrimestral.py` | Construye el PDF del reporte trimestral (global o por usuario). |
+
+### Scripts de build y utilidades
+
+| Archivo | Qué hace |
+|---|---|
+| `build_exe.bat` | Compila ejecutable Windows con PyInstaller (`dist/CalibracionVC.exe`). |
+| `CalibracionVC.spec` | Especificación generada por PyInstaller para el empaquetado. |
+| `tools/convertidorjson.py` | Script auxiliar para transformación/normalización de datos JSON. |
+| `requirements.txt` | Dependencias Python del proyecto. |
 
 ## Roles
 
