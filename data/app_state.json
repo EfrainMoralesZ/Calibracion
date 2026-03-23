@@ -1298,5 +1298,28 @@
       "saved_at": "2026-03-19 13:00",
       "form_completed": true
     }
-  }
+  },
+  "document_counters": {
+    "criterio_evaluacion_tecnica": 2
+  },
+  "criteria_documents": [
+    {
+      "resolution_number": "0001",
+      "client": "AGENCIA DE PUBLICACIONES MÉXICO CENTRAL AC",
+      "selected_norm": "NOM-004-SE-2021",
+      "executive_name": "Efrain Morales Zamarrón",
+      "evaluated_product": "Textiles, prendas de vestir, accesorios y ropa de casa.",
+      "generated_at": "2026-03-23 10:51",
+      "output_path": "C:\\Users\\bost2\\OneDrive\\Escritorio\\Efrain_Morales_Zamarr_n_nom_004_criterio_evaluacion_tecnica.pdf"
+    },
+    {
+      "resolution_number": "0002",
+      "client": "AGENCIA DE PUBLICACIONES MÉXICO CENTRAL AC",
+      "selected_norm": "NOM-004-SE-2021",
+      "executive_name": "Efrain Morales Zamarrón",
+      "evaluated_product": "Textiles, prendas de vestir, accesorios y ropa de casa.",
+      "generated_at": "2026-03-23 11:06",
+      "output_path": "C:\\Users\\bost2\\OneDrive\\Escritorio\\Efrain_Morales_Zamarr_n_nom_004_criterio_evaluacion_tecnica.pdf"
+    }
+  ]
 }

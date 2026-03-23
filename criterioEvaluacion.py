@@ -228,6 +228,12 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 		self.client_var = ctk.StringVar(value="")
 		self.date_var = ctk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
 		self.supervisor_var = ctk.StringVar(value=str((controller.current_user or {}).get("name", "")).strip())
+		self.executive_name_var = ctk.StringVar(
+			value=str((controller.current_user or {}).get("name", "")).strip() or default_inspector
+		)
+		self.resolution_number_var = ctk.StringVar(value=controller.preview_criterio_resolution_number())
+		self.product_var = ctk.StringVar(value="")
+		self.evidence_summary_var = ctk.StringVar(value="Sin imagenes cargadas.")
 		self.image_folder_var = ctk.StringVar(value="")
 		self.form_status_var = ctk.StringVar(value="")
 		self.header_title_var = ctk.StringVar(value="")
@@ -237,8 +243,10 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 		self.process_result_vars: list[ctk.StringVar] = []
 		self.process_obs_vars: list[ctk.StringVar] = []
 		self.technical_rows: list[dict[str, object]] = []
+		self.evidence_files: list[str] = []
+		self.comment_box: ctk.CTkTextbox | None = None
+		self.resolution_box: ctk.CTkTextbox | None = None
 
-		self.download_formato_button: ctk.CTkButton | None = None
 		self.download_criterio_button: ctk.CTkButton | None = None
 		self.norm_combo: ctk.CTkComboBox | None = None
 		self._document_generation_in_progress = False
@@ -274,30 +282,19 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 		tabs = ctk.CTkTabview(wrapper, fg_color=STYLE["fondo"], corner_radius=20)
 		tabs.grid(row=1, column=0, padx=18, pady=(0, 12), sticky="nsew")
 		tabs.add("Informacion")
-		tabs.add("Protocolo")
-		tabs.add("Procesos")
-		tabs.add("Tecnico")
+		tabs.add("Comentario")
+		tabs.add("Evidencia")
+		tabs.add("Resolucion")
 
 		self._build_info_tab(tabs.tab("Informacion"))
-		self._build_answers_tab(tabs.tab("Protocolo"), PROTOCOL_QUESTIONS, self.protocol_result_vars, self.protocol_obs_vars)
-		self._build_answers_tab(tabs.tab("Procesos"), PROCESS_QUESTIONS, self.process_result_vars, self.process_obs_vars)
-		self._build_technical_tab(tabs.tab("Tecnico"))
+		self._build_comment_tab(tabs.tab("Comentario"))
+		self._build_evidence_tab(tabs.tab("Evidencia"))
+		self._build_resolution_tab(tabs.tab("Resolucion"))
 
 		actions = ctk.CTkFrame(wrapper, fg_color="transparent")
 		actions.grid(row=2, column=0, padx=18, pady=(0, 14), sticky="ew")
 		actions.grid_columnconfigure(0, weight=1)
 		actions.grid_columnconfigure(1, weight=1)
-		actions.grid_columnconfigure(2, weight=1)
-
-		self.download_formato_button = ctk.CTkButton(
-			actions,
-			text="PDF Formato supervisión",
-			fg_color=STYLE["primario"],
-			text_color=STYLE["texto_oscuro"],
-			hover_color="#D8C220",
-			command=lambda: self._download_document("formato"),
-		)
-		self.download_formato_button.grid(row=0, column=0, padx=(0, 8), sticky="ew")
 
 		self.download_criterio_button = ctk.CTkButton(
 			actions,
@@ -307,7 +304,7 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			hover_color="#1D1D1D",
 			command=lambda: self._download_document("criterio"),
 		)
-		self.download_criterio_button.grid(row=0, column=1, padx=8, sticky="ew")
+		self.download_criterio_button.grid(row=0, column=0, padx=(0, 8), sticky="ew")
 
 		ctk.CTkButton(
 			actions,
@@ -316,7 +313,7 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			text_color=STYLE["texto_oscuro"],
 			hover_color="#E9ECEF",
 			command=self._handle_close_request,
-		).grid(row=0, column=2, padx=(8, 0), sticky="ew")
+		).grid(row=0, column=1, padx=(8, 0), sticky="ew")
 
 	def _build_info_tab(self, parent: ctk.CTkFrame) -> None:
 		parent.grid_columnconfigure(0, weight=1)
@@ -326,33 +323,10 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 		elif clients and not self.client_var.get().strip():
 			self.client_var.set(clients[0])
 
-		body = ctk.CTkFrame(parent, fg_color="transparent")
+		body = ctk.CTkScrollableFrame(parent, fg_color="transparent")
 		body.pack(fill="both", expand=True, padx=12, pady=12)
 		body.grid_columnconfigure(0, weight=1)
-
-		if self._inspector_locked or len(self.inspector_options) <= 1:
-			executive_widget = ctk.CTkEntry(
-				body,
-				height=38,
-				border_color="#94A3B8",
-				state="readonly",
-				textvariable=self.inspector_var,
-			)
-		else:
-			executive_widget = ctk.CTkComboBox(
-				body,
-				variable=self.inspector_var,
-				values=self.inspector_options,
-				height=38,
-				fg_color="#FFFFFF",
-				border_color="#94A3B8",
-				button_color=STYLE["primario"],
-				dropdown_hover_color=STYLE["primario"],
-				state="readonly",
-			)
-			self.inspector_var.trace_add("write", lambda *_args: self._on_inspector_change())
-
-		self._add_field(body, 0, "Ejecutivo supervisado", executive_widget)
+		body.grid_columnconfigure(1, weight=1)
 
 		self.norm_combo = ctk.CTkComboBox(
 			body,
@@ -365,7 +339,6 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			dropdown_hover_color=STYLE["primario"],
 			state="readonly",
 		)
-		self._add_field(body, 1, "NOM evaluada", self.norm_combo)
 		client_combo = ctk.CTkComboBox(
 			body,
 			variable=self.client_var,
@@ -377,19 +350,96 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			dropdown_hover_color=STYLE["primario"],
 			state="readonly",
 		)
-		self._add_field(body, 2, "Cliente", client_combo)
-		self._add_field(
-			body,
-			3,
-			"Fecha",
-			ctk.CTkEntry(body, textvariable=self.date_var, height=38, border_color="#94A3B8", state="readonly"),
-		)
-		self._add_field(
-			body,
-			4,
-			"Supervisor",
-			ctk.CTkEntry(body, textvariable=self.supervisor_var, height=38, border_color="#94A3B8"),
-		)
+
+		# Campos en dos columnas: (label, widget, columna)
+		fields = [
+			("Numero de resolucion",    ctk.CTkEntry(body, textvariable=self.resolution_number_var, height=38, border_color="#94A3B8", state="readonly"), 0),
+			("Ejecutivo en sesion",     ctk.CTkEntry(body, textvariable=self.executive_name_var,    height=38, border_color="#94A3B8", state="readonly"), 1),
+			("Norma aplicable",         self.norm_combo,                                                                                                  0),
+			("Cliente",                 client_combo,                                                                                                     1),
+			("Fecha",                   ctk.CTkEntry(body, textvariable=self.date_var,               height=38, border_color="#94A3B8", state="readonly"), 0),
+			("Producto evaluado",       ctk.CTkEntry(body, textvariable=self.product_var,            height=38, border_color="#94A3B8"),                   1),
+		]
+
+		row_counters = [0, 0]
+		for label, widget, col in fields:
+			lbl_row = row_counters[col]
+			px = (8, 6) if col == 0 else (6, 8)
+			ctk.CTkLabel(body, text=label, font=FONTS["label"], text_color=STYLE["texto_oscuro"]).grid(
+				row=lbl_row, column=col, padx=px, pady=(12 if lbl_row == 0 else 8, 4), sticky="w"
+			)
+			widget.grid(row=lbl_row + 1, column=col, padx=px, sticky="ew")
+			row_counters[col] += 2
+
+	def _build_comment_tab(self, parent: ctk.CTkFrame) -> None:
+		parent.grid_columnconfigure(0, weight=1)
+		parent.grid_rowconfigure(1, weight=1)
+
+		ctk.CTkLabel(
+			parent,
+			text="Captura el comentario que se colocara en la primera columna del formato.",
+			font=FONTS["small"],
+			text_color="#6D7480",
+			justify="left",
+		).grid(row=0, column=0, padx=12, pady=(12, 8), sticky="w")
+
+		self.comment_box = ctk.CTkTextbox(parent, corner_radius=16, border_width=1, border_color="#D5D8DC")
+		self.comment_box.grid(row=1, column=0, padx=12, pady=(0, 12), sticky="nsew")
+
+	def _build_evidence_tab(self, parent: ctk.CTkFrame) -> None:
+		parent.grid_columnconfigure(0, weight=1)
+		parent.grid_rowconfigure(2, weight=1)
+
+		toolbar = ctk.CTkFrame(parent, fg_color="transparent")
+		toolbar.grid(row=0, column=0, padx=12, pady=(12, 8), sticky="ew")
+		toolbar.grid_columnconfigure(1, weight=1)
+
+		ctk.CTkButton(
+			toolbar,
+			text="Cargar imagenes",
+			fg_color=STYLE["primario"],
+			text_color=STYLE["texto_oscuro"],
+			hover_color="#D8C220",
+			command=self._select_evidence_files,
+		).grid(row=0, column=0, padx=(0, 10), sticky="w")
+
+		ctk.CTkLabel(
+			toolbar,
+			textvariable=self.evidence_summary_var,
+			font=FONTS["small"],
+			text_color="#6D7480",
+			justify="left",
+			anchor="w",
+		).grid(row=0, column=1, sticky="ew")
+
+		ctk.CTkLabel(
+			parent,
+			text="Las imagenes cargadas se insertaran en la columna EVIDENCIA del PDF con tamano uniforme.",
+			font=FONTS["small"],
+			text_color="#6D7480",
+			justify="left",
+		).grid(row=1, column=0, padx=12, pady=(0, 8), sticky="w")
+
+		preview = ctk.CTkTextbox(parent, corner_radius=16, border_width=1, border_color="#D5D8DC")
+		preview.grid(row=2, column=0, padx=12, pady=(0, 12), sticky="nsew")
+		preview.insert("1.0", "No hay imagenes seleccionadas.")
+		preview.configure(state="disabled")
+		self.evidence_preview_box = preview
+
+	def _build_resolution_tab(self, parent: ctk.CTkFrame) -> None:
+		parent.grid_columnconfigure(0, weight=1)
+		parent.grid_rowconfigure(1, weight=1)
+
+		ctk.CTkLabel(
+			parent,
+			text="Captura la resolucion que se colocara en la tercera columna del formato.",
+			font=FONTS["small"],
+			text_color="#6D7480",
+			justify="left",
+		).grid(row=0, column=0, padx=12, pady=(12, 8), sticky="w")
+
+		self.resolution_box = ctk.CTkTextbox(parent, corner_radius=16, border_width=1, border_color="#D5D8DC")
+		self.resolution_box.grid(row=1, column=0, padx=12, pady=(0, 12), sticky="nsew")
 
 	def _get_selected_inspector(self) -> str:
 		return self.inspector_var.get().strip() or self.inspector_name
@@ -404,9 +454,8 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			self.title("Criterios por cliente")
 
 	def _refresh_norms_for_inspector(self, preferred_norm: str | None = None) -> None:
-		inspector = self._get_selected_inspector()
-		norms = self.controller.get_accredited_norms(inspector) or ["Sin norma"]
-		self.norm_options = norms
+		catalog_norms = [self.controller.get_norm_display_name(item.get("nom") or item.get("token")) for item in self.controller.get_catalog_norms()]
+		self.norm_options = catalog_norms or ["Sin norma"]
 		if self.norm_combo is not None:
 			self.norm_combo.configure(values=self.norm_options)
 
@@ -586,6 +635,34 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 		selected = filedialog.askdirectory(parent=self, title="Selecciona la carpeta de imagenes")
 		if selected:
 			self.image_folder_var.set(selected)
+
+	def _select_evidence_files(self) -> None:
+		selected = filedialog.askopenfilenames(
+			parent=self,
+			title="Selecciona imagenes de evidencia",
+			filetypes=[("Imagenes", "*.png *.jpg *.jpeg *.webp")],
+		)
+		if not selected:
+			return
+		self.evidence_files = [str(path) for path in selected]
+		self._refresh_evidence_preview()
+
+	def _refresh_evidence_preview(self) -> None:
+		total = len(self.evidence_files)
+		if total == 0:
+			self.evidence_summary_var.set("Sin imagenes cargadas.")
+			preview_text = "No hay imagenes seleccionadas."
+		else:
+			self.evidence_summary_var.set(f"{total} imagen(es) cargadas para evidencia.")
+			visible_names = [os.path.basename(path) for path in self.evidence_files[:8]]
+			preview_text = "\n".join(visible_names)
+			if total > len(visible_names):
+				preview_text += f"\n... y {total - len(visible_names)} imagen(es) mas"
+		if hasattr(self, "evidence_preview_box") and self.evidence_preview_box is not None:
+			self.evidence_preview_box.configure(state="normal")
+			self.evidence_preview_box.delete("1.0", "end")
+			self.evidence_preview_box.insert("1.0", preview_text)
+			self.evidence_preview_box.configure(state="disabled")
 
 	def _add_field(self, parent, row: int, label: str, widget) -> None:
 		ctk.CTkLabel(parent, text=label, font=FONTS["label"], text_color=STYLE["texto_oscuro"]).grid(row=row * 2, column=0, padx=8, pady=(12 if row == 0 else 8, 4), sticky="w")
@@ -775,6 +852,49 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			"technical_skills_breakdown": technical_breakdown,
 		}
 
+	def _read_textbox(self, textbox: ctk.CTkTextbox | None) -> str:
+		if textbox is None:
+			return ""
+		return textbox.get("1.0", "end").strip()
+
+	def _build_criterio_payload(self) -> dict[str, object] | None:
+		client_name = self.client_var.get().strip()
+		selected_norm = self.norm_var.get().strip() or "Sin norma"
+		executive_name = self.executive_name_var.get().strip() or self._get_selected_inspector()
+		product_name = self.product_var.get().strip()
+		comment_text = self._read_textbox(self.comment_box)
+		resolution_text = self._read_textbox(self.resolution_box)
+
+		if not client_name:
+			messagebox.showerror("Criterios", "Debes seleccionar un cliente.", parent=self)
+			return None
+		if not executive_name:
+			messagebox.showerror("Criterios", "No se pudo identificar al ejecutivo en sesion.", parent=self)
+			return None
+		if not product_name:
+			messagebox.showerror("Criterios", "Debes capturar el producto evaluado.", parent=self)
+			return None
+		if not comment_text:
+			messagebox.showerror("Criterios", "Debes capturar el comentario.", parent=self)
+			return None
+		if not resolution_text:
+			messagebox.showerror("Criterios", "Debes capturar la resolucion.", parent=self)
+			return None
+
+		return {
+			"resolution_number": self.resolution_number_var.get().strip(),
+			"visit_date": self.date_var.get().strip(),
+			"client": client_name,
+			"executive_name": executive_name,
+			"selected_norm": selected_norm,
+			"evaluated_product": product_name,
+			"comment": comment_text,
+			"resolution_text": resolution_text,
+			"evidence_files": list(self.evidence_files),
+			"reviewed_by": self.supervisor_var.get().strip(),
+			"inspector_supervised": self._get_selected_inspector(),
+		}
+
 	def _persist_evaluation(self, payload: dict[str, object]) -> bool:
 		inspector_name = self._get_selected_inspector()
 		try:
@@ -787,8 +907,6 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 
 	def _sync_download_state(self) -> None:
 		can_use = self.can_edit and not self._document_generation_in_progress
-		if self.download_formato_button is not None:
-			self.download_formato_button.configure(state="normal" if can_use else "disabled")
 		if self.download_criterio_button is not None:
 			self.download_criterio_button.configure(state="normal" if can_use else "disabled")
 		self.form_status_var.set(
@@ -803,17 +921,29 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			self.form_status_var.set(status_message)
 		self._sync_download_state()
 
-	def _run_document_generation(self, inspector_name: str, kind: str, destination: str, selected_norm: str) -> None:
+	def _run_document_generation(
+		self,
+		inspector_name: str,
+		kind: str,
+		destination: str,
+		selected_norm: str,
+		payload_override: dict[str, object] | None = None,
+	) -> None:
 		try:
-			output = self.controller.generate_document(inspector_name, kind, destination, selected_norm)
+			if kind == "criterio" and payload_override is not None:
+				output = self.controller.generate_criterio_document(destination, payload_override)
+			else:
+				output = self.controller.generate_document(inspector_name, kind, destination, selected_norm)
 		except Exception as error:
-			self.after(0, lambda error=error: self._finish_document_generation(error=error))
+			self.after(0, lambda error=error, kind=kind: self._finish_document_generation(error=error, kind=kind))
 			return
-		self.after(0, lambda output=output: self._finish_document_generation(output=output))
+		self.after(0, lambda output=output, kind=kind: self._finish_document_generation(output=output, kind=kind))
 
-	def _finish_document_generation(self, output=None, error: Exception | None = None) -> None:
+	def _finish_document_generation(self, output=None, error: Exception | None = None, kind: str | None = None) -> None:
 		self._document_worker = None
 		self._set_document_busy(False)
+		if kind == "criterio":
+			self.resolution_number_var.set(self.controller.preview_criterio_resolution_number())
 
 		if error is not None:
 			messagebox.showerror("Documentos", str(error), parent=self)
@@ -832,16 +962,22 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 		if not self.can_edit or self._document_generation_in_progress:
 			return
 
-		payload = self._build_evaluation_payload()
-		if payload is None:
-			return
+		if kind == "criterio":
+			payload = self._build_criterio_payload()
+			if payload is None:
+				return
+			inspector_name = str(payload.get("executive_name", "")).strip() or self._get_selected_inspector()
+			selected_norm = str(payload.get("selected_norm", "")).strip() or self.initial_norm or "Sin norma"
+		else:
+			payload = self._build_evaluation_payload()
+			if payload is None:
+				return
+			inspector_name = self._get_selected_inspector()
+			if not inspector_name:
+				messagebox.showerror("Criterios", "Debes seleccionar un ejecutivo supervisado.", parent=self)
+				return
+			selected_norm = self.norm_var.get().strip() or self.initial_norm or "Sin norma"
 
-		inspector_name = self._get_selected_inspector()
-		if not inspector_name:
-			messagebox.showerror("Criterios", "Debes seleccionar un ejecutivo supervisado.", parent=self)
-			return
-
-		selected_norm = self.norm_var.get().strip() or self.initial_norm or "Sin norma"
 		default_path = self.controller.get_default_document_path(inspector_name, kind, selected_norm)
 		destination = filedialog.asksaveasfilename(
 			parent=self,
@@ -854,14 +990,14 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 		if not destination:
 			return
 
-		if not self._persist_evaluation(payload):
+		if kind != "criterio" and not self._persist_evaluation(payload):
 			return
 
 		mode_text = "Formato de supervision" if kind == "formato" else "Criterios por cliente"
 		self._set_document_busy(True, f"Generando PDF de {mode_text}. Espera un momento...")
 		self._document_worker = threading.Thread(
 			target=self._run_document_generation,
-			args=(inspector_name, kind, destination, selected_norm),
+			args=(inspector_name, kind, destination, selected_norm, payload if kind == "criterio" else None),
 			daemon=True,
 		)
 		self._document_worker.start()
@@ -985,14 +1121,6 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 			wraplength=180,
 			justify="left",
 		).grid(row=0, column=0, padx=8, pady=(8, 3), sticky="w")
-		ctk.CTkLabel(
-			card,
-			text="Cliente para formulario de criterios",
-			font=FONTS["small"],
-			text_color="#6D7480",
-			wraplength=180,
-		).grid(row=1, column=0, padx=8, pady=(0, 6), sticky="w")
-
 		ctk.CTkButton(
 			card,
 			text="Abrir Criterios",

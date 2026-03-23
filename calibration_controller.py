@@ -329,6 +329,10 @@ def _timestamp() -> str:
 	return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
+def _format_criterio_resolution_number(counter: int) -> str:
+	return f"{max(1, int(counter)):04d}"
+
+
 def _normalize_visit_date(raw_value: str) -> str:
 	value = str(raw_value or "").strip()
 	if not value:
@@ -556,7 +560,11 @@ def _read_all_quarterly_scores() -> list[dict[str, Any]]:
 
 
 def _default_state() -> dict[str, Any]:
-	return {"evaluations": {}}
+	return {
+		"evaluations": {},
+		"document_counters": {"criterio_evaluacion_tecnica": 0},
+		"criteria_documents": [],
+	}
 
 
 @lru_cache(maxsize=4)
@@ -612,6 +620,8 @@ class CalibrationController:
 
 		self.app_state = _read_json(STATE_FILE, _default_state())
 		self.app_state.setdefault("evaluations", {})
+		self.app_state.setdefault("document_counters", {"criterio_evaluacion_tecnica": 0})
+		self.app_state.setdefault("criteria_documents", [])
 		HISTORY_DIR.mkdir(parents=True, exist_ok=True)
 		VISITS_DIR.mkdir(parents=True, exist_ok=True)
 		TRIMESTRAL_DIR.mkdir(parents=True, exist_ok=True)
@@ -2449,6 +2459,48 @@ class CalibrationController:
 			raise ValueError("Tipo de documento no soportado.")
 
 		builder(output_path, payload)
+		return output_path
+
+	def preview_criterio_resolution_number(self) -> str:
+		counters = self.app_state.setdefault("document_counters", {"criterio_evaluacion_tecnica": 0})
+		current_value = int(counters.get("criterio_evaluacion_tecnica", 0) or 0)
+		return _format_criterio_resolution_number(current_value + 1)
+
+	def _peek_criterio_resolution_number(self) -> tuple[int, str]:
+		counters = self.app_state.setdefault("document_counters", {"criterio_evaluacion_tecnica": 0})
+		next_value = int(counters.get("criterio_evaluacion_tecnica", 0) or 0) + 1
+		return next_value, _format_criterio_resolution_number(next_value)
+
+	def generate_criterio_document(self, destination: str | Path, payload: dict[str, Any]) -> Path:
+		output_path = Path(destination)
+		output_path.parent.mkdir(parents=True, exist_ok=True)
+
+		resolved_payload = dict(payload)
+		next_value, resolution_number = self._peek_criterio_resolution_number()
+		resolved_payload["resolution_number"] = resolution_number
+		resolved_payload["visit_date"] = str(resolved_payload.get("visit_date", "")).strip() or date.today().strftime("%Y-%m-%d")
+		resolved_payload["generated_at"] = _timestamp()
+
+		module = _load_module(str(DOCUMENT_MODULE_DIR / "CriterioEvaluacionTecnica.py"))
+		builder = getattr(module, "build_criterio_evaluacion_pdf")
+		builder(output_path, resolved_payload)
+
+		counters = self.app_state.setdefault("document_counters", {"criterio_evaluacion_tecnica": 0})
+		counters["criterio_evaluacion_tecnica"] = next_value
+		_write_json(STATE_FILE, self.app_state)
+		documents_log = self.app_state.setdefault("criteria_documents", [])
+		documents_log.append(
+			{
+				"resolution_number": resolution_number,
+				"client": str(resolved_payload.get("client", "")).strip(),
+				"selected_norm": str(resolved_payload.get("selected_norm", "")).strip(),
+				"executive_name": str(resolved_payload.get("executive_name", "")).strip(),
+				"evaluated_product": str(resolved_payload.get("evaluated_product", "")).strip(),
+				"generated_at": resolved_payload["generated_at"],
+				"output_path": str(output_path),
+			}
+		)
+		_write_json(STATE_FILE, self.app_state)
 		return output_path
 
 	def _history_dir(self, inspector_name: str) -> Path:
