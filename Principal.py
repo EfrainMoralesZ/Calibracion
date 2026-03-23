@@ -1617,7 +1617,7 @@ class EvaluationDialog(ctk.CTkToplevel):
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 class PrincipalView(ctk.CTkFrame):
-    FILTER_OPTIONS = ["Todos", "Pendientes", "En enfoque", "Completos"]
+    FILTER_OPTIONS = ["Todos", "Pendientes", "Feedback", "Completos"]
     PAGE_SIZE = 10
 
     def __init__(self, master, controller, can_edit: bool, on_change) -> None:
@@ -1997,7 +1997,7 @@ class PrincipalView(ctk.CTkFrame):
     def _status_palette(self, status: str) -> dict[str, str]:
         if status == "Estable":
             return {"soft": "#E5F6ED", "text": "#0D6B42"}
-        if status == "En enfoque":
+        if status == "Feedback":
             return {"soft": "#FDE7E2", "text": "#B84A33"}
         return {"soft": "#FFF4D9", "text": "#8A6A17"}
 

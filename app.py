@@ -223,7 +223,7 @@ class CalibrationApp(ctk.CTk):
         self._kpi_medal_images: dict[str, ctk.CTkImage | None] = {}
         self._kpi_medal_images_exec: dict[str, ctk.CTkImage | None] = {}
 
-        self.title("Sistema de Calibracion V&C")
+        self.title("Sistema de fiabilidad técnica y calidad en el servicio")
         self._set_window_icon()
         self.ui_scale = self._configure_ui_scale()
         self.grid_columnconfigure(0, weight=1)
@@ -556,7 +556,7 @@ class CalibrationApp(ctk.CTk):
     def _handle_login(self, username: str, password: str) -> str | None:
         user = self.controller.authenticate(username, password)
         if not user:
-            return "Usuario o contrasena incorrectos. Revisa Usuarios.json para validar el acceso."
+            return "Usuario o contraseña incorrectos."
 
         self._show_main_shell()
         return None
@@ -595,16 +595,10 @@ class CalibrationApp(ctk.CTk):
 
         ctk.CTkLabel(
             title_group,
-            text="Sistema de Calibracion V&C",
+            text="Sistema de fiabilidad técnica y calidad en el servicio",
             font=FONTS["title"],
             text_color=STYLE["texto_oscuro"],
         ).grid(row=0, column=0, sticky="w")
-        ctk.CTkLabel(
-            title_group,
-            text="Resumen operativo y acceso rapido a las secciones principales.",
-            font=FONTS["small"],
-            text_color="#7A808B",
-        ).grid(row=1, column=0, pady=(2, 0), sticky="w")
 
         controls_row = ctk.CTkFrame(top_row, fg_color="transparent")
         controls_row.grid(row=0, column=1, sticky="e")
@@ -789,6 +783,21 @@ class CalibrationApp(ctk.CTk):
             value_label.grid(row=0, column=1, padx=(4, 10), sticky="e")
             self.summary_labels[key] = value_label
 
+            # Bind click handler for interactive cards
+            if key in ("average_score", "alerts"):
+                handler = (
+                    self._show_average_detail_popup
+                    if key == "average_score"
+                    else self._show_alerts_detail_popup
+                )
+                for widget in (card, value_label):
+                    widget.bind("<Button-1>", lambda _e, h=handler: h())
+                    widget.configure(cursor="hand2")
+                # also bind the title label (last created child)
+                for child in card.winfo_children():
+                    child.bind("<Button-1>", lambda _e, h=handler: h())
+                    child.configure(cursor="hand2")
+
     def _build_content(self, parent) -> None:
         self.content_frame = ctk.CTkFrame(parent, fg_color=STYLE["fondo"], corner_radius=0)
         self.content_frame.grid(row=3, column=0, sticky="nsew")
@@ -810,12 +819,16 @@ class CalibrationApp(ctk.CTk):
                 "Trimestral": lambda: TrimestralView(self.content_frame, self.controller, STYLE, FONTS, True),
                 "Configuraciones": lambda: ConfigurationView(self.content_frame, self.controller, STYLE, FONTS, True, self.refresh_all_views),
             }
-        return {
+
+        non_admin_factories = {
             "Principal": lambda: PrincipalView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
             "Criterios": lambda: CriteriaEvaluationView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
+            "Dashboard": lambda: DashboardView(self.content_frame, self.controller, STYLE, FONTS),
             "Calendario": lambda: CalendarView(self.content_frame, self.controller, STYLE, FONTS, can_edit),
             "Trimestral": lambda: TrimestralView(self.content_frame, self.controller, STYLE, FONTS, False),
         }
+        allowed_sections = set(self.controller.available_sections())
+        return {section: factory for section, factory in non_admin_factories.items() if section in allowed_sections}
 
     def _get_or_create_page(self, section: str) -> ctk.CTkFrame | None:
         page = self.pages.get(section)
@@ -916,6 +929,131 @@ class CalibrationApp(ctk.CTk):
         label = self.summary_labels.get(key)
         if label is not None:
             label.configure(text=value)
+
+    def _show_average_detail_popup(self) -> None:
+        current_user = self.controller.current_user or {}
+        popup = ctk.CTkToplevel(self)
+        popup.title("Detalle de promedio")
+        popup.geometry("420x420")
+        popup.resizable(False, False)
+        popup.grab_set()
+        popup.lift()
+
+        ctk.CTkLabel(
+            popup,
+            text="¿De dónde viene mi promedio?",
+            font=("Inter", 14, "bold"),
+            text_color=STYLE["texto_oscuro"],
+        ).pack(padx=20, pady=(18, 4), anchor="w")
+        ctk.CTkLabel(
+            popup,
+            text="El promedio se calcula con base en las supervisiones registradas en tu historial.",
+            font=FONTS["small"],
+            text_color="#6D7480",
+            wraplength=380,
+            justify="left",
+        ).pack(padx=20, pady=(0, 4), anchor="w")
+        ctk.CTkLabel(
+            popup,
+            text="Cada fila representa una supervisión realizada.",
+            font=FONTS["small"],
+            text_color="#6D7480",
+            wraplength=380,
+            justify="left",
+        ).pack(padx=20, pady=(0, 12), anchor="w")
+
+        scroll = ctk.CTkScrollableFrame(popup, fg_color="#F7F8FA", corner_radius=10, height=280)
+        scroll.pack(padx=20, pady=(0, 16), fill="both", expand=True)
+        scroll.grid_columnconfigure(0, weight=1)
+        scroll.grid_columnconfigure(1, weight=0)
+
+        if self.controller.is_admin(current_user):
+            rows = self.controller.get_principal_rows()
+            scores_with_names = [
+                (r["name"], r["latest_score"], r.get("latest_date", "--"))
+                for r in rows
+                if r.get("latest_score") is not None
+            ]
+            if not scores_with_names:
+                ctk.CTkLabel(scroll, text="Sin evaluaciones registradas.", font=FONTS["small"], text_color="#6D7480").grid(row=0, column=0, padx=12, pady=8, sticky="w")
+            else:
+                ctk.CTkLabel(scroll, text="Ejecutivo", font=FONTS["small_bold"], text_color="#6D7480").grid(row=0, column=0, padx=12, pady=(8, 4), sticky="w")
+                ctk.CTkLabel(scroll, text="Puntaje", font=FONTS["small_bold"], text_color="#6D7480").grid(row=0, column=1, padx=(4, 12), pady=(8, 4), sticky="e")
+                for i, (name, score, _date) in enumerate(scores_with_names, start=1):
+                    color = "#0D6B42" if score >= 90 else "#B84A33"
+                    ctk.CTkLabel(scroll, text=name, font=FONTS["small"], text_color=STYLE["texto_oscuro"]).grid(row=i, column=0, padx=12, pady=2, sticky="w")
+                    ctk.CTkLabel(scroll, text=f"{score:.1f}%", font=FONTS["small_bold"], text_color=color).grid(row=i, column=1, padx=(4, 12), pady=2, sticky="e")
+        else:
+            viewer_name = str(current_user.get("name", "")).strip()
+            profile = self.controller.get_executive_profile(viewer_name) if viewer_name else {}
+            history = profile.get("history", [])
+            if not history:
+                ctk.CTkLabel(scroll, text="Sin evaluaciones registradas en tu historial.", font=FONTS["small"], text_color="#6D7480").grid(row=0, column=0, padx=12, pady=8, sticky="w")
+            else:
+                ctk.CTkLabel(scroll, text="Supervisión", font=FONTS["small_bold"], text_color="#6D7480").grid(row=0, column=0, padx=12, pady=(8, 4), sticky="w")
+                ctk.CTkLabel(scroll, text="Puntaje", font=FONTS["small_bold"], text_color="#6D7480").grid(row=0, column=1, padx=(4, 12), pady=(8, 4), sticky="e")
+                for i, point in enumerate(history, start=1):
+                    score = point.get("score", 0)
+                    color = "#0D6B42" if score >= 90 else "#B84A33"
+                    ctk.CTkLabel(scroll, text=str(point.get("label", "--")), font=FONTS["small"], text_color=STYLE["texto_oscuro"]).grid(row=i, column=0, padx=12, pady=2, sticky="w")
+                    ctk.CTkLabel(scroll, text=f"{score:.1f}%", font=FONTS["small_bold"], text_color=color).grid(row=i, column=1, padx=(4, 12), pady=2, sticky="e")
+
+    def _show_alerts_detail_popup(self) -> None:
+        current_user = self.controller.current_user or {}
+        popup = ctk.CTkToplevel(self)
+        popup.title("Detalle de alertas")
+        popup.geometry("460x440")
+        popup.resizable(False, False)
+        popup.grab_set()
+        popup.lift()
+
+        ctk.CTkLabel(
+            popup,
+            text="¿Por qué tengo alertas?",
+            font=("Inter", 14, "bold"),
+            text_color=STYLE["texto_oscuro"],
+        ).pack(padx=20, pady=(18, 4), anchor="w")
+        ctk.CTkLabel(
+            popup,
+            text="Una alerta se genera cuando una evaluación tiene un puntaje menor a 90%. Cada alerta indica una oportunidad de mejora.",
+            font=FONTS["small"],
+            text_color="#6D7480",
+            wraplength=420,
+            justify="left",
+        ).pack(padx=20, pady=(0, 12), anchor="w")
+
+        scroll = ctk.CTkScrollableFrame(popup, fg_color="#F7F8FA", corner_radius=10, height=300)
+        scroll.pack(padx=20, pady=(0, 16), fill="both", expand=True)
+        scroll.grid_columnconfigure(0, weight=1)
+        scroll.grid_columnconfigure(1, weight=0)
+
+        if self.controller.is_admin(current_user):
+            alert_rows = [r for r in self.controller.get_principal_rows() if r.get("latest_score") is not None and r["latest_score"] < 90]
+            if not alert_rows:
+                ctk.CTkLabel(scroll, text="Sin alertas activas. Todos los puntajes están sobre 90%.", font=FONTS["small"], text_color="#0D6B42").grid(row=0, column=0, padx=12, pady=8, sticky="w")
+            else:
+                ctk.CTkLabel(scroll, text="Ejecutivo", font=FONTS["small_bold"], text_color="#6D7480").grid(row=0, column=0, padx=12, pady=(8, 4), sticky="w")
+                ctk.CTkLabel(scroll, text="Puntaje", font=FONTS["small_bold"], text_color="#6D7480").grid(row=0, column=1, padx=(4, 12), pady=(8, 4), sticky="e")
+                for i, row in enumerate(alert_rows, start=1):
+                    ctk.CTkLabel(scroll, text=row["name"], font=FONTS["small"], text_color=STYLE["texto_oscuro"]).grid(row=i, column=0, padx=12, pady=2, sticky="w")
+                    ctk.CTkLabel(scroll, text=f"{row['latest_score']:.1f}%", font=FONTS["small_bold"], text_color="#B84A33").grid(row=i, column=1, padx=(4, 12), pady=2, sticky="e")
+        else:
+            viewer_name = str(current_user.get("name", "")).strip()
+            own_scores = self.controller.list_trimestral_scores(inspector_name=viewer_name, include_unsent=True) if viewer_name else []
+            alerts = [s for s in own_scores if s.get("score") is not None and float(s["score"]) < 90]
+            if not alerts:
+                ctk.CTkLabel(scroll, text="Sin alertas activas. Todos tus puntajes están sobre 90%.", font=FONTS["small"], text_color="#0D6B42").grid(row=0, column=0, padx=12, pady=8, sticky="w")
+            else:
+                headers = ["Norma", "Trimestre", "Año", "Puntaje"]
+                for col, h in enumerate(headers):
+                    scroll.grid_columnconfigure(col, weight=1)
+                    ctk.CTkLabel(scroll, text=h, font=FONTS["small_bold"], text_color="#6D7480").grid(row=0, column=col, padx=8, pady=(8, 4), sticky="w")
+                for i, s in enumerate(alerts, start=1):
+                    score_val = float(s["score"])
+                    ctk.CTkLabel(scroll, text=str(s.get("norm", "--")), font=FONTS["small"], text_color=STYLE["texto_oscuro"]).grid(row=i, column=0, padx=8, pady=2, sticky="w")
+                    ctk.CTkLabel(scroll, text=str(s.get("quarter", "--")), font=FONTS["small"], text_color=STYLE["texto_oscuro"]).grid(row=i, column=1, padx=8, pady=2, sticky="w")
+                    ctk.CTkLabel(scroll, text=str(s.get("year", "--")), font=FONTS["small"], text_color=STYLE["texto_oscuro"]).grid(row=i, column=2, padx=8, pady=2, sticky="w")
+                    ctk.CTkLabel(scroll, text=f"{score_val:.1f}%", font=FONTS["small_bold"], text_color="#B84A33").grid(row=i, column=3, padx=8, pady=2, sticky="w")
 
     def _refresh_current_section(self) -> None:
         if not self.current_section:

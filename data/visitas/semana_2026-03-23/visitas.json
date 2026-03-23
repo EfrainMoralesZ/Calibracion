@@ -1,0 +1,40 @@
+[
+  {
+    "id": "12b67fd5234c4b578d6149e71fefeb1f",
+    "group_id": "12b67fd5234c4b578d6149e71fefeb1f",
+    "inspectors": [
+      "Aitana Yolitzin Sanchez Tenorio",
+      "Alejandro Fernando Moreno Valdovinos"
+    ],
+    "inspector": "Aitana Yolitzin Sanchez Tenorio",
+    "client": "AGENCIA DE PUBLICACIONES MÉXICO CENTRAL AC",
+    "address": "Lateral Perif. No. 14, San Lorenzo Almecatlae4, Cuautlancingo, Puebla, 72710",
+    "service": "DICTAMEN",
+    "visit_date": "2026-03-24",
+    "assignment_time": "09:00",
+    "departure_time": "18:00",
+    "status": "Finalizada",
+    "notes": "Reunir la informacion solicitada",
+    "acceptance_responses": {
+      "Aitana Yolitzin Sanchez Tenorio": {
+        "confirmed_at": "2026-03-23 16:38",
+        "confirmed_by": "Aitana Yolitzin Sanchez Tenorio"
+      }
+    },
+    "acceptance_status": "finalizada",
+    "accepted_by": "Aitana Yolitzin Sanchez Tenorio",
+    "assigned_by": "Efrain Morales Zamarrón",
+    "updated_at": "2026-03-23 16:38",
+    "accepted_count": 0,
+    "required_acceptances": 2,
+    "reported_norms": {
+      "Aitana Yolitzin Sanchez Tenorio": [
+        "NOM-004",
+        "NOM-015",
+        "NOM-020",
+        "NOM-050"
+      ]
+    },
+    "finalized_at": "16:38"
+  }
+]

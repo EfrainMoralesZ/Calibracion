@@ -1212,19 +1212,35 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 		if self.cards_frame is None:
 			return
 
-		card = ctk.CTkFrame(self.cards_frame, fg_color="#FFFFFF", corner_radius=14, border_width=1, border_color="#E3E6EA")
+		has_agreements = bool(self.controller.get_client_agreements(client_name))
+		border_color = "#F0C040" if has_agreements else "#E3E6EA"
+
+		card = ctk.CTkFrame(self.cards_frame, fg_color="#FFFFFF", corner_radius=14, border_width=1, border_color=border_color)
 		card.grid(row=index, column=0, padx=6, pady=5, sticky="ew")
 		card.grid_columnconfigure(0, weight=1)
 		card.grid_columnconfigure(1, weight=0)
 
+		name_row = ctk.CTkFrame(card, fg_color="transparent")
+		name_row.grid(row=0, column=0, padx=(12, 8), pady=(10, 2) if has_agreements else 10, sticky="w")
+
 		ctk.CTkLabel(
-			card,
+			name_row,
 			text=client_name,
 			font=FONTS["small_bold"],
 			text_color=STYLE["texto_oscuro"],
 			wraplength=540,
 			justify="left",
-		).grid(row=0, column=0, padx=(12, 8), pady=10, sticky="w")
+		).pack(side="left")
+
+		if has_agreements:
+			badge = ctk.CTkFrame(name_row, fg_color="#FFF3CD", corner_radius=6)
+			badge.pack(side="left", padx=(10, 0))
+			ctk.CTkLabel(
+				badge,
+				text="📋 Con acuerdos",
+				font=FONTS["small"],
+				text_color="#856404",
+			).pack(padx=8, pady=2)
 
 		actions = ctk.CTkFrame(card, fg_color="transparent")
 		actions.grid(row=0, column=1, padx=(8, 10), pady=8, sticky="e")
@@ -1248,6 +1264,17 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 			width=120,
 			height=30,
 			command=lambda client=client_name: self._open_history_for_client(client),
+		).pack(side="left", padx=(0, 8))
+
+		ctk.CTkButton(
+			actions,
+			text="Acuerdos",
+			fg_color=STYLE["fondo"],
+			text_color=STYLE["texto_oscuro"],
+			hover_color="#E9ECEF",
+			width=120,
+			height=30,
+			command=lambda client=client_name: self._upload_agreement_for_client(client),
 		).pack(side="left")
 
 	def _open_criteria(self, client_name: str) -> None:
@@ -1274,26 +1301,50 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 			initial_client=client_name,
 		)
 
+	def _upload_agreement_for_client(self, client_name: str) -> None:
+		if not client_name:
+			return
+
+		source_path = filedialog.askopenfilename(
+			title=f"Selecciona minuta de acuerdos - {client_name}",
+			filetypes=[("Archivos PDF", "*.pdf")],
+		)
+		if not source_path:
+			return
+
+		try:
+			saved_path = self.controller.save_client_agreement_pdf(client_name, source_path)
+		except ValueError as error:
+			messagebox.showerror("Acuerdos", str(error), parent=self)
+			return
+
+		messagebox.showinfo(
+			"Acuerdos",
+			f"Se guardo la minuta en:\n{saved_path}",
+			parent=self,
+		)
+
 	def _open_history_for_client(self, client_name: str) -> None:
 		if not client_name:
 			return
 
 		history = self.controller.get_criteria_history(client_name)
-		if not history:
-			messagebox.showinfo("Historial", f"No hay criterios generados para {client_name}.", parent=self)
+		agreements = self.controller.get_client_agreements(client_name)
+		if not history and not agreements:
+			messagebox.showinfo("Historial", f"No hay criterios ni acuerdos para {client_name}.", parent=self)
 			return
 
 		history_window = ctk.CTkToplevel(self)
 		history_window.title(f"Historial de criterios - {client_name}")
-		history_window.geometry("900x500")
+		history_window.geometry("980x560")
 		history_window.configure(fg_color=STYLE["fondo"])
 		history_window.transient(self)
-		_position_toplevel(history_window, self, 900, 500)
+		_position_toplevel(history_window, self, 980, 560)
 
 		wrapper = ctk.CTkFrame(history_window, fg_color=STYLE["surface"], corner_radius=20)
 		wrapper.pack(fill="both", expand=True, padx=18, pady=18)
 		wrapper.grid_columnconfigure(0, weight=1)
-		wrapper.grid_rowconfigure(1, weight=1)
+		wrapper.grid_rowconfigure(2, weight=1)
 
 		ctk.CTkLabel(
 			wrapper,
@@ -1302,43 +1353,155 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 			text_color=STYLE["texto_oscuro"],
 		).grid(row=0, column=0, padx=18, pady=(16, 12), sticky="w")
 
+		norm_values = sorted(
+			{
+				str(item.get("selected_norm", "")).strip() or "Sin norma"
+				for item in history
+			}
+		)
+		norm_filter_var = ctk.StringVar(value="Todas")
+
+		filters = ctk.CTkFrame(wrapper, fg_color="transparent")
+		filters.grid(row=1, column=0, padx=18, pady=(0, 10), sticky="ew")
+		filters.grid_columnconfigure(1, weight=1)
+
+		ctk.CTkLabel(
+			filters,
+			text="Filtrar por norma",
+			font=FONTS["small_bold"],
+			text_color=STYLE["texto_oscuro"],
+		).grid(row=0, column=0, padx=(0, 10), sticky="w")
+
+		norm_combo = ctk.CTkComboBox(
+			filters,
+			variable=norm_filter_var,
+			values=["Todas", *norm_values],
+			height=34,
+			fg_color="#FFFFFF",
+			border_color="#94A3B8",
+			button_color=STYLE["primario"],
+			dropdown_hover_color=STYLE["primario"],
+			state="readonly",
+		)
+		norm_combo.grid(row=0, column=1, sticky="w")
+
 		scroll_frame = ctk.CTkScrollableFrame(wrapper, fg_color=STYLE["fondo"], corner_radius=0)
-		scroll_frame.grid(row=1, column=0, padx=18, pady=(0, 12), sticky="nsew")
+		scroll_frame.grid(row=2, column=0, padx=18, pady=(0, 12), sticky="nsew")
 		scroll_frame.grid_columnconfigure(0, weight=1)
 
-		for idx, doc in enumerate(sorted(history, key=lambda x: x.get("generated_at", ""), reverse=True)):
-			row = ctk.CTkFrame(scroll_frame, fg_color="#FFFFFF", border_width=1, border_color="#E3E6EA", corner_radius=12)
-			row.grid(row=idx, column=0, sticky="ew", pady=(0, 10))
-			row.grid_columnconfigure(0, weight=1)
-			row.grid_columnconfigure(1, weight=0)
+		def _render_rows() -> None:
+			for child in scroll_frame.winfo_children():
+				child.destroy()
 
-			info_text = (
-				f"Res: {doc.get('resolution_number', '-')} | "
-				f"Norma: {doc.get('selected_norm', '-')} | "
-				f"Producto: {doc.get('evaluated_product', '-')} | "
-				f"Ejecutivo: {doc.get('executive_name', '-')} | "
-				f"Fecha: {doc.get('generated_at', '-')}"
-			)
-			ctk.CTkLabel(
-				row,
-				text=info_text,
-				font=FONTS["small"],
-				text_color=STYLE["texto_oscuro"],
-				justify="left",
-				anchor="w",
-			).grid(row=0, column=0, padx=12, pady=10, sticky="ew")
-
-			output_path = str(doc.get("output_path", "")).strip()
-			if output_path and Path(output_path).exists():
-				ctk.CTkButton(
-					row,
-					text="Abrir",
-					width=80,
-					fg_color=STYLE["primario"],
+			row_idx = 0
+			if agreements:
+				ctk.CTkLabel(
+					scroll_frame,
+					text="Acuerdos del cliente",
+					font=FONTS["small_bold"],
 					text_color=STYLE["texto_oscuro"],
-					hover_color="#D8C220",
-					command=lambda path=output_path: self._open_pdf_from_history(path),
-				).grid(row=0, column=1, padx=12, pady=10)
+				).grid(row=row_idx, column=0, padx=6, pady=(0, 8), sticky="w")
+				row_idx += 1
+
+				for agreement in agreements:
+					agreement_row = ctk.CTkFrame(
+						scroll_frame,
+						fg_color="#FFFFFF",
+						border_width=1,
+						border_color="#E3E6EA",
+						corner_radius=12,
+					)
+					agreement_row.grid(row=row_idx, column=0, sticky="ew", pady=(0, 10))
+					agreement_row.grid_columnconfigure(0, weight=1)
+					agreement_row.grid_columnconfigure(1, weight=0)
+
+					text = f"{agreement.get('title', 'Acuerdo')} | Fecha: {agreement.get('generated_at', '-') }"
+					ctk.CTkLabel(
+						agreement_row,
+						text=text,
+						font=FONTS["small"],
+						text_color=STYLE["texto_oscuro"],
+						justify="left",
+						anchor="w",
+					).grid(row=0, column=0, padx=12, pady=10, sticky="ew")
+
+					agreement_path = str(agreement.get("output_path", "")).strip()
+					if agreement_path and Path(agreement_path).exists():
+						ctk.CTkButton(
+							agreement_row,
+							text="Abrir acuerdo",
+							width=110,
+							fg_color=STYLE["primario"],
+							text_color=STYLE["texto_oscuro"],
+							hover_color="#D8C220",
+							command=lambda path=agreement_path: self._open_pdf_from_history(path),
+						).grid(row=0, column=1, padx=12, pady=10)
+					row_idx += 1
+
+			if agreements and history:
+				ctk.CTkLabel(
+					scroll_frame,
+					text="Criterios generados",
+					font=FONTS["small_bold"],
+					text_color=STYLE["texto_oscuro"],
+				).grid(row=row_idx, column=0, padx=6, pady=(4, 8), sticky="w")
+				row_idx += 1
+
+			selected_norm = norm_filter_var.get().strip()
+			filtered_history = sorted(history, key=lambda x: x.get("generated_at", ""), reverse=True)
+			if selected_norm and selected_norm != "Todas":
+				filtered_history = [
+					item
+					for item in filtered_history
+					if (str(item.get("selected_norm", "")).strip() or "Sin norma") == selected_norm
+				]
+
+			if not filtered_history:
+				ctk.CTkLabel(
+					scroll_frame,
+					text="No hay criterios para la norma seleccionada.",
+					font=FONTS["small"],
+					text_color="#6D7480",
+				).grid(row=row_idx, column=0, padx=6, pady=(2, 8), sticky="w")
+				return
+
+			for doc in filtered_history:
+				row = ctk.CTkFrame(scroll_frame, fg_color="#FFFFFF", border_width=1, border_color="#E3E6EA", corner_radius=12)
+				row.grid(row=row_idx, column=0, sticky="ew", pady=(0, 10))
+				row.grid_columnconfigure(0, weight=1)
+				row.grid_columnconfigure(1, weight=0)
+
+				info_text = (
+					f"Res: {doc.get('resolution_number', '-')} | "
+					f"Norma: {doc.get('selected_norm', '-')} | "
+					f"Producto: {doc.get('evaluated_product', '-')} | "
+					f"Ejecutivo: {doc.get('executive_name', '-')} | "
+					f"Fecha: {doc.get('generated_at', '-')}"
+				)
+				ctk.CTkLabel(
+					row,
+					text=info_text,
+					font=FONTS["small"],
+					text_color=STYLE["texto_oscuro"],
+					justify="left",
+					anchor="w",
+				).grid(row=0, column=0, padx=12, pady=10, sticky="ew")
+
+				output_path = str(doc.get("output_path", "")).strip()
+				if output_path and Path(output_path).exists():
+					ctk.CTkButton(
+						row,
+						text="Abrir",
+						width=80,
+						fg_color=STYLE["primario"],
+						text_color=STYLE["texto_oscuro"],
+						hover_color="#D8C220",
+						command=lambda path=output_path: self._open_pdf_from_history(path),
+					).grid(row=0, column=1, padx=12, pady=10)
+				row_idx += 1
+
+		norm_combo.configure(command=lambda _value: _render_rows())
+		_render_rows()
 
 		ctk.CTkButton(
 			wrapper,
@@ -1347,7 +1510,7 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 			text_color=STYLE["texto_oscuro"],
 			hover_color="#E9ECEF",
 			command=history_window.destroy,
-		).grid(row=2, column=0, padx=18, pady=(0, 12), sticky="ew")
+		).grid(row=3, column=0, padx=18, pady=(0, 12), sticky="ew")
 
 	def _open_pdf_from_history(self, path: str) -> None:
 		pdf_path = Path(path)

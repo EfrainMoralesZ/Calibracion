@@ -226,6 +226,7 @@ class ConfigurationView(ctk.CTkFrame):
                 "sub gerente",
                 "coordinador operativo",
                 "coordinadora en fiabilidad",
+                "talento humano",
                 "supervisor",
                 "ejecutivo tecnico",
                 "especialidades",

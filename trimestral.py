@@ -1579,8 +1579,8 @@ class TrimestralView(ctk.CTkFrame):
 
 		dialog = ctk.CTkToplevel(self)
 		dialog.title(f"Preview calificaciones — {inspector_name}")
-		dialog.geometry("860x620")
-		dialog.minsize(720, 520)
+		dialog.geometry("950x550")
+		dialog.minsize(950,550)
 		dialog.configure(fg_color=self.style["fondo"])
 		dialog.transient(self.winfo_toplevel())
 		dialog.grab_set()
@@ -1738,6 +1738,15 @@ class TrimestralView(ctk.CTkFrame):
 			if confirmed_at and confirmed_at.lower() != "none":
 				return "Confirmado", self.style["exito"]
 			return "Enviada", self.style["advertencia"]
+
+		def _medal_message(medal_key: str) -> str:
+			if medal_key == "ORO":
+				return "Felicidades bono asegurado + extra"
+			if medal_key == "PLATINO":
+				return "Felidades bono asegurado"
+			if medal_key == "BRONCE":
+				return "Sigue esforzandote"
+			return "--"
 
 		def _available_quarters() -> list[str]:
 			selected_year = year_var.get().strip()
@@ -1908,9 +1917,10 @@ class TrimestralView(ctk.CTkFrame):
 				columns.grid_columnconfigure(2, minsize=130)
 				columns.grid_columnconfigure(3, minsize=140)
 				columns.grid_columnconfigure(4, minsize=120)
-				for col_index, label_text in enumerate(["Norma", "Calificacion", "Estado", "Medalla", "Actualizado"]):
+				columns.grid_columnconfigure(5, minsize=230)
+				for col_index, label_text in enumerate(["Norma", "Calificacion", "Estado", "Medalla", "Actualizado", "Mensaje"]):
 					anchor = "w" if col_index == 0 else "center"
-					sticky = "w" if col_index == 0 else "ew"
+					sticky = "w" if col_index in (0, 5) else "ew"
 					ctk.CTkLabel(
 						columns,
 						text=label_text,
@@ -1927,6 +1937,7 @@ class TrimestralView(ctk.CTkFrame):
 					row_frame.grid_columnconfigure(2, minsize=130)
 					row_frame.grid_columnconfigure(3, minsize=140)
 					row_frame.grid_columnconfigure(4, minsize=120)
+					row_frame.grid_columnconfigure(5, minsize=230)
 
 					norm_text = self._norm_display(self._norm_key(score_row))
 					raw_score = self._coerce_score(score_row.get("score"))
@@ -1934,6 +1945,7 @@ class TrimestralView(ctk.CTkFrame):
 					state_text, state_color = _score_state(score_row)
 					medal = self._score_medal(score_row)
 					medal_text = medal["title"] if medal["key"] else "Sin medalla"
+					medal_message = _medal_message(medal.get("key", ""))
 					updated_text = str(score_row.get("updated_at", "")).strip() or "--"
 
 					ctk.CTkLabel(
@@ -1981,6 +1993,15 @@ class TrimestralView(ctk.CTkFrame):
 						font=self.fonts["small"],
 						text_color="#6D7480",
 					).grid(row=0, column=4, sticky="ew")
+					ctk.CTkLabel(
+						row_frame,
+						text=medal_message,
+						font=self.fonts["small"],
+						text_color="#6D7480" if medal_message == "--" else self.style["texto_oscuro"],
+						anchor="w",
+						justify="left",
+						wraplength=220,
+					).grid(row=0, column=5, sticky="w")
 
 		def _on_year_change(_value=None) -> None:
 			quarter_values = _available_quarters()

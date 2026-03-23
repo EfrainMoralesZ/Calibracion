@@ -1,6 +1,12 @@
 {
   "users": [
     {
+      "name": "Leticia O. Muñoz",
+      "username": "lety",
+      "password": "nrhuz",
+      "role": "Talento Humano"
+    },
+    {
       "name": "Marcos Uriel Flores Gomez",
       "username": "mflores",
       "password": "kzqrv",

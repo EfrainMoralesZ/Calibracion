@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import calendar as pycalendar
+import csv
+import io
 from datetime import date, datetime
-from tkinter import TclError, messagebox, ttk
+from tkinter import TclError, filedialog, messagebox, ttk
 import tkinter as tk
 
 import customtkinter as ctk
@@ -71,6 +73,10 @@ class CalendarView(ctk.CTkFrame):
         self._action_buttons: list[ctk.CTkButton] = []
         self._readonly_notice: ctk.CTkLabel | None = None
         self._viewing_past: bool = False
+        self._agreement_banner: ctk.CTkFrame | None = None
+        self.saturday_tree: ttk.Treeview | None = None
+        self.saturday_year_var = ctk.StringVar(value=str(date.today().year))
+        self.saturday_status_var = ctk.StringVar(value="")
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -81,7 +87,7 @@ class CalendarView(ctk.CTkFrame):
         header.grid(row=0, column=0, sticky="ew", pady=(0, 14))
         header.grid_columnconfigure(0, weight=1)
 
-        title = "Calendario y visitas" if self.can_edit else "Visitas asignadas"
+        title = "Agenda operativa" if self.can_edit else "Visitas asignadas"
         subtitle = (
             "Asigna visitas a ejecutivos tecnicos y visualiza el calendario mensual completo con carga por dia."
             if self.can_edit
@@ -109,6 +115,10 @@ class CalendarView(ctk.CTkFrame):
             tabs.add("Visitas asignadas")
             self._build_visits_tab(tabs.tab("Visitas asignadas"))
 
+        if not self.controller.is_executive_role(self.controller.current_user or {}):
+            tabs.add("Reporte Sábado")
+            self._build_saturday_report_tab(tabs.tab("Reporte Sábado"))
+
     def _build_calendar_tab(self, tab) -> None:
         tab.grid_columnconfigure(0, weight=1, minsize=340)
         tab.grid_columnconfigure(1, weight=3)
@@ -120,7 +130,7 @@ class CalendarView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             calendar_shell,
-            text="Agenda operativa",
+            text="Calendario Operativo",
             font=self.fonts["label_bold"],
             text_color=self.style["texto_oscuro"],
         ).grid(row=0, column=0, padx=18, pady=(16, 8), sticky="w")
@@ -226,6 +236,25 @@ class CalendarView(ctk.CTkFrame):
 
         if self.can_edit:
             self._build_form(self.side_panel)
+            # Agreement banner for admin — shown below the form when client has agreements
+            self._agreement_banner = ctk.CTkFrame(
+                self.side_panel,
+                fg_color="#FFF3CD",
+                corner_radius=10,
+                border_width=1,
+                border_color="#F0C040",
+            )
+            self._agreement_banner.grid(row=2, column=0, padx=18, pady=(0, 10), sticky="ew")
+            self._agreement_banner.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(
+                self._agreement_banner,
+                text="⚠️  Este cliente tiene acuerdos registrados. Revísalos antes de realizar la visita.",
+                font=self.fonts["small"],
+                text_color="#7A5A00",
+                wraplength=280,
+                justify="left",
+            ).grid(row=0, column=0, padx=12, pady=10, sticky="w")
+            self._agreement_banner.grid_remove()
         else:
             message = ctk.CTkLabel(
                 self.side_panel,
@@ -238,8 +267,29 @@ class CalendarView(ctk.CTkFrame):
                 justify="left",
             )
             message.grid(row=1, column=0, padx=18, pady=(0, 12), sticky="w")
+
+            # Agreement banner — shown above notes when client has agreements
+            self._agreement_banner = ctk.CTkFrame(
+                self.side_panel,
+                fg_color="#FFF3CD",
+                corner_radius=10,
+                border_width=1,
+                border_color="#F0C040",
+            )
+            self._agreement_banner.grid(row=2, column=0, padx=18, pady=(0, 8), sticky="ew")
+            self._agreement_banner.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(
+                self._agreement_banner,
+                text="⚠️  Este cliente tiene acuerdos registrados. Revísalos antes de realizar la visita.",
+                font=self.fonts["small"],
+                text_color="#7A5A00",
+                wraplength=280,
+                justify="left",
+            ).grid(row=0, column=0, padx=12, pady=10, sticky="w")
+            self._agreement_banner.grid_remove()
+
             self.notes_box = ctk.CTkTextbox(self.side_panel, height=260, corner_radius=18)
-            self.notes_box.grid(row=2, column=0, padx=18, pady=(0, 18), sticky="nsew")
+            self.notes_box.grid(row=3, column=0, padx=18, pady=(0, 18), sticky="nsew")
             self.notes_box.configure(state="disabled")
 
             self.accept_visit_button = ctk.CTkButton(
@@ -251,14 +301,14 @@ class CalendarView(ctk.CTkFrame):
                 hover_color="#D8C220",
                 state="disabled",
             )
-            self.accept_visit_button.grid(row=3, column=0, padx=18, pady=(0, 18), sticky="ew")
+            self.accept_visit_button.grid(row=4, column=0, padx=18, pady=(0, 18), sticky="ew")
 
             ctk.CTkLabel(
                 self.side_panel,
                 text="Normas aplicadas en la visita",
                 font=self.fonts["label_bold"],
                 text_color=self.style["texto_oscuro"],
-            ).grid(row=4, column=0, padx=18, pady=(0, 6), sticky="w")
+            ).grid(row=5, column=0, padx=18, pady=(0, 6), sticky="w")
 
             self.visit_norm_check_frame = ctk.CTkScrollableFrame(
                 self.side_panel,
@@ -266,7 +316,7 @@ class CalendarView(ctk.CTkFrame):
                 corner_radius=12,
                 height=170,
             )
-            self.visit_norm_check_frame.grid(row=5, column=0, padx=18, pady=(0, 8), sticky="ew")
+            self.visit_norm_check_frame.grid(row=6, column=0, padx=18, pady=(0, 8), sticky="ew")
             self.visit_norm_check_frame.grid_columnconfigure(0, weight=1)
 
             ctk.CTkLabel(
@@ -276,17 +326,17 @@ class CalendarView(ctk.CTkFrame):
                 text_color="#6D7480",
                 justify="left",
                 wraplength=300,
-            ).grid(row=6, column=0, padx=18, pady=(0, 8), sticky="w")
+            ).grid(row=7, column=0, padx=18, pady=(0, 8), sticky="w")
 
             self.save_norm_report_button = ctk.CTkButton(
                 self.side_panel,
-                text="Guardar reporte de normas",
+                text="Finalizar visita",
                 command=self._save_visit_norm_report,
                 fg_color=self.style["secundario"],
                 hover_color="#1D1D1D",
                 state="disabled",
             )
-            self.save_norm_report_button.grid(row=7, column=0, padx=18, pady=(0, 18), sticky="ew")
+            self.save_norm_report_button.grid(row=8, column=0, padx=18, pady=(0, 18), sticky="ew")
 
     def _build_visits_tab(self, tab) -> None:
         tab.grid_columnconfigure(0, weight=1)
@@ -811,7 +861,14 @@ class CalendarView(ctk.CTkFrame):
                 lines.append(f"- {inspector_name}: Pendiente de confirmar")
 
         header = f"Confirmaciones: {confirmed_count}/{len(inspectors)}"
-        return "\n".join([header, *lines])
+        result = "\n".join([header, *lines])
+
+        # Mostrar hora de finalización para roles admin
+        finalized_at = str(visit.get("finalized_at", "")).strip() if isinstance(visit, dict) else ""
+        if finalized_at:
+            result += f"\n\nFinalizada a las: {finalized_at}"
+
+        return result
 
     def _update_acceptance_details(self, visit: dict | None) -> None:
         if self.acceptance_details_label is None:
@@ -1188,9 +1245,24 @@ class CalendarView(ctk.CTkFrame):
                 self.departure_time_var.set(visit.get("departure_time", ""))
                 self.status_var.set(visit.get("status", "Programada"))
                 self._update_acceptance_details(visit)
+                # Show agreement banner for admin if this client has recorded agreements
+                if self._agreement_banner is not None:
+                    try:
+                        client_name = visit.get("client", "").strip()
+                        has_agreements = bool(
+                            client_name and self.controller.get_client_agreements(client_name)
+                        )
+                        if has_agreements:
+                            self._agreement_banner.grid()
+                        else:
+                            self._agreement_banner.grid_remove()
+                    except Exception:
+                        self._agreement_banner.grid_remove()
             else:
                 self.selected_visit_id = None
                 self._update_acceptance_details(None)
+                if self._agreement_banner is not None:
+                    self._agreement_banner.grid_remove()
         elif not self.can_edit:
             visits_on_date = [
                 v for v in self.controller.list_visits()
@@ -1629,10 +1701,13 @@ class CalendarView(ctk.CTkFrame):
             messagebox.showerror("Visitas", str(error))
             return
 
+        now_str = datetime.now().strftime("%H:%M")
+        self.controller.mark_visit_finalized(self.selected_visit_id, now_str)
+
         self.refresh()
         visit = next((item for item in self.controller.list_visits() if item.get("id") == self.selected_visit_id), None)
         self._show_readonly_visit_details(visit)
-        messagebox.showinfo("Visitas", "Reporte de normas guardado correctamente.")
+        messagebox.showinfo("Visitas", f"Visita finalizada y reporte de normas guardado.\nHora de finalización: {now_str}")
 
     def _show_readonly_visit_details(self, visit: dict | None) -> None:
         if self.notes_box is None:
@@ -1648,6 +1723,8 @@ class CalendarView(ctk.CTkFrame):
             self.notes_box.configure(state="disabled")
             self._set_accept_button_state(None)
             self._render_visit_norm_checklist(None)
+            if self._agreement_banner is not None:
+                self._agreement_banner.grid_remove()
             return
 
         assignment_time = str(visit.get("assignment_time", "")).strip() or "--"
@@ -1658,6 +1735,15 @@ class CalendarView(ctk.CTkFrame):
         date_text = str(visit.get("visit_date", "--")).strip() or "--"
         status_text = str(visit.get("status", "--")).strip() or "--"
         address_text = str(visit.get("address", "--")).strip() or "--"
+
+        current_user = self.controller.current_user or {}
+        is_exec = self.controller.is_executive_role(current_user)
+        finalized_at = str(visit.get("finalized_at", "")).strip()
+
+        finalization_section = ""
+        if not is_exec and finalized_at:
+            finalization_section = f"\n\n5) FINALIZACIÓN\n• Visita finalizada a las: {finalized_at}"
+
         text = (
             "DETALLE DE VISITA\n"
             "==============================\n\n"
@@ -1673,6 +1759,7 @@ class CalendarView(ctk.CTkFrame):
             f"• Direccion: {address_text}\n\n"
             "4) OBSERVACIONES\n"
             f"{notes_text}"
+            f"{finalization_section}"
         )
         self.notes_box.configure(state="normal")
         self.notes_box.delete("1.0", "end")
@@ -1680,6 +1767,19 @@ class CalendarView(ctk.CTkFrame):
         self.notes_box.configure(state="disabled")
         self._set_accept_button_state(visit)
         self._render_visit_norm_checklist(visit)
+        # Show agreement banner if this client has registered agreements
+        if self._agreement_banner is not None:
+            try:
+                client_name = visit.get("client", "").strip()
+                has_agreements = bool(
+                    client_name and self.controller.get_client_agreements(client_name)
+                )
+                if has_agreements:
+                    self._agreement_banner.grid()
+                else:
+                    self._agreement_banner.grid_remove()
+            except Exception:
+                self._agreement_banner.grid_remove()
 
     def _on_client_change(self, _value: str) -> None:
         self.address_options = self.controller.get_client_addresses(self.client_var.get())
@@ -1752,6 +1852,19 @@ class CalendarView(ctk.CTkFrame):
             self._update_acceptance_details(visit)
             self._refresh_exec_options()
             self._set_form_editable(not is_past)
+            # Show agreement banner for admin if this client has recorded agreements
+            if self._agreement_banner is not None:
+                try:
+                    client_name = visit.get("client", "").strip()
+                    has_agreements = bool(
+                        client_name and self.controller.get_client_agreements(client_name)
+                    )
+                    if has_agreements:
+                        self._agreement_banner.grid()
+                    else:
+                        self._agreement_banner.grid_remove()
+                except Exception:
+                    self._agreement_banner.grid_remove()
         elif self.notes_box is not None:
             self._show_readonly_visit_details(visit)
 
@@ -1766,3 +1879,217 @@ class CalendarView(ctk.CTkFrame):
             except ValueError:
                 continue
         return value if len(value) == 10 else ""
+
+    # ─── Reporte Sábado ────────────────────────────────────────────────────────
+
+    def _build_saturday_report_tab(self, tab) -> None:
+        """Tab exclusivo para roles no ejecutivos: reporte de ejecutivos que
+        laboraron en sábado (para cálculo de bono de almacén)."""
+        tab.grid_columnconfigure(0, weight=1)
+        tab.grid_rowconfigure(1, weight=1)
+
+        # ── Barra de filtros ──────────────────────────────────────────────────
+        filter_row = ctk.CTkFrame(tab, fg_color="transparent")
+        filter_row.grid(row=0, column=0, padx=18, pady=(14, 8), sticky="ew")
+
+        ctk.CTkLabel(
+            filter_row,
+            text="Año:",
+            font=self.fonts["small_bold"],
+            text_color=self.style["texto_oscuro"],
+        ).pack(side="left", padx=(0, 6))
+
+        years = [str(y) for y in range(date.today().year - 2, date.today().year + 2)]
+        ctk.CTkComboBox(
+            filter_row,
+            variable=self.saturday_year_var,
+            values=years,
+            width=110,
+            height=36,
+            fg_color="#FFFFFF",
+            border_color="#D5D8DC",
+            button_color=self.style["primario"],
+            dropdown_hover_color=self.style["primario"],
+        ).pack(side="left", padx=(0, 12))
+
+        ctk.CTkButton(
+            filter_row,
+            text="Actualizar",
+            fg_color=self.style["primario"],
+            text_color=self.style["texto_oscuro"],
+            hover_color="#D8C220",
+            height=36,
+            width=110,
+            command=self._refresh_saturday_report,
+        ).pack(side="left", padx=(0, 12))
+
+        ctk.CTkButton(
+            filter_row,
+            text="⬇  Descargar CSV",
+            fg_color=self.style["secundario"],
+            text_color=self.style["texto_claro"],
+            hover_color="#1D1D1D",
+            height=36,
+            width=160,
+            command=self._export_saturday_report_csv,
+        ).pack(side="left", padx=(0, 12))
+
+        self.saturday_status_label = ctk.CTkLabel(
+            filter_row,
+            textvariable=self.saturday_status_var,
+            font=self.fonts["small"],
+            text_color="#6D7480",
+        )
+        self.saturday_status_label.pack(side="left", padx=(8, 0))
+
+        # ── Tabla ─────────────────────────────────────────────────────────────
+        tree_container = ctk.CTkFrame(tab, fg_color="transparent")
+        tree_container.grid(row=1, column=0, padx=18, pady=(0, 18), sticky="nsew")
+        tree_container.grid_columnconfigure(0, weight=1)
+        tree_container.grid_rowconfigure(0, weight=1)
+
+        columns = ("fecha", "dia", "ejecutivo", "cliente", "servicio", "estado", "direccion")
+        self.saturday_tree = ttk.Treeview(tree_container, columns=columns, show="headings", height=18)
+        self.saturday_tree.grid(row=0, column=0, sticky="nsew")
+
+        sb_v = ttk.Scrollbar(tree_container, orient="vertical", command=self.saturday_tree.yview)
+        sb_v.grid(row=0, column=1, sticky="ns")
+        sb_h = ttk.Scrollbar(tree_container, orient="horizontal", command=self.saturday_tree.xview)
+        sb_h.grid(row=1, column=0, sticky="ew")
+        self.saturday_tree.configure(yscrollcommand=sb_v.set, xscrollcommand=sb_h.set)
+
+        headings = {
+            "fecha": "Fecha",
+            "dia": "Día",
+            "ejecutivo": "Ejecutivo Técnico",
+            "cliente": "Cliente",
+            "servicio": "Servicio",
+            "estado": "Estado",
+            "direccion": "Dirección",
+        }
+        widths = {
+            "fecha": 105,
+            "dia": 80,
+            "ejecutivo": 230,
+            "cliente": 190,
+            "servicio": 110,
+            "estado": 110,
+            "direccion": 320,
+        }
+        for col in columns:
+            self.saturday_tree.heading(col, text=headings[col])
+            self.saturday_tree.column(col, width=widths[col], anchor="w")
+
+        self._refresh_saturday_report()
+
+    def _get_saturday_visits(self) -> list[dict]:
+        """Devuelve todas las visitas cuya fecha cae en sábado para el año seleccionado."""
+        try:
+            target_year = int(self.saturday_year_var.get())
+        except ValueError:
+            target_year = date.today().year
+
+        result: list[dict] = []
+        for visit in self.controller.list_visits():
+            raw_date = str(visit.get("visit_date", "")).strip()
+            if not raw_date:
+                continue
+            try:
+                d = date.fromisoformat(raw_date)
+            except ValueError:
+                continue
+            if d.year != target_year:
+                continue
+            if d.weekday() != 5:  # 5 = sábado
+                continue
+            result.append(visit)
+        return result
+
+    def _refresh_saturday_report(self) -> None:
+        if self.saturday_tree is None:
+            return
+        for row in self.saturday_tree.get_children():
+            self.saturday_tree.delete(row)
+
+        visits = self._get_saturday_visits()
+
+        # Expandir por ejecutivo (un registro por ejecutivo en la visita)
+        rows_added = 0
+        for visit in sorted(visits, key=lambda v: v.get("visit_date", "")):
+            raw_date = str(visit.get("visit_date", ""))
+            try:
+                d = date.fromisoformat(raw_date)
+                dia_str = d.strftime("%d/%m/%Y")
+            except ValueError:
+                dia_str = raw_date
+
+            inspectors = visit.get("inspectors") or [visit.get("inspector", "--")]
+            for inspector in inspectors:
+                self.saturday_tree.insert(
+                    "",
+                    "end",
+                    values=(
+                        raw_date,
+                        dia_str,
+                        inspector,
+                        visit.get("client", "--"),
+                        visit.get("service", "--"),
+                        visit.get("status", "--"),
+                        visit.get("address", "--"),
+                    ),
+                )
+                rows_added += 1
+
+        if rows_added:
+            self.saturday_status_var.set(f"{rows_added} registro(s) encontrado(s).")
+        else:
+            self.saturday_status_var.set("Sin visitas en sábado para el año seleccionado.")
+
+    def _export_saturday_report_csv(self) -> None:
+        visits = self._get_saturday_visits()
+        if not visits:
+            messagebox.showinfo(
+                "Reporte Sábado",
+                "No hay visitas en sábado para el año seleccionado.",
+                parent=self,
+            )
+            return
+
+        save_path = filedialog.asksaveasfilename(
+            parent=self,
+            title="Guardar reporte de sábado",
+            defaultextension=".csv",
+            filetypes=[("Archivo CSV", "*.csv"), ("Todos los archivos", "*.*")],
+            initialfile=f"reporte_sabado_{self.saturday_year_var.get()}.csv",
+        )
+        if not save_path:
+            return
+
+        # Expandir por ejecutivo
+        rows: list[dict] = []
+        for visit in sorted(visits, key=lambda v: v.get("visit_date", "")):
+            inspectors = visit.get("inspectors") or [visit.get("inspector", "")]
+            for inspector in inspectors:
+                rows.append({
+                    "Fecha": visit.get("visit_date", ""),
+                    "Ejecutivo Técnico": inspector,
+                    "Cliente": visit.get("client", ""),
+                    "Servicio": visit.get("service", ""),
+                    "Estado": visit.get("status", ""),
+                    "Dirección": visit.get("address", ""),
+                    "Notas": visit.get("notes", ""),
+                })
+
+        fieldnames = ["Fecha", "Ejecutivo Técnico", "Cliente", "Servicio", "Estado", "Dirección", "Notas"]
+        try:
+            with open(save_path, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
+            messagebox.showinfo(
+                "Reporte Sábado",
+                f"Reporte guardado en:\n{save_path}",
+                parent=self,
+            )
+        except OSError as exc:
+            messagebox.showerror("Reporte Sábado", f"Error al guardar el archivo:\n{exc}", parent=self)

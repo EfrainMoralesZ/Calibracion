@@ -72,7 +72,7 @@ class LoginView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             visual_panel,
-            text="V&C CALIBRACION",
+            text="V&C Expertos en Normas",
             font=self.fonts["small_bold"],
             text_color=self.style["secundario"],
             fg_color=self.style["primario"],
@@ -83,24 +83,13 @@ class LoginView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             visual_panel,
-            text="Control central de inspecciones y seguimiento",
+            text="Sistema de fiabilidad técnica y calidad en el servicio",
             font=self.fonts["title"],
             text_color=self.style["texto_oscuro"],
             justify="left",
             wraplength=430,
         ).grid(row=1, column=0, padx=26, pady=(0, 10), sticky="w")
 
-        ctk.CTkLabel(
-            visual_panel,
-            text=(
-                "Accede para consultar la base principal, revisar visitas, mantener catalogos y generar "
-                "documentos despues de completar el formulario de supervision."
-            ),
-            font=self.fonts["small"],
-            text_color="#5B616A",
-            justify="left",
-            wraplength=430,
-        ).grid(row=2, column=0, padx=26, sticky="w")
 
         if self.logo_image is not None:
             ctk.CTkLabel(
@@ -108,7 +97,7 @@ class LoginView(ctk.CTkFrame):
                 text="",
                 image=self.logo_image,
                 fg_color="transparent",
-            ).grid(row=3, column=0, padx=26, pady=(12, 12))
+            ).grid(row=3, column=0, padx=26, pady=(14, 14))
         else:
             ctk.CTkLabel(
                 visual_panel,

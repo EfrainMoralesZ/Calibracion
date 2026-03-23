@@ -6,10 +6,10 @@
     "address": "Av. José López Portillo 4889, San Pedro Barrientos, Tlalnepantla, Estado de México, 54015",
     "service": "DICTAMEN",
     "visit_date": "2026-03-17",
-    "status": "Programada",
+    "status": "Finalizada",
     "notes": "Ejecutivos favor de reuninir la documentacion necesaria.",
     "assigned_by": "Efrain Morales Zamarrón",
-    "updated_at": "2026-03-17 13:28",
+    "updated_at": "2026-03-23 16:37",
     "inspectors": [
       "Aitana Yolitzin Sanchez Tenorio",
       "Amanda Merlin Juan"
@@ -17,10 +17,25 @@
     "group_id": "ff2cc53868b446c180e6fc416ed7fb92",
     "assignment_time": "",
     "departure_time": "",
-    "acceptance_responses": {},
+    "acceptance_responses": {
+      "Aitana Yolitzin Sanchez Tenorio": {
+        "confirmed_at": "2026-03-23 16:36",
+        "confirmed_by": "Aitana Yolitzin Sanchez Tenorio"
+      }
+    },
     "accepted_count": 0,
     "required_acceptances": 2,
-    "accepted_by": ""
+    "accepted_by": "Aitana Yolitzin Sanchez Tenorio",
+    "acceptance_status": "finalizada",
+    "reported_norms": {
+      "Aitana Yolitzin Sanchez Tenorio": [
+        "NOM-004",
+        "NOM-015",
+        "NOM-020",
+        "NOM-050"
+      ]
+    },
+    "finalized_at": "16:37"
   },
   {
     "id": "7d126aa3865442c3ab1b4973b4fb0486",

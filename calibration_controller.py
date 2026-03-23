@@ -27,6 +27,7 @@ VISITS_DIR = DATA_DIR / "visitas"
 TRIMESTRAL_DIR = DATA_DIR / "trimestral"
 NORMS_REPORT_FILE = DATA_DIR / "reporte de normas.json"
 CRITERIA_ARCHIVE_DIR = DATA_DIR / "clientes"
+AGREEMENTS_ARCHIVE_DIR = CRITERIA_ARCHIVE_DIR / "acuerdos"
 DOCUMENT_MODULE_DIR = resource_path("Documentos PDF.py")
 
 
@@ -213,6 +214,7 @@ def _normalize_role_name(value: str | None) -> str:
 		"sub_gerente": "sub gerente",
 		"coordinador_operativo": "coordinador operativo",
 		"coordinadora_en_fiabilidad": "coordinadora en fiabilidad",
+		"talento_humano": "talento humano",
 		"supervisor": "supervisor",
 		"ejecutivo": "ejecutivo tecnico",
 		"ejecutivo_tecnico": "ejecutivo tecnico",
@@ -862,6 +864,8 @@ class CalibrationController:
 		if self.has_full_access(user):
 			return ["Principal", "Criterios", "Dashboard", "Calendario", "Trimestral", "Configuraciones"]
 		role_name = self._role_name(user)
+		if role_name == "talento humano":
+			return ["Principal", "Dashboard"]
 		if role_name == "supervisor":
 			return ["Principal", "Calendario"]
 		if self.is_executive_role(user):
@@ -1140,7 +1144,7 @@ class CalibrationController:
 			if latest_score is None:
 				status = "Pendiente"
 			elif latest_score < 90:
-				status = "En enfoque"
+				status = "Feedback"
 			else:
 				status = "Estable"
 
@@ -1164,7 +1168,7 @@ class CalibrationController:
 				continue
 			if status_filter == "Pendientes" and row["form_completed"]:
 				continue
-			if status_filter == "En enfoque" and row["status"] != "En enfoque":
+			if status_filter == "Feedback" and row["status"] != "Feedback":
 				continue
 
 			rows.append(row)
@@ -2167,6 +2171,28 @@ class CalibrationController:
 		self.reload()
 		return record
 
+	def mark_visit_finalized(self, visit_id: str, finalized_at: str) -> None:
+		"""Marca la visita como Finalizada, registra la hora y actualiza el reporte de normas."""
+		found = self._find_visit_storage(visit_id)
+		if found is None:
+			return
+		visits_path, visits, visit = found
+		visit["status"] = "Finalizada"
+		visit["finalized_at"] = finalized_at
+		visit["updated_at"] = _timestamp()
+		_write_json(visits_path, visits)
+
+		# Actualizar también el reporte de normas con la hora de finalización
+		reports = _read_json(NORMS_REPORT_FILE, [])
+		if isinstance(reports, list):
+			target_visit = str(visit_id).strip()
+			for item in reports:
+				if isinstance(item, dict) and str(item.get("visit_id", "")).strip() == target_visit:
+					item["finalized_at"] = finalized_at
+			_write_json(NORMS_REPORT_FILE, reports)
+
+		self.reload()
+
 	def list_norm_visit_reports(self, month: str | None = None) -> list[dict[str, Any]]:
 		reports = _read_json(NORMS_REPORT_FILE, [])
 		if not isinstance(reports, list):
@@ -2255,6 +2281,7 @@ class CalibrationController:
 			"sub gerente",
 			"coordinador operativo",
 			"coordinadora en fiabilidad",
+			"talento humano",
 			"supervisor",
 			"ejecutivo tecnico",
 			"especialidades",
@@ -2520,6 +2547,42 @@ class CalibrationController:
 		client_clean = str(client_name or "").strip().lower()
 		return [doc for doc in documents_log if str(doc.get("client", "")).strip().lower() == client_clean]
 
+	def _agreement_client_dir(self, client_name: str) -> Path:
+		client_folder = _safe_folder_name(str(client_name or "").strip() or "sin_cliente")
+		path = AGREEMENTS_ARCHIVE_DIR / client_folder
+		path.mkdir(parents=True, exist_ok=True)
+		return path
+
+	def save_client_agreement_pdf(self, client_name: str, source_path: str | Path) -> Path:
+		clean_client = str(client_name or "").strip()
+		if not clean_client:
+			raise ValueError("Debes seleccionar un cliente para cargar acuerdos.")
+
+		source = Path(source_path)
+		if not source.exists() or not source.is_file():
+			raise ValueError("El archivo de acuerdos no existe o no es valido.")
+
+		target_path = self._agreement_client_dir(clean_client) / "minuta de acuerdos.pdf"
+		shutil.copy2(source, target_path)
+		return target_path
+
+	def get_client_agreements(self, client_name: str | None = None) -> list[dict[str, Any]]:
+		if not client_name:
+			return []
+
+		target_dir = self._agreement_client_dir(str(client_name))
+		agreements: list[dict[str, Any]] = []
+		for pdf_path in sorted(target_dir.glob("*.pdf"), key=lambda item: item.stat().st_mtime, reverse=True):
+			agreements.append(
+				{
+					"client": str(client_name).strip(),
+					"title": pdf_path.name,
+					"output_path": str(pdf_path),
+					"generated_at": datetime.fromtimestamp(pdf_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+				}
+			)
+		return agreements
+
 	def _history_dir(self, inspector_name: str) -> Path:
 		requested_name = str(inspector_name or "").strip()
 		canonical_name = self._resolve_canonical_person_name(requested_name) or requested_name
@@ -2778,7 +2841,7 @@ def _controller_get_principal_rows(self, search_text: str = "", status_filter: s
 		if latest_score is None:
 			status = "Pendiente"
 		elif latest_score < 90:
-			status = "En enfoque"
+			status = "Feedback"
 		else:
 			status = "Estable"
 
@@ -2806,7 +2869,7 @@ def _controller_get_principal_rows(self, search_text: str = "", status_filter: s
 			continue
 		if clean_status_filter == "Pendientes" and row["form_completed"]:
 			continue
-		if clean_status_filter == "En enfoque" and row["status"] != "En enfoque":
+		if clean_status_filter == "Feedback" and row["status"] != "Feedback":
 			continue
 
 		rows.append(row)
