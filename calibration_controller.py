@@ -26,6 +26,7 @@ HISTORY_DIR = DATA_DIR / "historico"
 VISITS_DIR = DATA_DIR / "visitas"
 TRIMESTRAL_DIR = DATA_DIR / "trimestral"
 NORMS_REPORT_FILE = DATA_DIR / "reporte de normas.json"
+CRITERIA_ARCHIVE_DIR = DATA_DIR / "clientes"
 DOCUMENT_MODULE_DIR = resource_path("Documentos PDF.py")
 
 
@@ -2485,6 +2486,13 @@ class CalibrationController:
 		builder = getattr(module, "build_criterio_evaluacion_pdf")
 		builder(output_path, resolved_payload)
 
+		client_name = str(resolved_payload.get("client", "")).strip() or "sin_cliente"
+		client_folder = _safe_folder_name(client_name)
+		timestamp_folder = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+		archive_path = CRITERIA_ARCHIVE_DIR / client_folder / timestamp_folder / "CriterioEvaluacion.pdf"
+		archive_path.parent.mkdir(parents=True, exist_ok=True)
+		shutil.copy2(output_path, archive_path)
+
 		counters = self.app_state.setdefault("document_counters", {"criterio_evaluacion_tecnica": 0})
 		counters["criterio_evaluacion_tecnica"] = next_value
 		_write_json(STATE_FILE, self.app_state)
@@ -2497,7 +2505,8 @@ class CalibrationController:
 				"executive_name": str(resolved_payload.get("executive_name", "")).strip(),
 				"evaluated_product": str(resolved_payload.get("evaluated_product", "")).strip(),
 				"generated_at": resolved_payload["generated_at"],
-				"output_path": str(output_path),
+				"output_path": str(archive_path),
+				"user_output_path": str(output_path),
 			}
 		)
 		_write_json(STATE_FILE, self.app_state)
