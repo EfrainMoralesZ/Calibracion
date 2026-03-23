@@ -4,6 +4,7 @@ import os
 import re
 import threading
 from datetime import datetime
+from pathlib import Path
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
@@ -298,7 +299,7 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 
 		self.download_criterio_button = ctk.CTkButton(
 			actions,
-			text="PDF Criterios por cliente",
+			text="PDF Criterios de evaluación",
 			fg_color=STYLE["secundario"],
 			text_color=STYLE["texto_claro"],
 			hover_color="#1D1D1D",
@@ -895,6 +896,106 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			"inspector_supervised": self._get_selected_inspector(),
 		}
 
+	def _reset_form(self) -> None:
+		"""Limpia todos los campos del formulario de criterios."""
+		self.product_var.set("")
+		if self.comment_box is not None:
+			self.comment_box.delete("1.0", "end")
+		if self.resolution_box is not None:
+			self.resolution_box.delete("1.0", "end")
+		self.evidence_files = []
+		self._refresh_evidence_preview()
+
+	def _open_history(self) -> None:
+		"""Abre ventana con el historial de PDFs de criterios para este cliente."""
+		client_name = self.client_var.get().strip()
+		if not client_name:
+			messagebox.showinfo("Historial", "Selecciona un cliente para ver el historial.", parent=self)
+			return
+		
+		history = self.controller.get_criteria_history(client_name)
+		if not history:
+			messagebox.showinfo("Historial", f"No hay criterios generados para {client_name}.", parent=self)
+			return
+		
+		history_window = ctk.CTkToplevel(self)
+		history_window.title(f"Historial de criterios - {client_name}")
+		history_window.geometry("900x500")
+		history_window.configure(fg_color=STYLE["fondo"])
+		history_window.transient(self)
+		_position_toplevel(history_window, self, 900, 500)
+		
+		wrapper = ctk.CTkFrame(history_window, fg_color=STYLE["surface"], corner_radius=20)
+		wrapper.pack(fill="both", expand=True, padx=18, pady=18)
+		wrapper.grid_columnconfigure(0, weight=1)
+		wrapper.grid_rowconfigure(1, weight=1)
+		
+		ctk.CTkLabel(
+			wrapper,
+			text=f"Historial de criterios - {client_name}",
+			font=FONTS["subtitle"],
+			text_color=STYLE["texto_oscuro"],
+		).grid(row=0, column=0, padx=18, pady=(16, 12), sticky="w")
+		
+		scroll_frame = ctk.CTkScrollableFrame(wrapper, fg_color=STYLE["fondo"], corner_radius=0)
+		scroll_frame.grid(row=1, column=0, padx=18, pady=(0, 12), sticky="nsew")
+		scroll_frame.grid_columnconfigure(0, weight=1)
+		
+		for idx, doc in enumerate(sorted(history, key=lambda x: x.get("generated_at", ""), reverse=True)):
+			card = ctk.CTkFrame(scroll_frame, fg_color="#FFFFFF", border_width=1, border_color="#E3E6EA", corner_radius=12)
+			card.grid(row=idx, column=0, sticky="ew", pady=(0, 10))
+			card.grid_columnconfigure(0, weight=1)
+			card.grid_columnconfigure(1, weight=0)
+			
+			info_text = (
+				f"Res: {doc.get('resolution_number', '-')} | "
+				f"Norma: {doc.get('selected_norm', '-')} | "
+				f"Producto: {doc.get('evaluated_product', '-')} | "
+				f"Ejecutivo: {doc.get('executive_name', '-')} | "
+				f"Fecha: {doc.get('generated_at', '-')}"
+			)
+			ctk.CTkLabel(
+				card,
+				text=info_text,
+				font=FONTS["small"],
+				text_color=STYLE["texto_oscuro"],
+				justify="left",
+				anchor="w",
+			).grid(row=0, column=0, padx=12, pady=10, sticky="ew")
+			
+			output_path = doc.get("output_path", "")
+			if output_path and Path(output_path).exists():
+				ctk.CTkButton(
+					card,
+					text="Abrir",
+					width=80,
+					fg_color=STYLE["primario"],
+					text_color=STYLE["texto_oscuro"],
+					hover_color="#D8C220",
+					command=lambda path=output_path: self._open_pdf(path),
+				).grid(row=0, column=1, padx=12, pady=10)
+			
+		ctk.CTkButton(
+			wrapper,
+			text="Cerrar",
+			fg_color=STYLE["fondo"],
+			text_color=STYLE["texto_oscuro"],
+			hover_color="#E9ECEF",
+			command=history_window.destroy,
+		).grid(row=2, column=0, padx=18, pady=(0, 12), sticky="ew")
+	
+	def _open_pdf(self, path: str) -> None:
+		"""Abre un archivo PDF."""
+		pdf_path = Path(path)
+		if not pdf_path.exists():
+			messagebox.showerror("Historial", f"El archivo no existe:\n{path}", parent=self)
+			return
+		if hasattr(os, "startfile"):
+			try:
+				os.startfile(pdf_path)
+			except OSError as e:
+				messagebox.showerror("Historial", f"No se pudo abrir el archivo:\n{e}", parent=self)
+	
 	def _persist_evaluation(self, payload: dict[str, object]) -> bool:
 		inspector_name = self._get_selected_inspector()
 		try:
@@ -957,6 +1058,9 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			except OSError:
 				pass
 		messagebox.showinfo("Documentos", f"Archivo generado en:\n{output}", parent=self)
+		
+		if kind == "criterio":
+			self._reset_form()
 
 	def _download_document(self, kind: str) -> None:
 		if not self.can_edit or self._document_generation_in_progress:
@@ -1010,7 +1114,7 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 
 class CriteriaEvaluationView(ctk.CTkFrame):
 	PAGE_SIZE = 20
-	CARD_COLUMNS = 5
+	CARD_COLUMNS = 1
 
 	def __init__(self, master, controller, can_edit: bool, on_change) -> None:
 		super().__init__(master, fg_color=STYLE["fondo"])
@@ -1054,8 +1158,7 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 
 		self.cards_frame = ctk.CTkScrollableFrame(self, fg_color=STYLE["fondo"], corner_radius=20)
 		self.cards_frame.grid(row=1, column=0, padx=16, pady=(0, 14), sticky="nsew")
-		for col in range(self.CARD_COLUMNS):
-			self.cards_frame.grid_columnconfigure(col, weight=1, uniform="criteria_cards")
+		self.cards_frame.grid_columnconfigure(0, weight=1)
 
 		self.pager_frame = ctk.CTkFrame(self, fg_color="transparent")
 		self.pager_frame.grid(row=2, column=0, padx=16, pady=(0, 12), sticky="ew")
@@ -1110,26 +1213,42 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 			return
 
 		card = ctk.CTkFrame(self.cards_frame, fg_color="#FFFFFF", corner_radius=14, border_width=1, border_color="#E3E6EA")
-		card.grid(row=index // self.CARD_COLUMNS, column=index % self.CARD_COLUMNS, padx=6, pady=6, sticky="nsew")
+		card.grid(row=index, column=0, padx=6, pady=5, sticky="ew")
 		card.grid_columnconfigure(0, weight=1)
+		card.grid_columnconfigure(1, weight=0)
 
 		ctk.CTkLabel(
 			card,
 			text=client_name,
 			font=FONTS["small_bold"],
 			text_color=STYLE["texto_oscuro"],
-			wraplength=180,
+			wraplength=540,
 			justify="left",
-		).grid(row=0, column=0, padx=8, pady=(8, 3), sticky="w")
+		).grid(row=0, column=0, padx=(12, 8), pady=10, sticky="w")
+
+		actions = ctk.CTkFrame(card, fg_color="transparent")
+		actions.grid(row=0, column=1, padx=(8, 10), pady=8, sticky="e")
 		ctk.CTkButton(
-			card,
-			text="Abrir Criterios",
+			actions,
+			text="Formulario",
 			fg_color=STYLE["primario"],
 			text_color=STYLE["texto_oscuro"],
 			hover_color="#D8C220",
-			height=28,
+			width=120,
+			height=30,
 			command=lambda client=client_name: self._open_criteria(client),
-		).grid(row=2, column=0, padx=8, pady=(0, 8), sticky="ew")
+		).pack(side="left", padx=(0, 8))
+
+		ctk.CTkButton(
+			actions,
+			text="Historial",
+			fg_color=STYLE["secundario"],
+			text_color=STYLE["texto_claro"],
+			hover_color="#1D1D1D",
+			width=120,
+			height=30,
+			command=lambda client=client_name: self._open_history_for_client(client),
+		).pack(side="left")
 
 	def _open_criteria(self, client_name: str) -> None:
 		if not client_name:
@@ -1154,6 +1273,92 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 			self._handle_change,
 			initial_client=client_name,
 		)
+
+	def _open_history_for_client(self, client_name: str) -> None:
+		if not client_name:
+			return
+
+		history = self.controller.get_criteria_history(client_name)
+		if not history:
+			messagebox.showinfo("Historial", f"No hay criterios generados para {client_name}.", parent=self)
+			return
+
+		history_window = ctk.CTkToplevel(self)
+		history_window.title(f"Historial de criterios - {client_name}")
+		history_window.geometry("900x500")
+		history_window.configure(fg_color=STYLE["fondo"])
+		history_window.transient(self)
+		_position_toplevel(history_window, self, 900, 500)
+
+		wrapper = ctk.CTkFrame(history_window, fg_color=STYLE["surface"], corner_radius=20)
+		wrapper.pack(fill="both", expand=True, padx=18, pady=18)
+		wrapper.grid_columnconfigure(0, weight=1)
+		wrapper.grid_rowconfigure(1, weight=1)
+
+		ctk.CTkLabel(
+			wrapper,
+			text=f"Historial de criterios - {client_name}",
+			font=FONTS["subtitle"],
+			text_color=STYLE["texto_oscuro"],
+		).grid(row=0, column=0, padx=18, pady=(16, 12), sticky="w")
+
+		scroll_frame = ctk.CTkScrollableFrame(wrapper, fg_color=STYLE["fondo"], corner_radius=0)
+		scroll_frame.grid(row=1, column=0, padx=18, pady=(0, 12), sticky="nsew")
+		scroll_frame.grid_columnconfigure(0, weight=1)
+
+		for idx, doc in enumerate(sorted(history, key=lambda x: x.get("generated_at", ""), reverse=True)):
+			row = ctk.CTkFrame(scroll_frame, fg_color="#FFFFFF", border_width=1, border_color="#E3E6EA", corner_radius=12)
+			row.grid(row=idx, column=0, sticky="ew", pady=(0, 10))
+			row.grid_columnconfigure(0, weight=1)
+			row.grid_columnconfigure(1, weight=0)
+
+			info_text = (
+				f"Res: {doc.get('resolution_number', '-')} | "
+				f"Norma: {doc.get('selected_norm', '-')} | "
+				f"Producto: {doc.get('evaluated_product', '-')} | "
+				f"Ejecutivo: {doc.get('executive_name', '-')} | "
+				f"Fecha: {doc.get('generated_at', '-')}"
+			)
+			ctk.CTkLabel(
+				row,
+				text=info_text,
+				font=FONTS["small"],
+				text_color=STYLE["texto_oscuro"],
+				justify="left",
+				anchor="w",
+			).grid(row=0, column=0, padx=12, pady=10, sticky="ew")
+
+			output_path = str(doc.get("output_path", "")).strip()
+			if output_path and Path(output_path).exists():
+				ctk.CTkButton(
+					row,
+					text="Abrir",
+					width=80,
+					fg_color=STYLE["primario"],
+					text_color=STYLE["texto_oscuro"],
+					hover_color="#D8C220",
+					command=lambda path=output_path: self._open_pdf_from_history(path),
+				).grid(row=0, column=1, padx=12, pady=10)
+
+		ctk.CTkButton(
+			wrapper,
+			text="Cerrar",
+			fg_color=STYLE["fondo"],
+			text_color=STYLE["texto_oscuro"],
+			hover_color="#E9ECEF",
+			command=history_window.destroy,
+		).grid(row=2, column=0, padx=18, pady=(0, 12), sticky="ew")
+
+	def _open_pdf_from_history(self, path: str) -> None:
+		pdf_path = Path(path)
+		if not pdf_path.exists():
+			messagebox.showerror("Historial", f"El archivo no existe:\n{path}", parent=self)
+			return
+		if hasattr(os, "startfile"):
+			try:
+				os.startfile(pdf_path)
+			except OSError as error:
+				messagebox.showerror("Historial", f"No se pudo abrir el archivo:\n{error}", parent=self)
 
 	def _rebuild_pager(self, total: int) -> None:
 		if self.pager_frame is None:

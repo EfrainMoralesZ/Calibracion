@@ -168,25 +168,16 @@ def _build_evidence_cell(image_paths: list[Path], styles):
 
     visible = image_paths[:4]
     rows: list[list[object]] = []
-    current_row: list[object] = []
-    
-    for image_path in visible:
-        image_flow = _scaled_image(image_path, 2.35 * cm, 2.35 * cm)
-        if image_flow is not None:
-            current_row.append(image_flow)
-            if len(current_row) == 2:
-                rows.append(current_row)
-                current_row = []
 
-    if current_row:
-        while len(current_row) < 2:
-            current_row.append(Paragraph("", styles["VCBodySmall"]))
-        rows.append(current_row)
+    for image_path in visible:
+        image_flow = _scaled_image(image_path, 4.5 * cm, 3.0 * cm)
+        if image_flow is not None:
+            rows.append([image_flow])
 
     if not rows:
         return Paragraph("Sin imagenes validas cargadas.", styles["VCBody"])
 
-    nested = Table(rows, colWidths=[2.4 * cm, 2.4 * cm])
+    nested = Table(rows, colWidths=[4.6 * cm])
     nested.setStyle(
         TableStyle(
             [
@@ -194,8 +185,8 @@ def _build_evidence_cell(image_paths: list[Path], styles):
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 1),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 1),
-                ("TOPPADDING", (0, 0), (-1, -1), 1),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
             ]
         )
     )
@@ -300,7 +291,6 @@ def build_criterio_evaluacion_pdf(output_path: str | Path, payload: dict[str, An
     story: list[object] = [Spacer(1, 0.15 * cm)]
     story.append(_build_summary_table(payload))
     story.append(Spacer(1, 0.45 * cm))
-    story.append(Paragraph("Consulta normativa", styles["VCSection"]))
     story.append(_build_consultation_table(payload, styles))
     story.append(Spacer(1, 0.6 * cm))
 

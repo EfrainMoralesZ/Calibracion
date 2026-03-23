@@ -2503,6 +2503,14 @@ class CalibrationController:
 		_write_json(STATE_FILE, self.app_state)
 		return output_path
 
+	def get_criteria_history(self, client_name: str | None = None) -> list[dict[str, Any]]:
+		"""Retorna el historial de PDFs de criterios generados, opcionalmente filtrados por cliente."""
+		documents_log = self.app_state.get("criteria_documents", [])
+		if not client_name:
+			return documents_log
+		client_clean = str(client_name or "").strip().lower()
+		return [doc for doc in documents_log if str(doc.get("client", "")).strip().lower() == client_clean]
+
 	def _history_dir(self, inspector_name: str) -> Path:
 		requested_name = str(inspector_name or "").strip()
 		canonical_name = self._resolve_canonical_person_name(requested_name) or requested_name

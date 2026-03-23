@@ -436,7 +436,7 @@ class CalibrationApp(ctk.CTk):
                 "mantiene la operacion orientada al resultado.",
                 "hace que la supervision se traduzca en desempeno.",
                 "refuerza el valor de cada decision tomada hoy.",
-                "da contexto para liderar mejor cada jornada.",
+                "da contexto para liderar mejor.",
             ],
         )
         message = self._message_for_day(admin_messages, "Analiza tendencias y lidera con datos.")

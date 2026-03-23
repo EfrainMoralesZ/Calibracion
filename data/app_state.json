@@ -1300,7 +1300,7 @@
     }
   },
   "document_counters": {
-    "criterio_evaluacion_tecnica": 2
+    "criterio_evaluacion_tecnica": 3
   },
   "criteria_documents": [
     {
@@ -1319,6 +1319,15 @@
       "executive_name": "Efrain Morales Zamarrón",
       "evaluated_product": "Textiles, prendas de vestir, accesorios y ropa de casa.",
       "generated_at": "2026-03-23 11:06",
+      "output_path": "C:\\Users\\bost2\\OneDrive\\Escritorio\\Efrain_Morales_Zamarr_n_nom_004_criterio_evaluacion_tecnica.pdf"
+    },
+    {
+      "resolution_number": "0003",
+      "client": "ULTA BEAUTY S.A.P.I. DE C.V.",
+      "selected_norm": "NOM-004-SE-2021",
+      "executive_name": "Efrain Morales Zamarrón",
+      "evaluated_product": "Textiles, prendas de vestir, accesorios y ropa de casa.",
+      "generated_at": "2026-03-23 11:25",
       "output_path": "C:\\Users\\bost2\\OneDrive\\Escritorio\\Efrain_Morales_Zamarr_n_nom_004_criterio_evaluacion_tecnica.pdf"
     }
   ]
