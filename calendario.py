@@ -1227,7 +1227,7 @@ class CalendarView(ctk.CTkFrame):
                 if self._normalize_date(v.get("visit_date", "")) == iso_date
             ]
             if visits_on_date:
-                visit = visits_on_date[0]
+                visit = self._pick_visit_for_date(visits_on_date, is_past)
                 self.selected_visit_id = visit["id"]
                 inspectors = list(visit.get("inspectors", []))
                 # Write to notes_box before locking it
@@ -1269,8 +1269,9 @@ class CalendarView(ctk.CTkFrame):
                 if self._normalize_date(v.get("visit_date", "")) == iso_date
             ]
             if visits_on_date:
-                self.selected_visit_id = visits_on_date[0].get("id")
-                self._show_readonly_visit_details(visits_on_date[0])
+                visit = self._pick_visit_for_date(visits_on_date, is_past)
+                self.selected_visit_id = visit.get("id")
+                self._show_readonly_visit_details(visit)
             else:
                 self.selected_visit_id = None
                 self._show_readonly_visit_details(None)
@@ -1282,6 +1283,26 @@ class CalendarView(ctk.CTkFrame):
                 self.side_panel._parent_canvas.yview_moveto(0)
             except TclError:
                 pass
+
+    @staticmethod
+    def _pick_visit_for_date(visits_on_date: list[dict], is_past: bool) -> dict:
+        """Choose the most relevant visit for a date.
+
+        For past dates, prioritize finalized visits so they can be reviewed quickly.
+        """
+
+        def _rank(visit: dict) -> tuple[int, str, str]:
+            acceptance_status = str(visit.get("acceptance_status", "")).strip().lower()
+            operational_status = str(visit.get("status", "")).strip().lower()
+            is_finalized = acceptance_status == "finalizada" or operational_status == "finalizada"
+            priority = 1 if (is_past and is_finalized) else 0
+            return (
+                priority,
+                str(visit.get("updated_at", "")),
+                str(visit.get("assignment_time", "")),
+            )
+
+        return sorted(visits_on_date, key=_rank, reverse=True)[0]
 
     def _set_form_editable(self, editable: bool) -> None:
         if not self.can_edit:
