@@ -155,58 +155,51 @@ def _build_summary_table(payload: dict[str, Any]) -> Table:
 
 def _scaled_image(image_path: Path, width: float, height: float) -> Image | None:
     try:
-        flow = Image(str(image_path))
+        flow = Image(str(image_path), width=width, height=height)
     except OSError:
         return None
-    flow._restrictSize(width, height)
+    # Forzar el tamaño exacto de la celda
+    flow.drawWidth = width
+    flow.drawHeight = height
     return flow
 
 
 def _build_evidence_cell(image_paths: list[Path], styles):
     if not image_paths:
-        return Paragraph("Sin evidencia fotografica adjunta.", styles["VCBody"])
+        return [Paragraph("Sin evidencia fotografica adjunta.", styles["VCBody"])]
 
-    rows: list[list[object]] = []
-
+    flows = []
     for image_path in image_paths:
         image_flow = _scaled_image(image_path, 4.5 * cm, 3.0 * cm)
         if image_flow is not None:
-            rows.append([image_flow])
-
-    if not rows:
-        return Paragraph("Sin imagenes validas cargadas.", styles["VCBody"])
-
-    nested = Table(rows, colWidths=[4.6 * cm])
-    nested.setStyle(
-        TableStyle(
-            [
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 1),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 1),
-                ("TOPPADDING", (0, 0), (-1, -1), 2),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ]
-        )
-    )
-    return nested
+            flows.append(image_flow)
+            flows.append(Spacer(1, 0.2 * cm))
+    if not flows:
+        return [Paragraph("Sin imagenes validas cargadas.", styles["VCBody"])]
+    return flows
 
 
 def _build_consultation_table(payload: dict[str, Any], styles) -> Table:
     comment_cell = Paragraph(_text(payload.get("comment")), styles["VCBody"])
     resolution_cell = Paragraph(_text(payload.get("resolution_text")), styles["VCBody"])
-    evidence_cell = _build_evidence_cell(_normalize_evidence_files(payload), styles)
+    evidence_flows = _build_evidence_cell(_normalize_evidence_files(payload), styles)
+    if not isinstance(evidence_flows, list):
+        evidence_flows = [evidence_flows]
 
-    table = Table(
+    # Usar una tabla para los encabezados y una para los datos, pero permitir que la evidencia sea una lista de flowables
+    from reportlab.platypus import KeepTogether
+    data = [
         [
-            [
-                _header_cell("COMENTARIO", styles),
-                _header_cell("EVIDENCIA", styles),
-                _header_cell("RESOLUCIÓN", styles),
-            ],
-            [comment_cell, evidence_cell, resolution_cell],
+            _header_cell("COMENTARIO", styles),
+            _header_cell("EVIDENCIA", styles),
+            _header_cell("RESOLUCIÓN", styles),
         ],
+        [comment_cell, KeepTogether(evidence_flows), resolution_cell],
+    ]
+    table = Table(
+        data,
         colWidths=[5.4 * cm, 5.4 * cm, 5.4 * cm],
+        splitByRow=1,
     )
     table.setStyle(
         TableStyle(
@@ -289,8 +282,71 @@ def build_criterio_evaluacion_pdf(output_path: str | Path, payload: dict[str, An
     story: list[object] = [Spacer(1, 0.15 * cm)]
     story.append(_build_summary_table(payload))
     story.append(Spacer(1, 0.45 * cm))
-    story.append(_build_consultation_table(payload, styles))
+    # Solo comentario y resolución en la tabla principal
+    comment_cell = Paragraph(_text(payload.get("comment")), styles["VCBody"])
+    resolution_cell = Paragraph(_text(payload.get("resolution_text")), styles["VCBody"])
+    table = Table(
+        [
+            [
+                _header_cell("COMENTARIO", styles),
+                _header_cell("RESOLUCIÓN", styles),
+            ],
+            [comment_cell, resolution_cell],
+        ],
+        colWidths=[8.1 * cm, 8.1 * cm],
+        splitByRow=1,
+    )
+    table.setStyle(
+        TableStyle(
+            [
+                ("TEXTCOLOR", (0, 0), (-1, 0), DARK),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("LINEBELOW", (0, 0), (-1, 0), 1.5, colors.HexColor("#282828")),
+                ("GRID", (0, 0), (-1, -1), 0.5, GRID),
+                ("VALIGN", (0, 0), (-1, 0), "MIDDLE"),
+                ("VALIGN", (0, 1), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+    story.append(table)
     story.append(Spacer(1, 0.6 * cm))
+
+    # Agregar imágenes de evidencia en dos columnas
+    image_paths = _normalize_evidence_files(payload)
+    if image_paths:
+        story.append(Paragraph("EVIDENCIA FOTOGRÁFICA:", styles["VCSection"]))
+        # Preparar las imágenes en filas de dos columnas
+        img_width = 8.1 * cm
+        img_height = 5.5 * cm
+        rows = []
+        row = []
+        for idx, img_path in enumerate(image_paths):
+            img = _scaled_image(img_path, img_width, img_height)
+            if img:
+                row.append(img)
+            if len(row) == 2 or idx == len(image_paths) - 1:
+                # Si la última fila tiene solo una imagen, rellena la otra columna vacía
+                if len(row) < 2:
+                    row.append("")
+                rows.append(row)
+                row = []
+        if rows:
+            table = Table(rows, colWidths=[img_width, img_width], hAlign='CENTER')
+            table.setStyle(TableStyle([
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.append(table)
+            story.append(Spacer(1, 0.3 * cm))
 
     executive_name = _text(payload.get("executive_name") or payload.get("inspector_supervised"), "Sin ejecutivo")
     signature_lines = [

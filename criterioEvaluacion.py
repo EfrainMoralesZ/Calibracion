@@ -421,11 +421,10 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			justify="left",
 		).grid(row=1, column=0, padx=12, pady=(0, 8), sticky="w")
 
-		preview = ctk.CTkTextbox(parent, corner_radius=16, border_width=1, border_color="#D5D8DC")
-		preview.grid(row=2, column=0, padx=12, pady=(0, 12), sticky="nsew")
-		preview.insert("1.0", "No hay imagenes seleccionadas.")
-		preview.configure(state="disabled")
-		self.evidence_preview_box = preview
+		preview_frame = ctk.CTkFrame(parent, corner_radius=16, border_width=1, border_color="#D5D8DC")
+		preview_frame.grid(row=2, column=0, padx=12, pady=(0, 12), sticky="nsew")
+		self.evidence_preview_frame = preview_frame
+		self._refresh_evidence_preview()
 
 	def _build_resolution_tab(self, parent: ctk.CTkFrame) -> None:
 		parent.grid_columnconfigure(0, weight=1)
@@ -640,30 +639,43 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 	def _select_evidence_files(self) -> None:
 		selected = filedialog.askopenfilenames(
 			parent=self,
-			title="Selecciona imagenes de evidencia",
+			title="Selecciona imagenes de evidencia (máximo 4)",
 			filetypes=[("Imagenes", "*.png *.jpg *.jpeg *.webp")],
 		)
 		if not selected:
 			return
-		self.evidence_files = [str(path) for path in selected]
+		max_imgs = 4
+		if len(selected) > max_imgs:
+			messagebox.showwarning(
+				"Límite de imágenes",
+				f"Solo puedes cargar hasta {max_imgs} imágenes. Se tomarán solo las primeras {max_imgs}."
+			)
+		self.evidence_files = [str(path) for path in selected[:max_imgs]]
 		self._refresh_evidence_preview()
 
 	def _refresh_evidence_preview(self) -> None:
+		# Limpiar el frame
+		if hasattr(self, 'evidence_preview_frame') and self.evidence_preview_frame is not None:
+			for widget in self.evidence_preview_frame.winfo_children():
+				widget.destroy()
 		total = len(self.evidence_files)
 		if total == 0:
 			self.evidence_summary_var.set("Sin imagenes cargadas.")
-			preview_text = "No hay imagenes seleccionadas."
+			label = ctk.CTkLabel(self.evidence_preview_frame, text="No hay imagenes seleccionadas.", font=FONTS["small"], text_color="#6D7480", anchor="w", justify="left")
+			label.grid(row=0, column=0, sticky="w", padx=8, pady=4)
 		else:
 			self.evidence_summary_var.set(f"{total} imagen(es) cargadas para evidencia.")
-			visible_names = [os.path.basename(path) for path in self.evidence_files[:8]]
-			preview_text = "\n".join(visible_names)
-			if total > len(visible_names):
-				preview_text += f"\n... y {total - len(visible_names)} imagen(es) mas"
-		if hasattr(self, "evidence_preview_box") and self.evidence_preview_box is not None:
-			self.evidence_preview_box.configure(state="normal")
-			self.evidence_preview_box.delete("1.0", "end")
-			self.evidence_preview_box.insert("1.0", preview_text)
-			self.evidence_preview_box.configure(state="disabled")
+			for idx, path in enumerate(self.evidence_files):
+				name = os.path.basename(path)
+				label = ctk.CTkLabel(self.evidence_preview_frame, text=name, font=FONTS["small"], anchor="w", justify="left")
+				label.grid(row=idx, column=0, sticky="w", padx=(8,2), pady=2)
+				btn = ctk.CTkButton(self.evidence_preview_frame, text="Eliminar", width=80, fg_color=STYLE["advertencia"], text_color=STYLE["texto_claro"], hover_color="#c0392b", font=FONTS["small"], command=lambda i=idx: self._remove_evidence_file(i))
+				btn.grid(row=idx, column=1, sticky="e", padx=(2,8), pady=2)
+
+	def _remove_evidence_file(self, idx):
+		if 0 <= idx < len(self.evidence_files):
+			del self.evidence_files[idx]
+			self._refresh_evidence_preview()
 
 	def _add_field(self, parent, row: int, label: str, widget) -> None:
 		ctk.CTkLabel(parent, text=label, font=FONTS["label"], text_color=STYLE["texto_oscuro"]).grid(row=row * 2, column=0, padx=8, pady=(12 if row == 0 else 8, 4), sticky="w")
