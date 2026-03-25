@@ -32,6 +32,7 @@ class CalendarView(ctk.CTkFrame):
         self.exec2_var = ctk.StringVar()
         self.client_var = ctk.StringVar()
         self.address_var = ctk.StringVar()
+        self.warehouse_var = ctk.StringVar(value="Sin almacen")
         self.service_var = ctk.StringVar(value="Sin servicio")
         self.date_var = ctk.StringVar(value=date.today().strftime("%Y-%m-%d"))
         self.assignment_time_var = ctk.StringVar()
@@ -679,36 +680,42 @@ class CalendarView(ctk.CTkFrame):
         self._label_and_widget_rows(fields, 8, "Cliente", self.client_selector)
         self.address_selector = self._combo(fields, self.address_var, ["Selecciona un cliente"], self._on_address_change)
         self._label_and_widget_rows(fields, 10, "Direccion", self.address_selector)
-        self.date_entry = self._entry(fields, self.date_var)
-        self._label_and_widget_rows(fields, 12, "Fecha de visita", self.date_entry)
-        self.assignment_time_entry = ctk.CTkEntry(fields, textvariable=self.assignment_time_var, height=38, border_color="#D5D8DC", placeholder_text="HH:MM")
-        self._label_and_widget_rows(fields, 14, "Hora de asignacion al almacen", self.assignment_time_entry)
-        self.departure_time_entry = ctk.CTkEntry(fields, textvariable=self.departure_time_var, height=38, border_color="#D5D8DC", placeholder_text="HH:MM")
-        self._label_and_widget_rows(fields, 16, "Hora de salida", self.departure_time_entry)
-        self.status_selector = self._combo(fields, self.status_var, ["Programada", "Realizada", "Reprogramada"])
-        self._label_and_widget_rows(fields, 18, "Estado", self.status_selector)
-
-        ctk.CTkLabel(fields, text="Servicio", font=self.fonts["label"],
-                     text_color=self.style["texto_oscuro"]).grid(row=20, column=0, sticky="w", pady=(8, 6))
-        service_label = ctk.CTkLabel(
+        warehouse_label = ctk.CTkLabel(
             fields,
-            textvariable=self.service_var,
+            textvariable=self.warehouse_var,
             font=self.fonts["small_bold"],
-            text_color=self.style["exito"],
+            text_color=self.style["texto_oscuro"],
             fg_color=self.style["fondo"],
             corner_radius=12,
             padx=12,
             pady=8,
+            anchor="w",
+            justify="left",
         )
-        service_label.grid(row=21, column=0, sticky="w")
+        self._label_and_widget_rows(fields, 12, "Almacen", warehouse_label)
+        self.date_entry = self._entry(fields, self.date_var)
+        self._label_and_widget_rows(fields, 14, "Fecha de visita", self.date_entry)
+        self.assignment_time_entry = ctk.CTkEntry(fields, textvariable=self.assignment_time_var, height=38, border_color="#D5D8DC", placeholder_text="08:00")
+        self.assignment_time_entry.bind("<FocusOut>", lambda _event: self._normalize_time_var(self.assignment_time_var))
+        self.assignment_time_entry.bind("<Return>", lambda _event: self._normalize_time_var(self.assignment_time_var))
+        self._label_and_widget_rows(fields, 16, "Hora de asignacion al almacen (24 hrs)", self.assignment_time_entry)
+        self.departure_time_entry = ctk.CTkEntry(fields, textvariable=self.departure_time_var, height=38, border_color="#D5D8DC", placeholder_text="18:00")
+        self.departure_time_entry.bind("<FocusOut>", lambda _event: self._normalize_time_var(self.departure_time_var))
+        self.departure_time_entry.bind("<Return>", lambda _event: self._normalize_time_var(self.departure_time_var))
+        self._label_and_widget_rows(fields, 18, "Hora de salida (24 hrs)", self.departure_time_entry)
+        self.status_selector = self._combo(fields, self.status_var, ["Programada", "Realizada", "Reprogramada"])
+        self._label_and_widget_rows(fields, 20, "Estado", self.status_selector)
+
+        ctk.CTkLabel(fields, text="Usa formato 24 horas. Ejemplos: 08:00, 14:30, 18:45", font=self.fonts["small"],
+                     text_color="#6D7480").grid(row=22, column=0, sticky="w", pady=(4, 6))
 
         ctk.CTkLabel(fields, text="Notas", font=self.fonts["label"],
-                     text_color=self.style["texto_oscuro"]).grid(row=22, column=0, sticky="w", pady=(12, 6))
+                     text_color=self.style["texto_oscuro"]).grid(row=23, column=0, sticky="w", pady=(12, 6))
         self.notes_box = ctk.CTkTextbox(fields, height=120, corner_radius=16)
-        self.notes_box.grid(row=23, column=0, sticky="ew")
+        self.notes_box.grid(row=24, column=0, sticky="ew")
 
         button_row = ctk.CTkFrame(fields, fg_color="transparent")
-        button_row.grid(row=24, column=0, sticky="ew", pady=(16, 0))
+        button_row.grid(row=25, column=0, sticky="ew", pady=(16, 0))
 
         self._form_buttons.clear()
         self._action_buttons: list[ctk.CTkButton] = []
@@ -949,6 +956,48 @@ class CalendarView(ctk.CTkFrame):
 
     def _entry(self, parent, variable):
         return ctk.CTkEntry(parent, textvariable=variable, height=38, border_color="#D5D8DC")
+
+    @staticmethod
+    def _normalize_time_text(raw_value: str) -> str:
+        value = str(raw_value or "").strip().upper().replace(".", "")
+        if not value:
+            return ""
+
+        for fmt in ("%H:%M", "%H%M", "%I:%M %p", "%I:%M%p", "%I %p"):
+            try:
+                return datetime.strptime(value, fmt).strftime("%H:%M")
+            except ValueError:
+                continue
+        return value
+
+    def _normalize_time_var(self, variable: ctk.StringVar) -> None:
+        variable.set(self._normalize_time_text(variable.get()))
+
+    def _sync_address_metadata(self) -> None:
+        current_address = self.address_var.get().strip()
+        current_client = self.client_var.get().strip()
+        if not current_address or not current_client:
+            self.warehouse_var.set("Sin almacen")
+            self.service_var.set("Sin servicio")
+            return
+
+        match = next((item for item in self.address_options if item.get("address", "") == current_address), None)
+        if match is None:
+            match = next((item for item in self.address_options if item.get("location", "") == current_address), None)
+            if match is not None:
+                self.address_var.set(match.get("address", current_address))
+
+        warehouse = ""
+        service = "Sin servicio"
+        if match is not None:
+            warehouse = str(match.get("warehouse", "")).strip()
+            service = str(match.get("service", "Sin servicio")).strip() or "Sin servicio"
+
+        if not warehouse:
+            warehouse = self.controller.get_client_warehouse_for_address(current_client, self.address_var.get())
+
+        self.warehouse_var.set(warehouse or "Sin almacen")
+        self.service_var.set(service)
 
     def _refresh_visit_filter_options(self, all_visits: list[dict]) -> None:
         executives = sorted(
@@ -1240,7 +1289,7 @@ class CalendarView(ctk.CTkFrame):
                 self.client_var.set(visit.get("client", ""))
                 self._on_client_change(visit.get("client", ""))
                 self.address_var.set(visit.get("address", ""))
-                self.service_var.set(visit.get("service", "Sin servicio"))
+                self._sync_address_metadata()
                 self.assignment_time_var.set(visit.get("assignment_time", ""))
                 self.departure_time_var.set(visit.get("departure_time", ""))
                 self.status_var.set(visit.get("status", "Programada"))
@@ -1384,6 +1433,7 @@ class CalendarView(ctk.CTkFrame):
         self.exec2_var.set(self._NO_EXEC2)
         self.client_var.set("")
         self.address_var.set("")
+        self.warehouse_var.set("Sin almacen")
         self.service_var.set("Sin servicio")
         self.date_var.set(date.today().strftime("%Y-%m-%d"))
         self.assignment_time_var.set("")
@@ -1425,6 +1475,8 @@ class CalendarView(ctk.CTkFrame):
         if not self.can_edit:
             return
 
+        self._normalize_time_var(self.assignment_time_var)
+        self._normalize_time_var(self.departure_time_var)
         notes = self.notes_box.get("1.0", "end").strip() if self.notes_box is not None else ""
         base_payload = {
             "client": self.client_var.get(),
@@ -1756,6 +1808,7 @@ class CalendarView(ctk.CTkFrame):
         date_text = str(visit.get("visit_date", "--")).strip() or "--"
         status_text = str(visit.get("status", "--")).strip() or "--"
         address_text = str(visit.get("address", "--")).strip() or "--"
+        warehouse_text = self.controller.get_client_warehouse_for_address(client_text, address_text)
 
         current_user = self.controller.current_user or {}
         is_exec = self.controller.is_executive_role(current_user)
@@ -1764,6 +1817,10 @@ class CalendarView(ctk.CTkFrame):
         finalization_section = ""
         if not is_exec and finalized_at:
             finalization_section = f"\n\n5) FINALIZACIÓN\n• Visita finalizada a las: {finalized_at}"
+
+        warehouse_line = ""
+        if warehouse_text and warehouse_text.casefold() not in address_text.casefold():
+            warehouse_line = f"• Almacen: {warehouse_text}\n"
 
         text = (
             "DETALLE DE VISITA\n"
@@ -1777,6 +1834,7 @@ class CalendarView(ctk.CTkFrame):
             f"• Hora de asignacion: {assignment_time}\n"
             f"• Hora de salida: {departure_time}\n\n"
             "3) UBICACION\n"
+              f"{warehouse_line}"
             f"• Direccion: {address_text}\n\n"
             "4) OBSERVACIONES\n"
             f"{notes_text}"
@@ -1812,9 +1870,10 @@ class CalendarView(ctk.CTkFrame):
                 pass
         if self.address_options:
             self.address_var.set(self.address_options[0]["address"])
-            self.service_var.set(self.address_options[0]["service"])
+            self._sync_address_metadata()
         else:
             self.address_var.set("")
+            self.warehouse_var.set("Sin almacen")
             self.service_var.set("Sin servicio")
 
     def _clear_filters(self) -> None:
@@ -1825,10 +1884,7 @@ class CalendarView(ctk.CTkFrame):
         self.refresh()
 
     def _on_address_change(self, _value: str) -> None:
-        current_address = self.address_var.get()
-        match = next((item for item in self.address_options if item["address"] == current_address), None)
-        if match:
-            self.service_var.set(match["service"])
+        self._sync_address_metadata()
 
     def _on_tree_select(self, _event=None) -> None:
         if self.tree is None:
@@ -1861,7 +1917,7 @@ class CalendarView(ctk.CTkFrame):
             self.client_var.set(visit.get("client", ""))
             self._on_client_change(visit.get("client", ""))
             self.address_var.set(visit.get("address", ""))
-            self.service_var.set(visit.get("service", "Sin servicio"))
+            self._sync_address_metadata()
             self.date_var.set(normalized_date or visit.get("visit_date", ""))
             self.assignment_time_var.set(visit.get("assignment_time", ""))
             self.departure_time_var.set(visit.get("departure_time", ""))

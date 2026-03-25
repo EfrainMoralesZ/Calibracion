@@ -1076,25 +1076,60 @@ class CalibrationController:
 				continue
 
 			for index, address in enumerate(client.get("DIRECCIONES", []), start=1):
+				warehouse = str(address.get("ALMACEN", "")).strip()
 				street = str(address.get("CALLE Y NO", "")).strip()
 				colony = str(address.get("COLONIA O POBLACION", "")).strip()
 				municipality = str(address.get("MUNICIPIO O ALCADIA", "")).strip()
 				state = str(address.get("CIUDAD O ESTADO", "")).strip()
 				postal_code = str(address.get("CP", "")).strip()
 				service = str(address.get("SERVICIO", "")).strip()
-				address_text = ", ".join(
+				location_text = ", ".join(
 					part for part in [street, colony, municipality, state, postal_code] if part
 				)
-				label = f"Sede {index}: {municipality or state or 'Sin ubicacion'} | {service or 'Sin servicio'}"
+				address_text = " | ".join(part for part in [warehouse, location_text] if part)
+				label = f"Sede {index}: {warehouse or municipality or state or 'Sin ubicacion'} | {service or 'Sin servicio'}"
 				options.append(
 					{
 						"label": label,
 						"address": address_text,
+						"location": location_text,
+						"warehouse": warehouse,
 						"service": service or "Sin servicio",
 					}
 				)
 
 		return options
+
+	def get_client_warehouse_for_address(self, client_name: str, address_text: str) -> str:
+		client_name = str(client_name).strip()
+		address_text = str(address_text).strip()
+		if not client_name or not address_text:
+			return ""
+
+		for client in self.clients_catalog:
+			if str(client.get("CLIENTE", "")).strip() != client_name:
+				continue
+
+			for address in client.get("DIRECCIONES", []):
+				if not isinstance(address, dict):
+					continue
+
+				warehouse = str(address.get("ALMACEN", "")).strip()
+				location_text = ", ".join(
+					part for part in [
+						str(address.get("CALLE Y NO", "")).strip(),
+						str(address.get("COLONIA O POBLACION", "")).strip(),
+						str(address.get("MUNICIPIO O ALCADIA", "")).strip(),
+						str(address.get("CIUDAD O ESTADO", "")).strip(),
+						str(address.get("CP", "")).strip(),
+					] if part
+				)
+				full_text = " | ".join(part for part in [warehouse, location_text] if part)
+
+				if address_text == full_text or address_text == location_text or (location_text and location_text in address_text):
+					return warehouse
+
+		return ""
 
 	def get_latest_evaluation(self, inspector_name: str) -> dict[str, Any]:
 		latest = self.app_state.get("evaluations", {}).get(inspector_name)
@@ -2327,10 +2362,7 @@ class CalibrationController:
 	def save_client(self, payload: dict[str, Any], original_client: str | None = None) -> dict[str, Any]:
 		client_name = str(payload.get("CLIENTE", "")).strip()
 		rfc = str(payload.get("RFC", "")).strip()
-		contract_number = str(payload.get("NÚMERO_DE_CONTRATO", payload.get("NUMERO_DE_CONTRATO", ""))).strip()
-		contract_date = str(payload.get("FECHA_DE_CONTRATO", "")).strip()
-		activity = str(payload.get("ACTIVIDAD", "")).strip().upper() or "ACTIVO"
-		curp = str(payload.get("CURP", "")).strip()
+		warehouse = str(payload.get("ALMACEN", "")).strip()
 		street = str(payload.get("CALLE Y NO", "")).strip()
 		colony = str(payload.get("COLONIA O POBLACION", "")).strip()
 		municipality = str(payload.get("MUNICIPIO O ALCADIA", "")).strip()
@@ -2371,9 +2403,10 @@ class CalibrationController:
 				if isinstance(address, dict)
 			]
 
-		has_address_data = any([street, colony, municipality, state, postal_code, service])
+		has_address_data = any([warehouse, street, colony, municipality, state, postal_code, service])
 		if has_address_data:
 			primary_address = {
+				"ALMACEN": warehouse,
 				"CALLE Y NO": street,
 				"COLONIA O POBLACION": colony,
 				"MUNICIPIO O ALCADIA": municipality,
@@ -2389,11 +2422,6 @@ class CalibrationController:
 		updated = dict(original or {})
 		updated["RFC"] = rfc
 		updated["CLIENTE"] = client_name
-		updated["NÚMERO_DE_CONTRATO"] = contract_number
-		updated["FECHA_DE_CONTRATO"] = contract_date
-		updated["ACTIVIDAD"] = activity
-		if curp or "CURP" in updated:
-			updated["CURP"] = curp
 		updated["DIRECCIONES"] = existing_addresses
 
 		if original is None:
@@ -2427,6 +2455,7 @@ class CalibrationController:
 			raise ValueError("No se encontro el cliente.")
 		addresses = list(client.get("DIRECCIONES") or [])
 		addr: dict[str, Any] = {
+			"ALMACEN": str(address.get("ALMACEN", "")).strip(),
 			"CALLE Y NO": str(address.get("CALLE Y NO", "")).strip(),
 			"COLONIA O POBLACION": str(address.get("COLONIA O POBLACION", "")).strip(),
 			"MUNICIPIO O ALCADIA": str(address.get("MUNICIPIO O ALCADIA", "")).strip(),

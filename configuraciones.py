@@ -32,15 +32,14 @@ class ConfigurationView(ctk.CTkFrame):
         self.user_role_var = ctk.StringVar(value="ejecutivo tecnico")
         self.client_name_var = ctk.StringVar()
         self.client_rfc_var = ctk.StringVar()
-        self.client_contract_var = ctk.StringVar()
-        self.client_contract_date_var = ctk.StringVar()
-        self.client_activity_var = ctk.StringVar(value="ACTIVO")
+        self.client_warehouse_var = ctk.StringVar()
         self.client_street_var = ctk.StringVar()
         self.client_colony_var = ctk.StringVar()
         self.client_municipality_var = ctk.StringVar()
         self.client_state_var = ctk.StringVar()
         self.client_cp_var = ctk.StringVar()
         self.client_service_var = ctk.StringVar(value="DICTAMEN")
+        self.addr_warehouse_var = ctk.StringVar()
         self.addr_street_var = ctk.StringVar()
         self.addr_colony_var = ctk.StringVar()
         self.addr_municipality_var = ctk.StringVar()
@@ -282,15 +281,13 @@ class ConfigurationView(ctk.CTkFrame):
             command=self._clear_client_search,
         ).grid(row=0, column=2, padx=(8, 0))
 
-        self.client_tree = ttk.Treeview(table_panel, columns=("cliente", "rfc", "actividad", "sedes"), show="headings", height=16)
+        self.client_tree = ttk.Treeview(table_panel, columns=("cliente", "rfc", "sedes"), show="headings", height=16)
         self.client_tree.grid(row=1, column=0, sticky="nsew", padx=16, pady=16)
         self.client_tree.heading("cliente", text="Cliente")
         self.client_tree.heading("rfc", text="RFC")
-        self.client_tree.heading("actividad", text="Actividad")
         self.client_tree.heading("sedes", text="Sedes")
-        self.client_tree.column("cliente", width=320, anchor="w")
-        self.client_tree.column("rfc", width=150, anchor="w")
-        self.client_tree.column("actividad", width=110, anchor="center")
+        self.client_tree.column("cliente", width=400, anchor="w")
+        self.client_tree.column("rfc", width=180, anchor="w")
         self.client_tree.column("sedes", width=80, anchor="center")
         self.client_tree.bind("<<TreeviewSelect>>", self._on_client_select)
         self.client_tree.bind("<Double-1>", self._on_client_double_click)
@@ -301,26 +298,13 @@ class ConfigurationView(ctk.CTkFrame):
 
         self._form_field(form_panel, 0, "Cliente", ctk.CTkEntry(form_panel, textvariable=self.client_name_var, height=38))
         self._form_field(form_panel, 1, "RFC", ctk.CTkEntry(form_panel, textvariable=self.client_rfc_var, height=38))
-        self._form_field(form_panel, 2, "Numero de contrato", ctk.CTkEntry(form_panel, textvariable=self.client_contract_var, height=38))
-        self._form_field(form_panel, 3, "Fecha de contrato", ctk.CTkEntry(form_panel, textvariable=self.client_contract_date_var, height=38))
-        client_activity_combo = ctk.CTkComboBox(
-            form_panel,
-            variable=self.client_activity_var,
-            values=["ACTIVO", "NUEVO", "INACTIVO"],
-            height=38,
-            fg_color="#FFFFFF",
-            border_color="#D5D8DC",
-            button_color=self.style["primario"],
-            dropdown_hover_color=self.style["primario"],
-        )
-        self._form_field(form_panel, 4, "Actividad", client_activity_combo)
 
         ctk.CTkLabel(
             form_panel,
             text="Direccion principal",
             font=self.fonts["label_bold"],
             text_color=self.style["texto_oscuro"],
-        ).grid(row=10, column=0, padx=16, pady=(18, 6), sticky="w")
+        ).grid(row=4, column=0, padx=16, pady=(18, 6), sticky="w")
         ctk.CTkLabel(
             form_panel,
             text="Si el cliente ya tiene varias sedes, este formulario actualiza la principal y conserva las adicionales.",
@@ -328,13 +312,14 @@ class ConfigurationView(ctk.CTkFrame):
             text_color="#6D7480",
             justify="left",
             wraplength=320,
-        ).grid(row=11, column=0, padx=16, sticky="w")
+        ).grid(row=5, column=0, padx=16, sticky="w")
 
-        self._form_field(form_panel, 6, "Calle y numero", ctk.CTkEntry(form_panel, textvariable=self.client_street_var, height=38))
-        self._form_field(form_panel, 7, "Colonia o poblacion", ctk.CTkEntry(form_panel, textvariable=self.client_colony_var, height=38))
-        self._form_field(form_panel, 8, "Municipio o alcaldia", ctk.CTkEntry(form_panel, textvariable=self.client_municipality_var, height=38))
-        self._form_field(form_panel, 9, "Ciudad o estado", ctk.CTkEntry(form_panel, textvariable=self.client_state_var, height=38))
-        self._form_field(form_panel, 10, "CP", ctk.CTkEntry(form_panel, textvariable=self.client_cp_var, height=38))
+        self._form_field(form_panel, 3, "Almacen", ctk.CTkEntry(form_panel, textvariable=self.client_warehouse_var, height=38))
+        self._form_field(form_panel, 4, "Calle y numero", ctk.CTkEntry(form_panel, textvariable=self.client_street_var, height=38))
+        self._form_field(form_panel, 5, "Colonia o poblacion", ctk.CTkEntry(form_panel, textvariable=self.client_colony_var, height=38))
+        self._form_field(form_panel, 6, "Municipio o alcaldia", ctk.CTkEntry(form_panel, textvariable=self.client_municipality_var, height=38))
+        self._form_field(form_panel, 7, "Ciudad o estado", ctk.CTkEntry(form_panel, textvariable=self.client_state_var, height=38))
+        self._form_field(form_panel, 8, "CP", ctk.CTkEntry(form_panel, textvariable=self.client_cp_var, height=38))
         client_service_combo = ctk.CTkComboBox(
             form_panel,
             variable=self.client_service_var,
@@ -345,8 +330,8 @@ class ConfigurationView(ctk.CTkFrame):
             button_color=self.style["primario"],
             dropdown_hover_color=self.style["primario"],
         )
-        self._form_field(form_panel, 11, "Servicio", client_service_combo)
-        self._action_buttons(form_panel, 24, self.save_client, self.clear_client_form, self.delete_client)
+        self._form_field(form_panel, 9, "Servicio", client_service_combo)
+        self._action_buttons(form_panel, 20, self.save_client, self.clear_client_form, self.delete_client)
 
         self.manage_addresses_button = ctk.CTkButton(
             form_panel,
@@ -358,7 +343,7 @@ class ConfigurationView(ctk.CTkFrame):
             hover_color="#E9ECEF",
             command=self._open_addresses_dialog,
         )
-        self.manage_addresses_button.grid(row=25, column=0, padx=16, pady=(0, 16), sticky="ew")
+        self.manage_addresses_button.grid(row=21, column=0, padx=16, pady=(0, 16), sticky="ew")
 
     def _build_executive_tab(self, tab) -> None:
         tab.grid_columnconfigure(0, weight=3)
@@ -539,8 +524,6 @@ class ConfigurationView(ctk.CTkFrame):
                     [
                         str(client.get("CLIENTE", "")),
                         str(client.get("RFC", "")),
-                        str(client.get("NÚMERO_DE_CONTRATO", client.get("NUMERO_DE_CONTRATO", ""))),
-                        str(client.get("ACTIVIDAD", "")),
                     ]
                 ).lower()
                 if query not in searchable:
@@ -559,7 +542,6 @@ class ConfigurationView(ctk.CTkFrame):
                 values=(
                     client_name,
                     client.get("RFC", ""),
-                    client.get("ACTIVIDAD", ""),
                     address_count,
                 ),
             )
@@ -703,9 +685,7 @@ class ConfigurationView(ctk.CTkFrame):
         self.selected_client = None
         self.client_name_var.set("")
         self.client_rfc_var.set("")
-        self.client_contract_var.set("")
-        self.client_contract_date_var.set("")
-        self.client_activity_var.set("ACTIVO")
+        self.client_warehouse_var.set("")
         self.client_street_var.set("")
         self.client_colony_var.set("")
         self.client_municipality_var.set("")
@@ -770,9 +750,7 @@ class ConfigurationView(ctk.CTkFrame):
                 {
                     "CLIENTE": self.client_name_var.get(),
                     "RFC": self.client_rfc_var.get(),
-                    "NÚMERO_DE_CONTRATO": self.client_contract_var.get(),
-                    "FECHA_DE_CONTRATO": self.client_contract_date_var.get(),
-                    "ACTIVIDAD": self.client_activity_var.get(),
+                    "ALMACEN": self.client_warehouse_var.get(),
                     "CALLE Y NO": self.client_street_var.get(),
                     "COLONIA O POBLACION": self.client_colony_var.get(),
                     "MUNICIPIO O ALCADIA": self.client_municipality_var.get(),
@@ -843,9 +821,7 @@ class ConfigurationView(ctk.CTkFrame):
 
         self.client_name_var.set(client.get("CLIENTE", ""))
         self.client_rfc_var.set(client.get("RFC", ""))
-        self.client_contract_var.set(client.get("NÚMERO_DE_CONTRATO", client.get("NUMERO_DE_CONTRATO", "")))
-        self.client_contract_date_var.set(client.get("FECHA_DE_CONTRATO", ""))
-        self.client_activity_var.set(client.get("ACTIVIDAD", "ACTIVO") or "ACTIVO")
+        self.client_warehouse_var.set(str(primary_address.get("ALMACEN", "") or ""))
         self.client_street_var.set(primary_address.get("CALLE Y NO", ""))
         self.client_colony_var.set(primary_address.get("COLONIA O POBLACION", ""))
         self.client_municipality_var.set(primary_address.get("MUNICIPIO O ALCADIA", ""))
@@ -875,6 +851,7 @@ class ConfigurationView(ctk.CTkFrame):
             return
 
         self.selected_address_index = None
+        self.addr_warehouse_var.set("")
         self.addr_street_var.set("")
         self.addr_colony_var.set("")
         self.addr_municipality_var.set("")
@@ -916,21 +893,23 @@ class ConfigurationView(ctk.CTkFrame):
             text_color=self.style["texto_oscuro"],
         ).grid(row=0, column=0, padx=14, pady=(12, 6), sticky="w")
 
-        addr_columns = ("num", "calle", "colonia", "ciudad", "cp", "servicio")
+        addr_columns = ("num", "almacen", "calle", "colonia", "ciudad", "cp", "servicio")
         addr_tree = ttk.Treeview(table_frame, columns=addr_columns, show="headings", height=16)
         addr_tree.grid(row=1, column=0, padx=14, pady=(0, 14), sticky="nsew")
         addr_tree.heading("num", text="#")
+        addr_tree.heading("almacen", text="Almacen")
         addr_tree.heading("calle", text="Calle y No")
         addr_tree.heading("colonia", text="Colonia")
         addr_tree.heading("ciudad", text="Ciudad / Estado")
         addr_tree.heading("cp", text="CP")
         addr_tree.heading("servicio", text="Servicio")
         addr_tree.column("num", width=36, anchor="center")
-        addr_tree.column("calle", width=190, anchor="w")
-        addr_tree.column("colonia", width=150, anchor="w")
-        addr_tree.column("ciudad", width=140, anchor="w")
-        addr_tree.column("cp", width=65, anchor="center")
-        addr_tree.column("servicio", width=95, anchor="center")
+        addr_tree.column("almacen", width=140, anchor="w")
+        addr_tree.column("calle", width=160, anchor="w")
+        addr_tree.column("colonia", width=130, anchor="w")
+        addr_tree.column("ciudad", width=130, anchor="w")
+        addr_tree.column("cp", width=60, anchor="center")
+        addr_tree.column("servicio", width=90, anchor="center")
 
         def _refresh_addr_tree() -> None:
             for row in addr_tree.get_children():
@@ -946,8 +925,9 @@ class ConfigurationView(ctk.CTkFrame):
                     continue
                 addr_tree.insert(
                     "", "end", iid=str(idx),
-                    values=(idx + 1, addr.get("CALLE Y NO", ""), addr.get("COLONIA O POBLACION", ""),
-                            addr.get("CIUDAD O ESTADO", ""), addr.get("CP", ""), addr.get("SERVICIO", "")),
+                    values=(idx + 1, addr.get("ALMACEN", ""), addr.get("CALLE Y NO", ""),
+                            addr.get("COLONIA O POBLACION", ""), addr.get("CIUDAD O ESTADO", ""),
+                            addr.get("CP", ""), addr.get("SERVICIO", "")),
                 )
 
         def _on_addr_select(_event=None) -> None:
@@ -965,6 +945,7 @@ class ConfigurationView(ctk.CTkFrame):
             addresses = cur_client.get("DIRECCIONES", [])
             if self.selected_address_index < len(addresses):
                 addr = addresses[self.selected_address_index]
+                self.addr_warehouse_var.set(str(addr.get("ALMACEN", "") or ""))
                 self.addr_street_var.set(addr.get("CALLE Y NO", ""))
                 self.addr_colony_var.set(addr.get("COLONIA O POBLACION", ""))
                 self.addr_municipality_var.set(addr.get("MUNICIPIO O ALCADIA", ""))
@@ -986,11 +967,12 @@ class ConfigurationView(ctk.CTkFrame):
             text_color=self.style["texto_oscuro"],
         ).grid(row=0, column=0, padx=14, pady=(12, 4), sticky="w")
 
-        self._form_field(form_frame, 1, "Calle y numero", ctk.CTkEntry(form_frame, textvariable=self.addr_street_var, height=36))
-        self._form_field(form_frame, 2, "Colonia o poblacion", ctk.CTkEntry(form_frame, textvariable=self.addr_colony_var, height=36))
-        self._form_field(form_frame, 3, "Municipio o alcaldia", ctk.CTkEntry(form_frame, textvariable=self.addr_municipality_var, height=36))
-        self._form_field(form_frame, 4, "Ciudad o estado", ctk.CTkEntry(form_frame, textvariable=self.addr_state_var, height=36))
-        self._form_field(form_frame, 5, "CP", ctk.CTkEntry(form_frame, textvariable=self.addr_cp_var, height=36))
+        self._form_field(form_frame, 1, "Almacen", ctk.CTkEntry(form_frame, textvariable=self.addr_warehouse_var, height=36))
+        self._form_field(form_frame, 2, "Calle y numero", ctk.CTkEntry(form_frame, textvariable=self.addr_street_var, height=36))
+        self._form_field(form_frame, 3, "Colonia o poblacion", ctk.CTkEntry(form_frame, textvariable=self.addr_colony_var, height=36))
+        self._form_field(form_frame, 4, "Municipio o alcaldia", ctk.CTkEntry(form_frame, textvariable=self.addr_municipality_var, height=36))
+        self._form_field(form_frame, 5, "Ciudad o estado", ctk.CTkEntry(form_frame, textvariable=self.addr_state_var, height=36))
+        self._form_field(form_frame, 6, "CP", ctk.CTkEntry(form_frame, textvariable=self.addr_cp_var, height=36))
         addr_service_combo = ctk.CTkComboBox(
             form_frame,
             variable=self.addr_service_var,
@@ -1001,10 +983,11 @@ class ConfigurationView(ctk.CTkFrame):
             button_color=self.style["primario"],
             dropdown_hover_color=self.style["primario"],
         )
-        self._form_field(form_frame, 6, "Servicio", addr_service_combo)
+        self._form_field(form_frame, 7, "Servicio", addr_service_combo)
 
         def _clear_addr_form() -> None:
             self.selected_address_index = None
+            self.addr_warehouse_var.set("")
             self.addr_street_var.set("")
             self.addr_colony_var.set("")
             self.addr_municipality_var.set("")
@@ -1015,6 +998,7 @@ class ConfigurationView(ctk.CTkFrame):
 
         def _save_address() -> None:
             addr_data = {
+                "ALMACEN": self.addr_warehouse_var.get().strip(),
                 "CALLE Y NO": self.addr_street_var.get().strip(),
                 "COLONIA O POBLACION": self.addr_colony_var.get().strip(),
                 "MUNICIPIO O ALCADIA": self.addr_municipality_var.get().strip(),
@@ -1050,7 +1034,7 @@ class ConfigurationView(ctk.CTkFrame):
             self._refresh_clients()
 
         action_row = ctk.CTkFrame(form_frame, fg_color="transparent")
-        action_row.grid(row=14, column=0, padx=14, pady=(14, 10), sticky="ew")
+        action_row.grid(row=16, column=0, padx=14, pady=(14, 10), sticky="ew")
         action_row.grid_columnconfigure(0, weight=1)
         action_row.grid_columnconfigure(1, weight=1)
         action_row.grid_columnconfigure(2, weight=1)
