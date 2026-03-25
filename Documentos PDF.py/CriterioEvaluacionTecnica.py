@@ -166,10 +166,9 @@ def _build_evidence_cell(image_paths: list[Path], styles):
     if not image_paths:
         return Paragraph("Sin evidencia fotografica adjunta.", styles["VCBody"])
 
-    visible = image_paths[:4]
     rows: list[list[object]] = []
 
-    for image_path in visible:
+    for image_path in image_paths:
         image_flow = _scaled_image(image_path, 4.5 * cm, 3.0 * cm)
         if image_flow is not None:
             rows.append([image_flow])
@@ -190,9 +189,6 @@ def _build_evidence_cell(image_paths: list[Path], styles):
             ]
         )
     )
-
-    if len(image_paths) > len(visible):
-        return [nested, Spacer(1, 0.1 * cm), Paragraph(f"Se muestran 4 de {len(image_paths)} imagenes.", styles["VCBodySmall"])]
     return nested
 
 
