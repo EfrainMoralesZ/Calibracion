@@ -1,0 +1,143 @@
+{
+  "users": [
+    {
+      "name": "Leticia O. Muñoz",
+      "username": "lety",
+      "password": "nrhuz",
+      "role": "Talento Humano"
+    },
+    {
+      "name": "Marcos Uriel Flores Gomez",
+      "username": "mflores",
+      "password": "kzqrv",
+      "role": "Sub Gerente"
+    },
+    {
+      "name": "Mario Terrez Gonzalez",
+      "username": "mterrez",
+      "password": "mbyht",
+      "role": "coordinador operativo"
+    },
+    {
+      "name": "Andrea Paola Ramos Santos",
+      "username": "aramos",
+      "password": "qvljn",
+      "role": "Coordinadora en fiabilidad"
+    },
+    {
+      "name": "Arturo Flores Gómez",
+      "username": "aflores",
+      "password": "plxwn",
+      "role": "Gerente"
+    },
+    {
+      "name": "Arturo Ivan Cortes Flores",
+      "username": "acortes",
+      "password": "fudqs",
+      "role": "Supervisor"
+    },
+    {
+      "name": "Angel Imanol Pozos Zertuche",
+      "username": "apozos",
+      "password": "zqvhd",
+      "role": "Supervisor"
+    },
+    {
+      "name": "Efrain Morales Zamarrón",
+      "username": "emorales",
+      "password": "wocem",
+      "role": "admin"
+    },
+    {
+      "name": "Aitana Yolitzin Sanchez Tenorio",
+      "username": "asanchez",
+      "password": "zarvm",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Amanda Merlin Juan",
+      "username": "amerlin",
+      "password": "xqfmr",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Saul Ivan Madrid Santiago",
+      "username": "smadrid",
+      "password": "pvkde",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Alberto Martinez Guzman",
+      "username": "amartinez",
+      "password": "nrhuz",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Alejandro Fernando Moreno Valdovinos",
+      "username": "amoreno",
+      "password": "bopik",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Braulio Saul Garcia Maganda",
+      "username": "bgarcia",
+      "password": "lqteu",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "David Garcia Alcantara",
+      "username": "dgarcia",
+      "password": "lqvhd",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Edvin Zaid Ornelas Hernandez",
+      "username": "eornelas",
+      "password": "jtcwb",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Flor Selenia Marquez Rivera",
+      "username": "fmarquez",
+      "password": "mqlps",
+      "role": "Especialista"
+    },
+    {
+      "name": "Gabriel Ramirez Castillo",
+      "username": "gramirez",
+      "password": "hzyrn",
+      "role": "Especialista"
+    },
+    {
+      "name": "Jesus Eduardo Reyes Lozano",
+      "username": "jreyes",
+      "password": "bdwkx",
+      "role": "Especialista"
+    },
+    {
+      "name": "Jose Alberto Zuñiga Estrada",
+      "username": "aestrada",
+      "password": "cfpna",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Oscar Perez Ramirez",
+      "username": "operez",
+      "password": "tgvle",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Jose Maria Barron Santander",
+      "username": "jbarron",
+      "password": "rnxqm",
+      "role": "ejecutivo"
+    },
+    {
+      "name": "Brenda Abigail Velázquez Cisneros",
+      "username": "bvelazquez",
+      "password": "yjmqc",
+      "role": "Especialista"
+    }
+
+  ]
+}

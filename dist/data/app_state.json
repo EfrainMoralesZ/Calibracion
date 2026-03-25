@@ -1,0 +1,18 @@
+{
+  "evaluations": {},
+  "document_counters": {
+    "criterio_evaluacion_tecnica": 1
+  },
+  "criteria_documents": [
+    {
+      "resolution_number": "0001",
+      "client": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+      "selected_norm": "NOM-004-SE-2021",
+      "executive_name": "Efrain Morales Zamarrón",
+      "evaluated_product": "fefevev",
+      "generated_at": "2026-03-25 16:43",
+      "output_path": "C:\\Users\\bost2\\OneDrive\\Escritorio\\Calibracion\\dist\\data\\clientes\\ARTICULOS_DEPORTIVOS_DECATHLON_SA_DE_CV\\2026-03-25_16-43-18\\CriterioEvaluacion.pdf",
+      "user_output_path": "C:\\Users\\bost2\\OneDrive\\Escritorio\\Efrain_Morales_Zamarr_n_nom_004_criterio_evaluacion_tecnica.pdf"
+    }
+  ]
+}

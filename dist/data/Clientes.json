@@ -1,0 +1,463 @@
+[
+  {
+    "RFC": "BPR130619AXA",
+    "CLIENTE": "BANDANA PRODUCTS S. DE R.L. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "LOGÍSTICA COMERCIAL (KIMEX PARK)",
+        "CALLE Y NO": "Autopista Mexico-Queretaro Lomas Boulevares, 54020 Tlalnepantla, Méx.",
+        "COLONIA O POBLACION": "Habitacional Lomas Boulevares",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54020,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  
+  {
+    "RFC": "24049UCS000023",
+    "CLIENTE": "CHPS MÉXICO S.A. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "DELTA LOGISTICS PARKS cerrito I",
+        "CALLE Y NO": "Calz. de Guadalupe 277, El Cerrito, 54879 Cuautitlán, Méx.",
+        "COLONIA O POBLACION": "El Cerrito",
+        "MUNICIPIO O ALCADIA": "Cuautitlán México",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54015,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+
+  {
+    "RFC": "IBB060425DI8",
+    "CLIENTE": "IMPORTADORA BBBMEX S. DE R.L. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "LOGÍSTICA COMERCIAL (KIMEX PARK)",
+        "CALLE Y NO": "Autopista Mexico-Queretaro Lomas Boulevares, 54020 Tlalnepantla, Méx.",
+        "COLONIA O POBLACION": "Habitacional Lomas Boulevares",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54020,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  
+  {
+    "RFC": "ADD150727S34",
+    "CLIENTE": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "ADVANCE TEPOTZOTLAN II",
+        "CALLE Y NO": "Manzana 027, Capula, 54603 Tepotzotlán, Méx.",
+        "COLONIA O POBLACION": "Capula",
+        "MUNICIPIO O ALCADIA": "Tepotzotlán",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54603,
+        "SERVICIO": "DICTAMEN "
+      }
+    ]
+  },
+
+  {
+    "RFC": "AUT230904JAA",
+    "CLIENTE": "AUTRICA COMPANY S.A. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "RSU LOGISTICS",
+        "CALLE Y NO": "Av. Pirules 34-Nave 1A, Col. San Martín Obispo, 54769 Cuautitlán Izcalli, Méx.",
+        "COLONIA O POBLACION": "San Martin Obispo",
+        "MUNICIPIO O ALCADIA": "Cuautitlán Izcalli",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54769,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  {
+    "RFC": "BAS0108275N9",
+    "CLIENTE": "BASECO S.A.P.I. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "TLALNEPARK",
+        "CALLE Y NO": "Av. José López Portillo 4889",
+        "COLONIA O POBLACION": "San Pedro Barrientos",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54015,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  
+  {
+    "RFC": "BST1410212R8",
+    "CLIENTE": "BLUE STRIPES S.A. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "DELTA LOGISTICS PARKS cerrito I",
+        "CALLE Y NO": "Calz. de Guadalupe Manzana 014 Bodega 9",
+        "COLONIA O POBLACION": "El Cerrito",
+        "MUNICIPIO O ALCADIA": "Cuautitlán",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54879,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+
+  {
+    "RFC": "CME961115NRA",
+    "CLIENTE": "CEYS MEXICANA S.A. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "LOGÍSTICA COMERCIAL (KIMEX PARK)",
+        "CALLE Y NO": "Autopista Mexico-Queretaro Lomas Boulevares, 54020 Tlalnepantla, Méx.",
+        "COLONIA O POBLACION": "Habitacional Lomas Boulevares",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54020,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+
+  {
+    "RFC": "DEA1807195ZA",
+    "CLIENTE": "DISTRIBUCIÓN EUROPEA AA SRL DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "LOGÍSTICA COMERCIAL (KIMEX PARK)",
+        "CALLE Y NO": "Autopista Mexico-Queretaro Lomas Boulevares, 54020 Tlalnepantla, Méx.",
+        "COLONIA O POBLACION": "Habitacional Lomas Boulevares",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54020,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+
+  {
+    "RFC": "ECM141105GC8",
+    "CLIENTE": "EAST COAST MODA S.A. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "TLALNEPARK",
+        "CALLE Y NO": "Av. José López Portillo 4889",
+        "COLONIA O POBLACION": "San Pedro Barrientos",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54015,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+
+  {
+    "RFC": "FME0108226QA",
+    "CLIENTE": "FERRAGAMO MEXICO S. DE R.L. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "ADUSA Tlalnepark I",
+        "CALLE Y NO": "KM. 27,5, Carretera, Av Lago de Guadalupe ",
+        "COLONIA O POBLACION": "Col, San Pedro Barrientos, 54010 Tlalnepantla, Méx.",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54010,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+
+  {
+    "RFC": "GGU060301LX4",
+    "CLIENTE": "GRUPO GUESS S. DE R.L. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "TLALNEPARK",
+        "CALLE Y NO": "Av. José López Portillo 4889",
+        "COLONIA O POBLACION": "Col, San Pedro Barrientos, 54010 Tlalnepantla, Méx.",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54015,
+        "SERVICIO": "DICTAMEN "
+      }
+    ]
+  },
+
+  {
+    "RFC": "HMM9612234Y9",
+    "CLIENTE": "HERMAN MILLER MEXICO SA DE CV",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "Obispo Park III",
+        "CALLE Y NO": "Manzana 001, 54769 Cuautitlán Izcalli, Méx.",
+        "COLONIA O POBLACION": "Santa Maria Guadalupe Nave 4c",
+        "MUNICIPIO O ALCADIA": "Cuautitlán Izcalli",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54769,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  
+  {
+    "RFC": "LME0305095Y8",
+    "CLIENTE": "LEDERY MEXICO S.A. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "TLALNEPARK",
+        "CALLE Y NO": "Av. José López Portillo 4889",
+        "COLONIA O POBLACION": "Col, San Pedro Barrientos, 54010 Tlalnepantla, Méx.",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54010,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  
+  {
+    "RFC": "MOS150123565",
+    "CLIENTE": "MULTIBRAND OUTLET STORES S.A.P.I. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "DELTA LOGISTICS PARKS cerrito I",
+        "CALLE Y NO": "Calz. de Guadalupe Manzana 014 Bodega 9",
+        "COLONIA O POBLACION": "El Cerrito",
+        "MUNICIPIO O ALCADIA": "Cuautitlán México",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54879,
+    "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  
+  {
+    "RFC": "MOS150123565",
+    "CLIENTE": "MULTIBRAND OUTLET STORES S.A.P.I. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "KINGLONG ",
+        "CALLE Y NO": " San Jose la Teja, 54607 Tepotzotlán, Méx.",
+        "COLONIA O POBLACION": "San Jose la Teja",
+        "MUNICIPIO O ALCADIA": "Tepotzotlán",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54607,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  
+  {
+    "RFC": "MOS150123565",
+    "CLIENTE": "MULTIBRAND OUTLET STORES S.A.P.I. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "ADUSA Tlalnepark I",
+        "CALLE Y NO": "KM. 27,5, Carretera, Av Lago de Guadalupe ",
+        "COLONIA O POBLACION": "Col, San Pedro Barrientos, 54010 Tlalnepantla, Méx.",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54716,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  
+  {
+    "RFC": "MOS150123565",
+    "CLIENTE": "MULTIBRAND OUTLET STORES S.A.P.I. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "Prologis Park Cedros",
+        "CALLE Y NO": "Autop. México - Querétaro Km. 42.5, Centro, 54600 Tepotzotlán, Méx.",
+        "COLONIA O POBLACION": "Cedros",
+        "MUNICIPIO O ALCADIA": "Tepotzotlán",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54879,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  
+  {
+    "RFC": "MRA061023142",
+    "CLIENTE": "MODA RAPSODIA S.A. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "TLALNEPARK",
+        "CALLE Y NO": "Av. José López Portillo 4889",
+        "COLONIA O POBLACION": "San Pedro Barrientos",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54015,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  
+  {
+    "RFC": "MWC1512213K5",
+    "CLIENTE": "MEXICO WINE CONSULTING S.A. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "LOGÍSTICA COMERCIAL (KIMEX PARK)",
+        "CALLE Y NO": "Autopista Mexico-Queretaro Lomas Boulevares, 54020 Tlalnepantla, Méx.",
+        "COLONIA O POBLACION": "Habitacional Lomas Boulevares",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54020,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  
+  {
+    "RFC": "ORC210324HV3",
+    "CLIENTE": "OSOJI ROBOTICS CORPORATION MEXICO",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "LOGÍSTICA COMERCIAL (KIMEX PARK)",
+        "CALLE Y NO": "Autopista Mexico-Queretaro Lomas Boulevares, 54020 Tlalnepantla, Méx.",
+        "COLONIA O POBLACION": "Habitacional Lomas Boulevares",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54020,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+
+  {
+    "RFC": "RBO910102QJ9",
+    "CLIENTE": "ROBERT BOSCH S. DE R.L. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": null,
+        "CALLE Y NO": "AV. TEJOCOTES S/N LOTE 2",
+        "COLONIA O POBLACION": "Parque industrial San Martin Obispo",
+        "MUNICIPIO O ALCADIA": "Cuautitlan Izcalli",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54769,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  
+  {
+    "RFC": "ROV730726UY0",
+    "CLIENTE": "SPECTRUM BRANDS DE MÉXICO S.A. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": null,
+        "CALLE Y NO": "PROLONGACIÓN LIBRAMIENTO LA JOYA S/N",
+        "COLONIA O POBLACION": "BARRIO SAN JOSE",
+        "MUNICIPIO O ALCADIA": "Cuautitlan Izcalli",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54879,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+
+  {
+    "RFC": "RST141127478",
+    "CLIENTE": "RED STRIPES S.A. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": null,
+        "CALLE Y NO": "Av. José López Portillo 4889",
+        "COLONIA O POBLACION": "San Pedro Barrientos",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54015,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+
+  {
+    "RFC": "SME150122MC1",
+    "CLIENTE": "SMEG MEXICO S.A. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "LOGÍSTICA COMERCIAL (KIMEX PARK)",
+        "CALLE Y NO": "Autopista Mexico-Queretaro Lomas Boulevares, 54020 Tlalnepantla, Méx.",
+        "COLONIA O POBLACION": "Habitacional Lomas Boulevares",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54020,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  
+  {
+    "RFC": "UBE240126GIA",
+    "CLIENTE": "ULTA BEAUTY S.A.P.I. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "LOGISFASHION (CONVENTO CITY PARK)",
+        "CALLE Y NO": "Carretera Libramiento Sur No. 6 Edificio 2a",
+        "COLONIA O POBLACION": "Texcacoa",
+        "MUNICIPIO O ALCADIA": "Tepotzotlán",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54605,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+
+  {
+    "RFC": "UMA011214255",
+    "CLIENTE": "UNILEVER ",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "DHL",
+        "CALLE Y NO": "De las Torres Manzana 002, Sin Nombre, 54910 Fuentes del Valle, Méx.",
+        "COLONIA O POBLACION": "Fuentes del valle",
+        "MUNICIPIO O ALCADIA": "Tultitlán",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54910,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+
+  {
+    "RFC": "24049UCS000016",
+    "CLIENTE": "LT FASHION S.A. DE C.V.",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "TLALNEPARK",
+        "CALLE Y NO": "Av. José López Portillo 4889",
+        "COLONIA O POBLACION": "San Pedro Barrientos",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54015,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  },
+  {
+    "RFC": "IBB060425DI8",
+    "CLIENTE": "BED BATH & BEYOND",
+    "DIRECCIONES":[
+      {
+        "ALMACEN": "LOGÍSTICA COMERCIAL (KIMEX PARK)",
+        "CALLE Y NO": "Autopista Mexico-Queretaro Lomas Boulevares, 54020 Tlalnepantla, Méx.",
+        "COLONIA O POBLACION": "Habitacional Lomas Boulevares",
+        "MUNICIPIO O ALCADIA": "Tlalnepantla de Baz",
+        "CIUDAD O ESTADO": "Estado de México",
+        "CP": 54020,
+        "SERVICIO": "DICTAMEN"
+      }
+    ]
+  }
+]

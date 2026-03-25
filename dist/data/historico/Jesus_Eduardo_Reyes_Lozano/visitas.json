@@ -1,0 +1,23 @@
+[
+  {
+    "id": "7d126aa3865442c3ab1b4973b4fb0486",
+    "inspector": "David Garcia Alcantara",
+    "client": "DANONE DE MÉXICO S.A. DE C.V.",
+    "address": "Av. Irapuato 2475, Ciudad Industrial Irapuato, Irapuato, Guanajuato, 36514",
+    "service": "DICTAMEN",
+    "visit_date": "2026-03-17",
+    "status": "Programada",
+    "notes": "",
+    "assigned_by": "Efrain Morales Zamarrón",
+    "updated_at": "2026-03-17 13:29",
+    "inspectors": [
+      "David Garcia Alcantara",
+      "Jesus Eduardo Reyes Lozano"
+    ],
+    "group_id": "7d126aa3865442c3ab1b4973b4fb0486",
+    "assignment_time": "",
+    "departure_time": "",
+    "inspectors_text": "David Garcia Alcantara, Jesus Eduardo Reyes Lozano",
+    "schedule_text": "--"
+  }
+]
