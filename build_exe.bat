@@ -22,6 +22,7 @@ python -m PyInstaller ^
   --icon "img\icono.ico" ^
   --hidden-import ui_shared ^
   --collect-all customtkinter ^
+  --collect-all reportlab ^
   --add-data "img;img" ^
   --add-data "data;data" ^
   --add-data "Documentos PDF.py;Documentos PDF.py" ^

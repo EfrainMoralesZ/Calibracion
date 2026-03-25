@@ -11,7 +11,7 @@ from reportlab.pdfgen import canvas as pdf_canvas
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
-ACCENT_HEX = "#ECD925"
+ACCENT_HEX = "#1B2A4A"
 DARK_HEX = "#282828"
 LIGHT_HEX = "#F8F9FA"
 SUCCESS_HEX = "#008D53"
@@ -153,9 +153,10 @@ def build_trimestral_dashboard_pdf(output_path: str | Path, payload: dict) -> Pa
 	summary_table.setStyle(
 		TableStyle(
 			[
-				("BACKGROUND", (0, 0), (0, -1), ACCENT),
+				("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F0F2F5")),
 				("BACKGROUND", (1, 0), (1, -1), colors.white),
 				("TEXTCOLOR", (0, 0), (-1, -1), DARK),
+				("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
 				("BOX", (0, 0), (-1, -1), 0.75, colors.HexColor("#C8CDD2")),
 				("LINEBELOW", (0, 0), (-1, -2), 0.5, colors.HexColor("#D9DDE1")),
 				("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -186,7 +187,7 @@ def build_trimestral_dashboard_pdf(output_path: str | Path, payload: dict) -> Pa
 					Paragraph("Estado", styles["VCHeaderCell"]),
 				]
 			)
-			col_widths = [28, 170, 64, 50, 80, 108]
+			col_widths = [28, 150, 120, 50, 70, 108]
 			usage_col = 3
 			state_col = 5
 		else:
@@ -199,7 +200,7 @@ def build_trimestral_dashboard_pdf(output_path: str | Path, payload: dict) -> Pa
 					Paragraph("Estado", styles["VCHeaderCell"]),
 				]
 			)
-			col_widths = [28, 170, 50, 100, 170]
+			col_widths = [28, 200, 50, 100, 140]
 			usage_col = 2
 			state_col = 4
 
@@ -235,11 +236,11 @@ def build_trimestral_dashboard_pdf(output_path: str | Path, payload: dict) -> Pa
 
 		detail_table = Table(table_rows, colWidths=col_widths, repeatRows=1)
 		style_commands: list[tuple[object, ...]] = [
-			("BACKGROUND", (0, 0), (-1, 0), ACCENT),
 			("TEXTCOLOR", (0, 0), (-1, 0), DARK),
+			("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
 			("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
 			("BOX", (0, 0), (-1, -1), 0.75, colors.HexColor("#C8CDD2")),
-			("LINEBELOW", (0, 0), (-1, 0), 1.5, colors.HexColor("#B8A200")),
+			("LINEBELOW", (0, 0), (-1, 0), 1.5, colors.HexColor("#282828")),
 			("LINEBELOW", (0, 1), (-1, -1), 0.5, colors.HexColor("#D9DDE1")),
 			("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
 			("LEFTPADDING", (0, 0), (-1, -1), 8),

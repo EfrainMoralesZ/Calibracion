@@ -499,7 +499,7 @@ class DashboardView(ctk.CTkFrame):
         wrapper.pack(fill="both", expand=True, padx=18, pady=18)
         wrapper.grid_columnconfigure(0, weight=3)
         wrapper.grid_columnconfigure(1, weight=2)
-        wrapper.grid_rowconfigure(1, weight=1)
+        wrapper.grid_rowconfigure(2, weight=1)
 
         ctk.CTkLabel(
             wrapper,
@@ -510,16 +510,54 @@ class DashboardView(ctk.CTkFrame):
             wraplength=640,
         ).grid(row=0, column=0, columnspan=2, padx=18, pady=(16, 10), sticky="w")
 
+        # --- Date filter row ---
+        filter_row = ctk.CTkFrame(wrapper, fg_color="transparent")
+        filter_row.grid(row=1, column=0, columnspan=2, padx=18, pady=(0, 6), sticky="ew")
+
+        ctk.CTkLabel(filter_row, text="Desde:", font=self.fonts["small"],
+                      text_color=self.style["texto_oscuro"]).pack(side="left", padx=(0, 4))
+        date_from_var = ctk.CTkEntry(filter_row, width=110, placeholder_text="AAAA-MM-DD",
+                                      font=self.fonts["small"])
+        date_from_var.pack(side="left", padx=(0, 10))
+
+        ctk.CTkLabel(filter_row, text="Hasta:", font=self.fonts["small"],
+                      text_color=self.style["texto_oscuro"]).pack(side="left", padx=(0, 4))
+        date_to_var = ctk.CTkEntry(filter_row, width=110, placeholder_text="AAAA-MM-DD",
+                                    font=self.fonts["small"])
+        date_to_var.pack(side="left", padx=(0, 10))
+
+        full_history = list(snapshot.get("history", []))
+
+        def _apply_date_filter() -> None:
+            d_from = date_from_var.get().strip()
+            d_to = date_to_var.get().strip()
+            filtered = full_history
+            if d_from:
+                filtered = [p for p in filtered if str(p.get("label", "")) >= d_from]
+            if d_to:
+                filtered = [p for p in filtered if str(p.get("label", "")) <= d_to]
+            self._draw_curve_on_canvas(curve_canvas, filtered, "Sin historial para el rango seleccionado.")
+
+        def _clear_date_filter() -> None:
+            date_from_var.delete(0, "end")
+            date_to_var.delete(0, "end")
+            self._draw_curve_on_canvas(curve_canvas, full_history, "Sin historial para esta norma.")
+
+        ctk.CTkButton(filter_row, text="Filtrar", width=80, font=self.fonts["small"],
+                       fg_color=self.style["primario"], command=_apply_date_filter).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(filter_row, text="Limpiar", width=80, font=self.fonts["small"],
+                       fg_color="#6D7480", command=_clear_date_filter).pack(side="left")
+
         curve_canvas = tk.Canvas(
             wrapper,
             bg=self.style["surface"],
             highlightthickness=0,
             height=380,
         )
-        curve_canvas.grid(row=1, column=0, padx=(18, 10), pady=(0, 16), sticky="nsew")
+        curve_canvas.grid(row=2, column=0, padx=(18, 10), pady=(0, 16), sticky="nsew")
 
         info_panel = ctk.CTkScrollableFrame(wrapper, fg_color="#FFFFFF", corner_radius=16)
-        info_panel.grid(row=1, column=1, padx=(10, 18), pady=(0, 16), sticky="nsew")
+        info_panel.grid(row=2, column=1, padx=(10, 18), pady=(0, 16), sticky="nsew")
         info_panel.grid_columnconfigure(0, weight=1)
 
         average_score = snapshot.get("average_score")

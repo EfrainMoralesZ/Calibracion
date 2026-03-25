@@ -13,7 +13,7 @@ from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Tabl
 from runtime_paths import resource_path, writable_path
 
 
-ACCENT = colors.HexColor("#ECD925")
+ACCENT = colors.HexColor("#1B2A4A")
 DARK = colors.HexColor("#282828")
 GRID = colors.HexColor("#D5D8DC")
 ALLOWED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
@@ -135,7 +135,7 @@ def _build_summary_table(payload: dict[str, Any]) -> Table:
     table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (0, -1), ACCENT),
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F0F2F5")),
                 ("BACKGROUND", (1, 0), (1, -1), colors.white),
                 ("TEXTCOLOR", (0, 0), (-1, -1), DARK),
                 ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
@@ -215,7 +215,9 @@ def _build_consultation_table(payload: dict[str, Any], styles) -> Table:
     table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), ACCENT),
+                ("TEXTCOLOR", (0, 0), (-1, 0), DARK),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("LINEBELOW", (0, 0), (-1, 0), 1.5, colors.HexColor("#282828")),
                 ("GRID", (0, 0), (-1, -1), 0.5, GRID),
                 ("VALIGN", (0, 0), (-1, 0), "MIDDLE"),
                 ("VALIGN", (0, 1), (-1, -1), "TOP"),

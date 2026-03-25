@@ -820,11 +820,13 @@ class CalibrationApp(ctk.CTk):
                 "Configuraciones": lambda: ConfigurationView(self.content_frame, self.controller, STYLE, FONTS, True, self.refresh_all_views),
             }
 
+        is_supervisor = self.controller._role_name() == "supervisor"
+
         non_admin_factories = {
-            "Principal": lambda: PrincipalView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
+            "Principal": lambda: PrincipalView(self.content_frame, self.controller, is_supervisor, self.refresh_all_views),
             "Criterios": lambda: CriteriaEvaluationView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
             "Dashboard": lambda: DashboardView(self.content_frame, self.controller, STYLE, FONTS),
-            "Calendario": lambda: CalendarView(self.content_frame, self.controller, STYLE, FONTS, can_edit),
+            "Calendario": lambda: CalendarView(self.content_frame, self.controller, STYLE, FONTS, is_supervisor),
             "Trimestral": lambda: TrimestralView(self.content_frame, self.controller, STYLE, FONTS, False),
         }
         allowed_sections = set(self.controller.available_sections())

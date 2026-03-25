@@ -872,7 +872,7 @@ class TrimestralView(ctk.CTkFrame):
 				bars.append(
 					{
 						"inspector": inspector,
-						"norm": norm,
+						"norm": self._norm_full(norm),
 						"usage_count": usage_count,
 						"status": "Demanda media",
 					}
@@ -933,7 +933,7 @@ class TrimestralView(ctk.CTkFrame):
 				bars.append(
 					{
 						"inspector": inspector_name,
-						"norm": norm,
+						"norm": self._norm_full(norm),
 						"usage_count": usage_count,
 						"status": "Demanda media",
 					}
@@ -2444,6 +2444,16 @@ class TrimestralView(ctk.CTkFrame):
 				continue
 			nombre = str(item.get("nombre", "")).strip()
 			return f"{token} | {nombre}" if nombre else token
+		return normalized
+
+	def _norm_full(self, norm_token: str) -> str:
+		"""Return the full NOM identifier (e.g. NOM-004-SE-2021) from a short key."""
+		normalized = self._norm_key(norm_token)
+		for item in self.controller.get_catalog_norms():
+			if self._norm_key(item.get("token", "")) == normalized:
+				full_nom = str(item.get("nom", "")).strip()
+				if full_nom:
+					return full_nom
 		return normalized
 
 	@staticmethod

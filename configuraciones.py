@@ -61,6 +61,7 @@ class ConfigurationView(ctk.CTkFrame):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
         self._build_ui()
+        self.refresh()
 
     def _build_ui(self) -> None:
         header = ctk.CTkFrame(self, fg_color="transparent")
@@ -518,7 +519,7 @@ class ConfigurationView(ctk.CTkFrame):
             self.controller.clients_catalog,
             key=lambda item: str(item.get("CLIENTE", "")).strip().lower(),
         )
-        for client in sorted_clients:
+        for idx, client in enumerate(sorted_clients):
             if query:
                 searchable = " ".join(
                     [
@@ -538,7 +539,7 @@ class ConfigurationView(ctk.CTkFrame):
             self.client_tree.insert(
                 "",
                 "end",
-                iid=client_name,
+                iid=f"client_{idx}",
                 values=(
                     client_name,
                     client.get("RFC", ""),
@@ -811,7 +812,8 @@ class ConfigurationView(ctk.CTkFrame):
         if not selected:
             return
 
-        self.selected_client = selected[0]
+        values = self.client_tree.item(selected[0], "values")
+        self.selected_client = values[0] if values else ""
         client = next((item for item in self.controller.clients_catalog if item.get("CLIENTE") == self.selected_client), None)
         if client is None:
             return
@@ -835,7 +837,8 @@ class ConfigurationView(ctk.CTkFrame):
         selected = self.client_tree.selection()
         if not selected:
             return
-        self.selected_client = selected[0]
+        values = self.client_tree.item(selected[0], "values")
+        self.selected_client = values[0] if values else ""
         self._open_addresses_dialog()
 
     def _open_addresses_dialog(self) -> None:

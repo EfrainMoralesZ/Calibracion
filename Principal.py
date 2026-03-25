@@ -362,7 +362,9 @@ class NormSelectionDialog(ctk.CTkToplevel):
             command=command,
         ).grid(row=3, column=0, padx=14, pady=(0, 14), sticky="ew")
 
-    def _render_score_history(self, parent: ctk.CTkScrollableFrame) -> None:
+    def _render_score_history(self, parent: ctk.CTkScrollableFrame, norm_filter: str = "", date_from: str = "", date_to: str = "") -> None:
+        for child in parent.winfo_children():
+            child.destroy()
         headers = [
             "Norma",
             "Calificación global",
@@ -394,6 +396,13 @@ class NormSelectionDialog(ctk.CTkToplevel):
             return
 
         history_rows = self.controller.get_norm_score_history(self.inspector_name)
+        if norm_filter:
+            norm_filter_lower = norm_filter.lower()
+            history_rows = [r for r in history_rows if norm_filter_lower in str(r.get("norm", "")).lower()]
+        if date_from:
+            history_rows = [r for r in history_rows if (str(r.get("visit_date", "") or r.get("saved_at", ""))[:10]) >= date_from]
+        if date_to:
+            history_rows = [r for r in history_rows if (str(r.get("visit_date", "") or r.get("saved_at", ""))[:10]) <= date_to]
         if not history_rows:
             ctk.CTkLabel(
                 parent,
@@ -438,8 +447,8 @@ class NormSelectionDialog(ctk.CTkToplevel):
     def _open_score_history(self) -> None:
         dialog = ctk.CTkToplevel(self)
         dialog.title(f"Historial de calificaciones - {self.inspector_name}")
-        dialog.geometry("1180x560")
-        dialog.minsize(980, 440)
+        dialog.geometry("1180x620")
+        dialog.minsize(980, 500)
         dialog.configure(fg_color=STYLE["fondo"])
         dialog.transient(self)
         dialog.grab_set()
@@ -447,7 +456,7 @@ class NormSelectionDialog(ctk.CTkToplevel):
         wrapper = ctk.CTkFrame(dialog, fg_color=STYLE["surface"], corner_radius=24)
         wrapper.pack(fill="both", expand=True, padx=18, pady=18)
         wrapper.grid_columnconfigure(0, weight=1)
-        wrapper.grid_rowconfigure(2, weight=1)
+        wrapper.grid_rowconfigure(3, weight=1)
 
         ctk.CTkLabel(
             wrapper,
@@ -464,8 +473,35 @@ class NormSelectionDialog(ctk.CTkToplevel):
             justify="left",
         ).grid(row=1, column=0, padx=20, pady=(0, 12), sticky="w")
 
+        # --- Filter row ---
+        filter_row = ctk.CTkFrame(wrapper, fg_color="transparent")
+        filter_row.grid(row=2, column=0, padx=20, pady=(0, 10), sticky="ew")
+
+        norm_filter_var = ctk.StringVar()
+        date_from_var = ctk.StringVar()
+        date_to_var = ctk.StringVar()
+
+        ctk.CTkLabel(filter_row, text="Norma:", font=FONTS["small"], text_color=STYLE["texto_oscuro"]).pack(side="left", padx=(0, 4))
+        norm_values = ["Todas"]
+        if self.controller is not None:
+            all_rows = self.controller.get_norm_score_history(self.inspector_name)
+            seen_norms: list[str] = []
+            for r in all_rows:
+                n = str(r.get("norm", "")).strip()
+                if n and n not in seen_norms:
+                    seen_norms.append(n)
+            norm_values += seen_norms
+        norm_combo = ctk.CTkComboBox(filter_row, variable=norm_filter_var, values=norm_values, width=220, state="readonly")
+        norm_combo.pack(side="left", padx=(0, 12))
+        norm_combo.set("Todas")
+
+        ctk.CTkLabel(filter_row, text="Desde:", font=FONTS["small"], text_color=STYLE["texto_oscuro"]).pack(side="left", padx=(0, 4))
+        ctk.CTkEntry(filter_row, textvariable=date_from_var, width=110, placeholder_text="AAAA-MM-DD", height=32).pack(side="left", padx=(0, 12))
+        ctk.CTkLabel(filter_row, text="Hasta:", font=FONTS["small"], text_color=STYLE["texto_oscuro"]).pack(side="left", padx=(0, 4))
+        ctk.CTkEntry(filter_row, textvariable=date_to_var, width=110, placeholder_text="AAAA-MM-DD", height=32).pack(side="left", padx=(0, 12))
+
         history_scroll = ctk.CTkScrollableFrame(wrapper, fg_color=STYLE["fondo"], corner_radius=18)
-        history_scroll.grid(row=2, column=0, padx=20, pady=(0, 16), sticky="nsew")
+        history_scroll.grid(row=3, column=0, padx=20, pady=(0, 16), sticky="nsew")
         history_scroll.grid_columnconfigure(0, weight=3)
         history_scroll.grid_columnconfigure(1, weight=2)
         history_scroll.grid_columnconfigure(2, weight=1)
@@ -473,10 +509,26 @@ class NormSelectionDialog(ctk.CTkToplevel):
         history_scroll.grid_columnconfigure(4, weight=1)
         history_scroll.grid_columnconfigure(5, weight=2)
         history_scroll.grid_columnconfigure(6, weight=2)
+
+        def _apply_filter(*_args) -> None:
+            nf = norm_filter_var.get().strip()
+            self._render_score_history(
+                history_scroll,
+                norm_filter="" if nf == "Todas" else nf,
+                date_from=date_from_var.get().strip(),
+                date_to=date_to_var.get().strip(),
+            )
+
+        ctk.CTkButton(filter_row, text="Filtrar", fg_color=STYLE["primario"], text_color=STYLE["texto_oscuro"], hover_color="#D8C220", width=80, height=32, command=_apply_filter).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(
+            filter_row, text="Limpiar", fg_color=STYLE["fondo"], text_color=STYLE["texto_oscuro"], hover_color="#E9ECEF", width=80, height=32,
+            command=lambda: (norm_combo.set("Todas"), date_from_var.set(""), date_to_var.set(""), _apply_filter()),
+        ).pack(side="left")
+
         self._render_score_history(history_scroll)
 
         actions = ctk.CTkFrame(wrapper, fg_color="transparent")
-        actions.grid(row=3, column=0, padx=20, pady=(0, 18), sticky="ew")
+        actions.grid(row=4, column=0, padx=20, pady=(0, 18), sticky="ew")
         actions.grid_columnconfigure(0, weight=1)
 
         ctk.CTkButton(
@@ -488,7 +540,7 @@ class NormSelectionDialog(ctk.CTkToplevel):
             command=dialog.destroy,
         ).grid(row=0, column=0, sticky="e")
 
-        _position_toplevel(dialog, self, 1180, 560)
+        _position_toplevel(dialog, self, 1180, 620)
 
     def _norm_icon(self, norm_token: str) -> str:
         norm_name = self._norm_name(norm_token).lower()

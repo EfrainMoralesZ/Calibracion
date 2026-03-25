@@ -779,9 +779,59 @@ class CalibrationController:
 			if normalized_visits != raw_visits:
 				_write_json(visits_path, normalized_visits)
 
+	def _redistribute_misplaced_history(self) -> None:
+		"""Scan all historico.json files and move entries to the correct inspector folder."""
+		if not HISTORY_DIR.exists():
+			return
+		moved: dict[str, list[dict[str, Any]]] = {}
+		for child in list(HISTORY_DIR.iterdir()):
+			if not child.is_dir():
+				continue
+			history_file = child / "historico.json"
+			if not history_file.exists():
+				continue
+			entries = _read_json(history_file, [])
+			if not isinstance(entries, list) or not entries:
+				continue
+			folder_identity = _folder_identity(child.name)
+			keep: list[dict[str, Any]] = []
+			for entry in entries:
+				if not isinstance(entry, dict):
+					continue
+				entry_name = str(entry.get("inspector_name", "")).strip()
+				entry_identity = _normalize_person_name(entry_name) if entry_name else ""
+				if not entry_identity or entry_identity == folder_identity:
+					keep.append(entry)
+				else:
+					canonical = self._resolve_canonical_person_name(entry_name) or entry_name
+					target_folder = _safe_folder_name(canonical)
+					moved.setdefault(target_folder, []).append(entry)
+			if len(keep) != len(entries):
+				_write_json(history_file, keep)
+		for target_folder, entries in moved.items():
+			target_dir = HISTORY_DIR / target_folder
+			target_dir.mkdir(parents=True, exist_ok=True)
+			target_file = target_dir / "historico.json"
+			existing = _read_json(target_file, [])
+			if not isinstance(existing, list):
+				existing = []
+			seen: set[str] = set()
+			merged: list[dict[str, Any]] = []
+			for item in [*existing, *entries]:
+				try:
+					key = json.dumps(item, ensure_ascii=False, sort_keys=True)
+				except TypeError:
+					key = str(item)
+				if key not in seen:
+					seen.add(key)
+					merged.append(item)
+			_write_json(target_file, merged)
+
 	def _consolidate_history_storage(self) -> None:
 		if not HISTORY_DIR.exists():
 			return
+
+		self._redistribute_misplaced_history()
 
 		# Build identity → folders map in one pass (name-based, no JSON reads)
 		existing_dirs = [child for child in HISTORY_DIR.iterdir() if child.is_dir()]
@@ -1154,7 +1204,16 @@ class CalibrationController:
 			history = _read_json(history_path, [])
 			if not isinstance(history, list):
 				history = []
-			cached_history = sorted(history, key=lambda item: item.get("saved_at", ""))
+			target_identity = _normalize_person_name(clean_name)
+			filtered: list[dict[str, Any]] = []
+			for item in history:
+				if not isinstance(item, dict):
+					continue
+				entry_name = str(item.get("inspector_name", "")).strip()
+				if entry_name and _normalize_person_name(entry_name) != target_identity:
+					continue
+				filtered.append(item)
+			cached_history = sorted(filtered, key=lambda item: item.get("saved_at", ""))
 			self._history_cache[clean_name] = cached_history
 			if cached_history:
 				self._cache_latest_evaluation_entry(clean_name, cached_history[-1])

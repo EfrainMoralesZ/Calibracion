@@ -11,7 +11,7 @@ from reportlab.pdfgen import canvas as pdf_canvas
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
-ACCENT = colors.HexColor("#ECD925")
+ACCENT = colors.HexColor("#1B2A4A")
 DARK = colors.HexColor("#282828")
 LIGHT = colors.HexColor("#F8F9FA")
 SUCCESS = colors.HexColor("#008D53")
@@ -226,11 +226,12 @@ def _build_answers_table(answers: list[dict[str, str]], styles) -> Table:
     table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), ACCENT),
                 ("TEXTCOLOR", (0, 0), (-1, 0), DARK),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D9DDE1")),
+                ("LINEBELOW", (0, 0), (-1, 0), 1.5, colors.HexColor("#282828")),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("VALIGN", (0, 0), (-1, 0), "MIDDLE"),
                 ("ALIGN", (0, 0), (-1, 0), "CENTER"),
@@ -274,11 +275,12 @@ def _build_technical_table(rows_data: list[dict[str, str]], styles) -> Table:
     table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), ACCENT),
                 ("TEXTCOLOR", (0, 0), (-1, 0), DARK),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D9DDE1")),
+                ("LINEBELOW", (0, 0), (-1, 0), 1.5, colors.HexColor("#282828")),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("VALIGN", (0, 0), (-1, 0), "MIDDLE"),
                 ("ALIGN", (0, 0), (-1, 0), "CENTER"),
@@ -391,7 +393,7 @@ def build_formato_supervision_pdf(output_path: str | Path, payload: dict) -> Pat
     summary_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (0, -1), ACCENT),
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F0F2F5")),
                 ("TEXTCOLOR", (0, 0), (-1, -1), DARK),
                 ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
                 ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
