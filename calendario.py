@@ -224,9 +224,23 @@ class CalendarView(ctk.CTkFrame):
                 text_color=text_color,
             ).pack(pady=6)
 
-        self.side_panel = ctk.CTkScrollableFrame(tab, fg_color=self.style["surface"], corner_radius=22, scrollbar_button_color=None, scrollbar_button_hover_color=None)
-        self.side_panel.grid(row=0, column=1, sticky="nsew", pady=12)
+
+        # Contenedor para detalle y botón fijo
+        self.side_panel_container = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=22)
+        self.side_panel_container.grid(row=0, column=1, sticky="nsew", pady=12)
+        self.side_panel_container.grid_rowconfigure(0, weight=1)
+        self.side_panel_container.grid_rowconfigure(1, weight=0)
+        self.side_panel_container.grid_columnconfigure(0, weight=1)
+
+        # Frame scrollable para el contenido de detalle
+        self.side_panel = ctk.CTkScrollableFrame(self.side_panel_container, fg_color="transparent", corner_radius=0, scrollbar_button_color=None, scrollbar_button_hover_color=None)
+        self.side_panel.grid(row=0, column=0, sticky="nsew")
         self.side_panel.grid_columnconfigure(0, weight=1)
+
+        # Frame fijo inferior para el botón
+        self.bottom_button_frame = ctk.CTkFrame(self.side_panel_container, fg_color="transparent")
+        self.bottom_button_frame.grid(row=1, column=0, sticky="ew", padx=0, pady=(0, 10))
+        self.bottom_button_frame.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             self.side_panel,
@@ -274,7 +288,7 @@ class CalendarView(ctk.CTkFrame):
                 ),
                 font=self.fonts["small"],
                 text_color="#6D7480",
-                wraplength=320,
+                wraplength=330,
                 justify="left",
             )
             message.grid(row=1, column=0, padx=18, pady=(0, 12), sticky="w")
@@ -299,7 +313,7 @@ class CalendarView(ctk.CTkFrame):
             ).grid(row=0, column=0, padx=12, pady=10, sticky="w")
             self._agreement_banner.grid_remove()
 
-            self.notes_box = ctk.CTkTextbox(self.side_panel, height=390, corner_radius=18)
+            self.notes_box = ctk.CTkTextbox(self.side_panel, height=420, corner_radius=18)
             self.notes_box.grid(row=3, column=0, padx=18, pady=(0, 12), sticky="nsew")
             self.notes_box.configure(state="disabled")
 
@@ -310,7 +324,7 @@ class CalendarView(ctk.CTkFrame):
             self.normas_panel.grid_rowconfigure(1, weight=1)
 
             self.accept_visit_button = ctk.CTkButton(
-                self.side_panel,
+                self.bottom_button_frame,
                 text="Aceptar visita",
                 command=self._accept_visit_action,
                 fg_color="#ECD925",
@@ -318,8 +332,7 @@ class CalendarView(ctk.CTkFrame):
                 hover_color="#D8C220",
                 state="disabled",
             )
-            # Se coloca en la última fila disponible
-            self.accept_visit_button.grid(row=99, column=0, padx=18, pady=(12, 18), sticky="ew")
+            self.accept_visit_button.grid(row=0, column=0, padx=18, pady=(0, 0), sticky="ew")
 
             ctk.CTkLabel(
                 self.normas_panel,
@@ -737,7 +750,7 @@ class CalendarView(ctk.CTkFrame):
 
         self._form_buttons.clear()
         self._action_buttons: list[ctk.CTkButton] = []
-        
+
         if self.can_edit:
             primary_row = ctk.CTkFrame(button_row, fg_color="transparent")
             primary_row.grid(row=0, column=0, sticky="ew")
@@ -762,7 +775,7 @@ class CalendarView(ctk.CTkFrame):
             )
             btn_save.grid(row=0, column=1, padx=(6, 0), sticky="ew")
             self._form_buttons.append(btn_save)
-            
+
             btn_cancel = ctk.CTkButton(
                 danger_row, text="Cancelar visita", command=self._cancel_visit_action,
                 fg_color="#F7D1D1", text_color="#D1534E", hover_color="#F0B8B4",
@@ -770,7 +783,7 @@ class CalendarView(ctk.CTkFrame):
             btn_cancel.grid(row=0, column=0, padx=(0, 4), sticky="ew")
             self._form_buttons.append(btn_cancel)
             self._action_buttons.append(btn_cancel)
-            
+
             btn_reassign = ctk.CTkButton(
                 danger_row, text="Reasignar ejecutivo", command=self._reassign_visit_action,
                 fg_color="#FFFFFF", text_color="#282828", hover_color="#F5F5F5",
@@ -786,14 +799,21 @@ class CalendarView(ctk.CTkFrame):
             btn_delete.grid(row=0, column=2, padx=(4, 0), sticky="ew")
             self._form_buttons.append(btn_delete)
             self._action_buttons.append(btn_delete)
-        else:
-            btn_accept = ctk.CTkButton(
-                button_row, text="Aceptar visita", command=self._accept_visit_action,
-                fg_color="#ECD925", text_color="#282828", hover_color="#D8C220",
+        # El botón 'Aceptar visita' fijo en la parte inferior del panel de detalle
+        if hasattr(self, 'side_panel') and self.side_panel is not None:
+            self.side_panel.grid_rowconfigure(98, weight=1)
+            bottom_frame = ctk.CTkFrame(self.side_panel, fg_color="transparent")
+            bottom_frame.grid(row=99, column=0, sticky="sew", padx=0, pady=(0, 12))
+            self.accept_visit_button = ctk.CTkButton(
+                bottom_frame,
+                text="Aceptar visita",
+                command=self._accept_visit_action,
+                fg_color="#ECD925",
+                text_color="#282828",
+                hover_color="#D8C220",
+                state="disabled",
             )
-            btn_accept.grid(row=0, column=0, padx=(0, 3), sticky="ew")
-            self._form_buttons.append(btn_accept)
-            self._action_buttons.append(btn_accept)
+            self.accept_visit_button.pack(fill="x", padx=18)
 
     def _label_and_widget_rows(self, parent, label_row: int, label_text: str, widget) -> None:
         """Place a label at label_row and its widget at label_row+1."""

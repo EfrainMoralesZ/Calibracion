@@ -20,16 +20,16 @@ STYLE = {
 
 FONT_TITLE = ("Inter", 22, "bold")
 FONT_SUBTITLE = ("Inter", 17, "bold")
-FONT_LABEL = ("Inter", 13)
-FONT_SMALL = ("Inter", 12)
+FONT_LABEL = ("Inter", 15)
+FONT_SMALL = ("Inter", 14)
 
 BASE_FONTS = {
     "title": FONT_TITLE,
     "subtitle": FONT_SUBTITLE,
     "label": FONT_LABEL,
-    "label_bold": ("Inter", 13, "bold"),
+    "label_bold": ("Inter", 15, "bold"),
     "small": FONT_SMALL,
-    "small_bold": ("Inter", 12, "bold"),
+    "small_bold": ("Inter", 14, "bold"),
 }
 
 FONTS = dict(BASE_FONTS)
