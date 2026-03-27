@@ -1784,13 +1784,7 @@ class TrimestralView(ctk.CTkFrame):
 					filtered = [item for item in filtered if not self._score_medal(item).get("key")]
 				else:
 					filtered = [item for item in filtered if self._score_medal(item).get("key") == medal_key]
-			if self.can_edit:
-				critical_only: list[dict] = []
-				for item in filtered:
-					raw_score = self._coerce_score(item.get("score"))
-					if raw_score is not None and raw_score < 90:
-						critical_only.append(item)
-				filtered = critical_only
+			# Mostrar todas las calificaciones, no solo críticas
 			filtered.sort(
 				key=lambda item: (
 					int(item.get("year", 0)),
