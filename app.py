@@ -584,10 +584,13 @@ class CalibrationApp(ctk.CTk):
 
         current_user = self.controller.current_user or {}
         role_text = current_user.get("role", "usuario").upper()
+        is_executive = self.controller.is_executive_role(current_user)
 
         top_row = ctk.CTkFrame(header, fg_color="transparent")
         top_row.grid(row=0, column=0, padx=18, pady=(14, 8), sticky="ew")
-        top_row.grid_columnconfigure(0, weight=1)
+        top_row.grid_columnconfigure(0, weight=0)
+        top_row.grid_columnconfigure(1, weight=1)  # Centro para las cards de ejecutivos
+        top_row.grid_columnconfigure(2, weight=0)
 
         title_group = ctk.CTkFrame(top_row, fg_color="transparent")
         title_group.grid(row=0, column=0, sticky="w")
@@ -600,8 +603,12 @@ class CalibrationApp(ctk.CTk):
             text_color=STYLE["texto_oscuro"],
         ).grid(row=0, column=0, sticky="w")
 
+        # Para ejecutivos: Cards de estadísticas centradas a nivel del título
+        if is_executive:
+            self._build_executive_stats_row(top_row, current_user)
+
         controls_row = ctk.CTkFrame(top_row, fg_color="transparent")
-        controls_row.grid(row=0, column=1, sticky="e")
+        controls_row.grid(row=0, column=2, sticky="e")
 
         greeting_text, message_text = self._build_header_messages()
 
@@ -656,8 +663,147 @@ class CalibrationApp(ctk.CTk):
             command=self._logout,
         ).grid(row=0, column=1, sticky="e")
 
+    def _build_executive_stats_row(self, parent, current_user: dict) -> None:
+        """Construye las cards de estadísticas para ejecutivos al nivel del título."""
+        if not self._kpi_medal_images:
+            self._kpi_medal_images = self._load_kpi_medal_images(size=(26, 26))
+        if not self._kpi_medal_images_exec:
+            self._kpi_medal_images_exec = self._load_kpi_medal_images(size=(42, 42))
+
+        stats_container = ctk.CTkFrame(parent, fg_color="transparent")
+        stats_container.grid(row=0, column=1, sticky="nsew", padx=20)
+
+        medal_colors = {"ORO": "#B98500", "PLATINO": "#4F5D73", "BRONCE": "#8C4B20"}
+        title_map = {
+            "average_score": "Mi promedio",
+            "alerts": "Mis alertas",
+            "medals": "Mis medallas",
+        }
+
+        # Card Mi promedio - diseño prominente
+        avg_card = ctk.CTkFrame(
+            stats_container,
+            fg_color="#FFFFFF",
+            corner_radius=14,
+            border_width=2,
+            border_color="#E5C100",
+            width=160,
+            height=65,
+        )
+        avg_card.grid(row=0, column=0, padx=(0, 12), sticky="nsew")
+        avg_card.grid_propagate(False)
+        avg_card.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            avg_card,
+            text=title_map["average_score"],
+            font=("Inter", 13, "bold"),
+            text_color="#6D7480",
+        ).grid(row=0, column=0, padx=14, pady=(10, 0), sticky="w")
+
+        avg_value = ctk.CTkLabel(
+            avg_card,
+            text="--",
+            font=("Inter", 18, "bold"),
+            text_color=STYLE["texto_oscuro"],
+        )
+        avg_value.grid(row=0, column=1, padx=(0, 14), pady=(10, 0), sticky="e")
+        self.summary_labels["average_score"] = avg_value
+
+        # Bind click handler
+        for widget in (avg_card, avg_value):
+            widget.bind("<Button-1>", lambda _e: self._show_average_detail_popup())
+            widget.configure(cursor="hand2")
+        for child in avg_card.winfo_children():
+            child.bind("<Button-1>", lambda _e: self._show_average_detail_popup())
+            child.configure(cursor="hand2")
+
+        # Card Mis alertas - diseño prominente
+        alerts_card = ctk.CTkFrame(
+            stats_container,
+            fg_color="#FFFFFF",
+            corner_radius=14,
+            border_width=2,
+            border_color="#E5C100",
+            width=145,
+            height=65,
+        )
+        alerts_card.grid(row=0, column=1, padx=(0, 12), sticky="nsew")
+        alerts_card.grid_propagate(False)
+        alerts_card.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            alerts_card,
+            text=title_map["alerts"],
+            font=("Inter", 13, "bold"),
+            text_color="#6D7480",
+        ).grid(row=0, column=0, padx=14, pady=(10, 0), sticky="w")
+
+        alerts_value = ctk.CTkLabel(
+            alerts_card,
+            text="0",
+            font=("Inter", 18, "bold"),
+            text_color=STYLE["texto_oscuro"],
+        )
+        alerts_value.grid(row=0, column=1, padx=(0, 14), pady=(10, 0), sticky="e")
+        self.summary_labels["alerts"] = alerts_value
+
+        # Bind click handler
+        for widget in (alerts_card, alerts_value):
+            widget.bind("<Button-1>", lambda _e: self._show_alerts_detail_popup())
+            widget.configure(cursor="hand2")
+        for child in alerts_card.winfo_children():
+            child.bind("<Button-1>", lambda _e: self._show_alerts_detail_popup())
+            child.configure(cursor="hand2")
+
+        # Card Mis medallas - diseño prominente y destacado
+        medals_card = ctk.CTkFrame(
+            stats_container,
+            fg_color="#FFF8CC",
+            corner_radius=14,
+            border_width=3,
+            border_color="#E5C100",
+            width=320,
+            height=65,
+        )
+        medals_card.grid(row=0, column=2, sticky="nsew")
+        medals_card.grid_propagate(False)
+
+        ctk.CTkLabel(
+            medals_card,
+            text=title_map["medals"],
+            font=("Inter", 14, "bold"),
+            text_color="#7A6000",
+        ).grid(row=0, column=0, padx=(14, 12), pady=12, sticky="w")
+
+        for m_idx, medal_key in enumerate(["ORO", "PLATINO", "BRONCE"]):
+            col_base = 1 + m_idx * 2
+            img = self._kpi_medal_images_exec.get(medal_key)
+            if img is not None:
+                ctk.CTkLabel(medals_card, text="", image=img).grid(
+                    row=0,
+                    column=col_base,
+                    padx=(0, 4),
+                    pady=8,
+                )
+            count_lbl = ctk.CTkLabel(
+                medals_card,
+                text="0",
+                font=("Inter", 20, "bold"),
+                text_color=medal_colors[medal_key],
+            )
+            count_lbl.grid(
+                row=0,
+                column=col_base + 1,
+                padx=(0, 10),
+                pady=8,
+            )
+            self.summary_labels[f"medals_{medal_key}"] = count_lbl
+
     def _build_navigation(self, parent) -> None:
         current_user = self.controller.current_user or {}
+        is_executive = self.controller.is_executive_role(current_user)
+        
         nav = ctk.CTkFrame(parent, fg_color="transparent")
         nav.grid(row=1, column=0, sticky="ew", pady=(10, 12))
         nav.grid_columnconfigure(0, weight=1)
@@ -680,6 +826,10 @@ class CalibrationApp(ctk.CTk):
             )
             button.grid(row=0, column=index, padx=(0 if index == 0 else 8, 0), pady=0)
             self.nav_buttons[section] = button
+
+        # Para ejecutivos las cards se muestran en el header, no aqui
+        if is_executive:
+            return
 
         summary_row = ctk.CTkFrame(nav, fg_color="transparent")
         summary_row.grid(row=0, column=1, sticky="e")
@@ -705,51 +855,49 @@ class CalibrationApp(ctk.CTk):
         if not self._kpi_medal_images_exec:
             self._kpi_medal_images_exec = self._load_kpi_medal_images(size=(38, 38))
 
-        highlight_exec_medals = self.controller.is_executive_role(current_user)
-
         medal_colors = {"ORO": "#B98500", "PLATINO": "#4F5D73", "BRONCE": "#8C4B20"}
 
         for index, key in enumerate(summary_keys):
             if key == "medals":
                 card = ctk.CTkFrame(
                     summary_row,
-                    fg_color="#FFF8CC" if highlight_exec_medals else "#FFFFFF",
+                    fg_color="#FFFFFF",
                     corner_radius=12,
-                    border_width=2 if highlight_exec_medals else 1,
-                    border_color="#E5C100" if highlight_exec_medals else "#E3E6EA",
-                    width=286 if highlight_exec_medals else 232,
-                    height=78 if highlight_exec_medals else 56,
+                    border_width=1,
+                    border_color="#E3E6EA",
+                    width=232,
+                    height=56,
                 )
                 card.grid(row=0, column=index, padx=(0 if index == 0 else 6, 0), sticky="e")
                 card.grid_propagate(False)
                 ctk.CTkLabel(
                     card,
                     text=title_map[key],
-                    font=("Inter", int(FONTS["small_bold"][1]) + (2 if highlight_exec_medals else 0), "bold"),
-                    text_color="#7A6000" if highlight_exec_medals else "#6D7480",
-                ).grid(row=0, column=0, padx=(12, 8), pady=(18 if highlight_exec_medals else 12), sticky="w")
+                    font=FONTS["small_bold"],
+                    text_color="#6D7480",
+                ).grid(row=0, column=0, padx=(12, 8), pady=12, sticky="w")
                 for m_idx, medal_key in enumerate(["ORO", "PLATINO", "BRONCE"]):
                     col_base = 1 + m_idx * 2
-                    image_set = self._kpi_medal_images_exec if highlight_exec_medals else self._kpi_medal_images
+                    image_set = self._kpi_medal_images
                     img = image_set.get(medal_key)
                     if img is not None:
                         ctk.CTkLabel(card, text="", image=img).grid(
                             row=0,
                             column=col_base,
                             padx=(0, 3),
-                            pady=(14 if highlight_exec_medals else 10),
+                            pady=10,
                         )
                     count_lbl = ctk.CTkLabel(
                         card,
                         text="0",
-                        font=("Inter", int(FONTS["small_bold"][1]) + (7 if highlight_exec_medals else 3), "bold"),
+                        font=("Inter", int(FONTS["small_bold"][1]) + 3, "bold"),
                         text_color=medal_colors[medal_key],
                     )
                     count_lbl.grid(
                         row=0,
                         column=col_base + 1,
                         padx=(0, 7),
-                        pady=(14 if highlight_exec_medals else 10),
+                        pady=10,
                     )
                     self.summary_labels[f"medals_{medal_key}"] = count_lbl
                 continue
@@ -964,7 +1112,7 @@ class CalibrationApp(ctk.CTk):
             justify="left",
         ).pack(padx=20, pady=(0, 12), anchor="w")
 
-        scroll = ctk.CTkScrollableFrame(popup, fg_color="#F7F8FA", corner_radius=10, height=280)
+        scroll = ctk.CTkFrame(popup, fg_color="#F7F8FA", corner_radius=10)
         scroll.pack(padx=20, pady=(0, 16), fill="both", expand=True)
         scroll.grid_columnconfigure(0, weight=1)
         scroll.grid_columnconfigure(1, weight=0)
@@ -1024,7 +1172,7 @@ class CalibrationApp(ctk.CTk):
             justify="left",
         ).pack(padx=20, pady=(0, 12), anchor="w")
 
-        scroll = ctk.CTkScrollableFrame(popup, fg_color="#F7F8FA", corner_radius=10, height=300)
+        scroll = ctk.CTkFrame(popup, fg_color="#F7F8FA", corner_radius=10)
         scroll.pack(padx=20, pady=(0, 16), fill="both", expand=True)
         scroll.grid_columnconfigure(0, weight=1)
         scroll.grid_columnconfigure(1, weight=0)

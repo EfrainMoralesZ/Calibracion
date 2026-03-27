@@ -121,12 +121,19 @@ class CalendarView(ctk.CTkFrame):
             self._build_saturday_report_tab(tabs.tab("Reporte Sábado"))
 
     def _build_calendar_tab(self, tab) -> None:
-        tab.grid_columnconfigure(0, weight=1, minsize=340)
-        tab.grid_columnconfigure(1, weight=3)
+        # Para ejecutivos: 3 columnas (calendario grande, detalle, normas compactas)
+        # Para admin: 2 columnas (calendario, detalle con formulario)
+        if not self.can_edit:
+            tab.grid_columnconfigure(0, weight=5, minsize=600)  # Calendario mucho más grande
+            tab.grid_columnconfigure(1, weight=2, minsize=320)  # Detalle de visita
+            tab.grid_columnconfigure(2, weight=1, minsize=120)  # Normas aplicadas más pequeña
+        else:
+            tab.grid_columnconfigure(0, weight=5, minsize=600)
+            tab.grid_columnconfigure(1, weight=2, minsize=320)
         tab.grid_rowconfigure(0, weight=1)
 
         calendar_shell = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=22)
-        calendar_shell.grid(row=0, column=0, sticky="nw", padx=(0, 12), pady=12)
+        calendar_shell.grid(row=0, column=0, sticky="nsew", padx=(0, 0), pady=12)
         calendar_shell.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
@@ -137,8 +144,9 @@ class CalendarView(ctk.CTkFrame):
         ).grid(row=0, column=0, padx=18, pady=(16, 8), sticky="w")
 
         calendar_panel = ctk.CTkFrame(calendar_shell, fg_color=self.style["fondo"], corner_radius=18)
-        calendar_panel.grid(row=1, column=0, padx=18, pady=(0, 18), sticky="ew")
+        calendar_panel.grid(row=1, column=0, padx=0, pady=(0, 0), sticky="nsew")
         calendar_panel.grid_columnconfigure(0, weight=1)
+        calendar_shell.grid_rowconfigure(1, weight=1)
 
         month_nav = ctk.CTkFrame(calendar_panel, fg_color="transparent")
         month_nav.grid(row=0, column=0, padx=10, pady=(6, 4), sticky="ew")
@@ -190,7 +198,8 @@ class CalendarView(ctk.CTkFrame):
             ).grid(row=0, column=idx, padx=2, pady=(0, 2), sticky="nsew")
 
         self.calendar_grid_frame = ctk.CTkFrame(calendar_panel, fg_color="transparent")
-        self.calendar_grid_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="ew")
+        self.calendar_grid_frame.grid(row=2, column=0, padx=0, pady=(0, 0), sticky="nsew")
+        calendar_panel.grid_rowconfigure(2, weight=1)
 
         # Leyenda de estados
         legend = ctk.CTkFrame(calendar_panel, fg_color="transparent")
@@ -257,6 +266,7 @@ class CalendarView(ctk.CTkFrame):
             ).grid(row=0, column=0, padx=12, pady=10, sticky="w")
             self._agreement_banner.grid_remove()
         else:
+            # Vista para ejecutivos: Columna 2 = Detalle de visita
             message = ctk.CTkLabel(
                 self.side_panel,
                 text=(
@@ -264,7 +274,7 @@ class CalendarView(ctk.CTkFrame):
                 ),
                 font=self.fonts["small"],
                 text_color="#6D7480",
-                wraplength=280,
+                wraplength=320,
                 justify="left",
             )
             message.grid(row=1, column=0, padx=18, pady=(0, 12), sticky="w")
@@ -284,13 +294,13 @@ class CalendarView(ctk.CTkFrame):
                 text="⚠️  Este cliente tiene acuerdos registrados. Revísalos antes de realizar la visita.",
                 font=self.fonts["small"],
                 text_color="#7A5A00",
-                wraplength=280,
+                wraplength=320,
                 justify="left",
             ).grid(row=0, column=0, padx=12, pady=10, sticky="w")
             self._agreement_banner.grid_remove()
 
-            self.notes_box = ctk.CTkTextbox(self.side_panel, height=260, corner_radius=18)
-            self.notes_box.grid(row=3, column=0, padx=18, pady=(0, 18), sticky="nsew")
+            self.notes_box = ctk.CTkTextbox(self.side_panel, height=300, corner_radius=18)
+            self.notes_box.grid(row=3, column=0, padx=18, pady=(0, 12), sticky="nsew")
             self.notes_box.configure(state="disabled")
 
             self.accept_visit_button = ctk.CTkButton(
@@ -304,40 +314,45 @@ class CalendarView(ctk.CTkFrame):
             )
             self.accept_visit_button.grid(row=4, column=0, padx=18, pady=(0, 18), sticky="ew")
 
+            # Columna 3: Panel de normas (columna separada para ejecutivos)
+            self.normas_panel = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=22)
+            self.normas_panel.grid(row=0, column=2, sticky="nsew", padx=(0, 0), pady=12)
+            self.normas_panel.grid_columnconfigure(0, weight=1)
+            self.normas_panel.grid_rowconfigure(1, weight=1)
+
             ctk.CTkLabel(
-                self.side_panel,
-                text="Normas aplicadas en la visita",
+                self.normas_panel,
+                text="Normas aplicadas",
                 font=self.fonts["label_bold"],
                 text_color=self.style["texto_oscuro"],
-            ).grid(row=5, column=0, padx=18, pady=(0, 6), sticky="w")
+            ).grid(row=0, column=0, padx=12, pady=(16, 8), sticky="w")
 
             self.visit_norm_check_frame = ctk.CTkScrollableFrame(
-                self.side_panel,
+                self.normas_panel,
                 fg_color=self.style["fondo"],
                 corner_radius=12,
-                height=170,
             )
-            self.visit_norm_check_frame.grid(row=6, column=0, padx=18, pady=(0, 8), sticky="ew")
+            self.visit_norm_check_frame.grid(row=1, column=0, padx=12, pady=(0, 8), sticky="nsew")
             self.visit_norm_check_frame.grid_columnconfigure(0, weight=1)
 
             ctk.CTkLabel(
-                self.side_panel,
+                self.normas_panel,
                 textvariable=self.norm_report_status_var,
                 font=self.fonts["small"],
                 text_color="#6D7480",
                 justify="left",
-                wraplength=300,
-            ).grid(row=7, column=0, padx=18, pady=(0, 8), sticky="w")
+                wraplength=160,
+            ).grid(row=2, column=0, padx=12, pady=(0, 8), sticky="w")
 
             self.save_norm_report_button = ctk.CTkButton(
-                self.side_panel,
+                self.normas_panel,
                 text="Finalizar visita",
                 command=self._save_visit_norm_report,
                 fg_color=self.style["secundario"],
                 hover_color="#1D1D1D",
                 state="disabled",
             )
-            self.save_norm_report_button.grid(row=8, column=0, padx=18, pady=(0, 18), sticky="ew")
+            self.save_norm_report_button.grid(row=3, column=0, padx=12, pady=(0, 12), sticky="ew")
 
     def _build_visits_tab(self, tab) -> None:
         tab.grid_columnconfigure(0, weight=1)
@@ -1708,11 +1723,7 @@ class CalendarView(ctk.CTkFrame):
         available_norms = catalog_tokens or self.controller.get_visit_available_norms(visit_id, viewer_name)
         selected_norms = set(self.controller.get_visit_reported_norms(visit_id, viewer_name))
         norm_display_map = {
-            str(item.get("token", "")).strip(): (
-                f"{str(item.get('token', '')).strip()} | {str(item.get('nombre', '')).strip()}"
-                if str(item.get("nombre", "")).strip()
-                else str(item.get("token", "")).strip()
-            )
+            str(item.get("token", "")).strip(): str(item.get("token", "")).strip()
             for item in self.controller.get_catalog_norms()
             if str(item.get("token", "")).strip()
         }
@@ -1731,7 +1742,7 @@ class CalendarView(ctk.CTkFrame):
                 self.visit_norm_vars[token] = variable
                 ctk.CTkCheckBox(
                     self.visit_norm_check_frame,
-                    text=norm_display_map.get(token, token),
+                    text=token,
                     variable=variable,
                     text_color=self.style["texto_oscuro"],
                     fg_color=self.style["primario"],
@@ -1823,8 +1834,6 @@ class CalendarView(ctk.CTkFrame):
             warehouse_line = f"• Almacen: {warehouse_text}\n"
 
         text = (
-            "DETALLE DE VISITA\n"
-            "==============================\n\n"
             "1) INFORMACION PRINCIPAL\n"
             f"• Ejecutivos tecnicos: {inspectors_text}\n"
             f"• Cliente: {client_text}\n"
