@@ -125,8 +125,8 @@ class CalendarView(ctk.CTkFrame):
         # Para admin: 2 columnas (calendario, detalle con formulario)
         if not self.can_edit:
             tab.grid_columnconfigure(0, weight=5, minsize=600)  # Calendario mucho más grande
-            tab.grid_columnconfigure(1, weight=2, minsize=320)  # Detalle de visita
-            tab.grid_columnconfigure(2, weight=1, minsize=120)  # Normas aplicadas más pequeña
+            tab.grid_columnconfigure(1, weight=2, minsize=330)  # Detalle de visita
+            tab.grid_columnconfigure(2, weight=1, minsize=90)  # Normas aplicadas más pequeña
         else:
             tab.grid_columnconfigure(0, weight=5, minsize=600)
             tab.grid_columnconfigure(1, weight=2, minsize=320)
@@ -224,7 +224,7 @@ class CalendarView(ctk.CTkFrame):
                 text_color=text_color,
             ).pack(pady=6)
 
-        self.side_panel = ctk.CTkScrollableFrame(tab, fg_color=self.style["surface"], corner_radius=22)
+        self.side_panel = ctk.CTkScrollableFrame(tab, fg_color=self.style["surface"], corner_radius=22, scrollbar_button_color=None, scrollbar_button_hover_color=None)
         self.side_panel.grid(row=0, column=1, sticky="nsew", pady=12)
         self.side_panel.grid_columnconfigure(0, weight=1)
 
@@ -294,14 +294,20 @@ class CalendarView(ctk.CTkFrame):
                 text="⚠️  Este cliente tiene acuerdos registrados. Revísalos antes de realizar la visita.",
                 font=self.fonts["small"],
                 text_color="#7A5A00",
-                wraplength=320,
+                wraplength=330,
                 justify="left",
             ).grid(row=0, column=0, padx=12, pady=10, sticky="w")
             self._agreement_banner.grid_remove()
 
-            self.notes_box = ctk.CTkTextbox(self.side_panel, height=300, corner_radius=18)
+            self.notes_box = ctk.CTkTextbox(self.side_panel, height=390, corner_radius=18)
             self.notes_box.grid(row=3, column=0, padx=18, pady=(0, 12), sticky="nsew")
             self.notes_box.configure(state="disabled")
+
+            # Columna 3: Panel de normas (columna separada para ejecutivos)
+            self.normas_panel = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=22)
+            self.normas_panel.grid(row=0, column=2, sticky="nsew", padx=(0, 0), pady=12)
+            self.normas_panel.grid_columnconfigure(0, weight=1)
+            self.normas_panel.grid_rowconfigure(1, weight=1)
 
             self.accept_visit_button = ctk.CTkButton(
                 self.side_panel,
@@ -312,13 +318,8 @@ class CalendarView(ctk.CTkFrame):
                 hover_color="#D8C220",
                 state="disabled",
             )
-            self.accept_visit_button.grid(row=4, column=0, padx=18, pady=(0, 18), sticky="ew")
-
-            # Columna 3: Panel de normas (columna separada para ejecutivos)
-            self.normas_panel = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=22)
-            self.normas_panel.grid(row=0, column=2, sticky="nsew", padx=(0, 0), pady=12)
-            self.normas_panel.grid_columnconfigure(0, weight=1)
-            self.normas_panel.grid_rowconfigure(1, weight=1)
+            # Se coloca en la última fila disponible
+            self.accept_visit_button.grid(row=99, column=0, padx=18, pady=(12, 18), sticky="ew")
 
             ctk.CTkLabel(
                 self.normas_panel,
@@ -331,6 +332,8 @@ class CalendarView(ctk.CTkFrame):
                 self.normas_panel,
                 fg_color=self.style["fondo"],
                 corner_radius=12,
+                scrollbar_button_color=None,
+                scrollbar_button_hover_color=None,
             )
             self.visit_norm_check_frame.grid(row=1, column=0, padx=12, pady=(0, 8), sticky="nsew")
             self.visit_norm_check_frame.grid_columnconfigure(0, weight=1)
@@ -860,37 +863,54 @@ class CalendarView(ctk.CTkFrame):
         if not isinstance(visit, dict):
             return "Sin confirmaciones registradas."
 
-        inspectors = list(visit.get("inspectors", []))
-        if not inspectors:
-            return "Sin ejecutivos asignados a la visita."
+        # Mejor formato para el detalle de visita
+        info = []
+        info.append("[b]INFORMACIÓN PRINCIPAL[/b]")
+        info.append(f"• Ejecutivos técnicos: {', '.join(visit.get('inspectors', [])) or 'Sin asignar'}")
+        info.append(f"• Cliente: {visit.get('client', 'Sin cliente')}")
+        info.append(f"• Fecha: {visit.get('date', 'Sin fecha')}")
+        info.append(f"• Estado operativo: {visit.get('status', 'Sin estado')}")
 
+        info.append("\n[b]HORARIOS[/b]")
+        info.append(f"• Hora de asignación: {visit.get('assignment_time', 'Sin hora')}")
+        info.append(f"• Hora de salida: {visit.get('departure_time', 'Sin hora')}")
+
+        info.append("\n[b]UBICACIÓN[/b]")
+        info.append(f"• Dirección: {visit.get('address', 'Sin dirección')}")
+
+        obs = visit.get('notes', '').strip()
+        if obs:
+            info.append("\n[b]OBSERVACIONES[/b]")
+            info.append(f"• {obs}")
+
+        # Confirmaciones
+        inspectors = list(visit.get("inspectors", []))
         confirmations = self._get_visit_acceptance_map(visit)
         confirmations_by_identity = {
             self._identity_key(name): confirmed_at
             for name, confirmed_at in confirmations.items()
             if self._identity_key(name)
         }
+        if inspectors:
+            lines = []
+            confirmed_count = 0
+            for inspector_name in inspectors:
+                identity = self._identity_key(inspector_name)
+                confirmed_at = confirmations_by_identity.get(identity, "")
+                if confirmed_at:
+                    confirmed_count += 1
+                    lines.append(f"- {inspector_name}: Confirmó el {confirmed_at}")
+                else:
+                    lines.append(f"- {inspector_name}: Pendiente de confirmar")
+            info.append(f"\n[b]Confirmaciones:[/b] {confirmed_count}/{len(inspectors)}")
+            info.extend(lines)
 
-        lines: list[str] = []
-        confirmed_count = 0
-        for inspector_name in inspectors:
-            identity = self._identity_key(inspector_name)
-            confirmed_at = confirmations_by_identity.get(identity, "")
-            if confirmed_at:
-                confirmed_count += 1
-                lines.append(f"- {inspector_name}: Confirmo el {confirmed_at}")
-            else:
-                lines.append(f"- {inspector_name}: Pendiente de confirmar")
-
-        header = f"Confirmaciones: {confirmed_count}/{len(inspectors)}"
-        result = "\n".join([header, *lines])
-
-        # Mostrar hora de finalización para roles admin
         finalized_at = str(visit.get("finalized_at", "")).strip() if isinstance(visit, dict) else ""
         if finalized_at:
-            result += f"\n\nFinalizada a las: {finalized_at}"
+            info.append(f"\n[b]Finalizada a las:[/b] {finalized_at}")
 
-        return result
+        # Unir todo con saltos de línea
+        return "\n".join(info)
 
     def _update_acceptance_details(self, visit: dict | None) -> None:
         if self.acceptance_details_label is None:
