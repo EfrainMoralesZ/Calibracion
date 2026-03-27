@@ -30,6 +30,11 @@ class TrimestralView(ctk.CTkFrame):
 		self.current_cards_page = 0
 		self.cards_medal_filter_var = ctk.StringVar(value="Todas")
 
+		# Para capturas múltiples
+		self.temp_scores = []  # Lista temporal de capturas antes de guardar
+		self.temp_table = None  # Widget de tabla temporal
+		self.add_button = None  # Botón para agregar a la tabla temporal
+		self.save_all_button = None  # Botón para guardar todas las capturas
 		self.inspector_var = ctk.StringVar()
 		self.norm_var = ctk.StringVar()
 		self.year_var = ctk.StringVar(value=str(datetime.now().year))
@@ -311,8 +316,8 @@ class TrimestralView(ctk.CTkFrame):
 
 		self.capture_dialog = ctk.CTkToplevel(self)
 		self.capture_dialog.title("Captura trimestral")
-		self.capture_dialog.geometry("640x660")
-		self.capture_dialog.minsize(560, 500)
+		self.capture_dialog.geometry("1100x700")
+		self.capture_dialog.minsize(900, 600)
 		self.capture_dialog.configure(fg_color=self.style["fondo"])
 		self.capture_dialog.transient(self.winfo_toplevel())
 		self.capture_dialog.grab_set()
@@ -320,27 +325,33 @@ class TrimestralView(ctk.CTkFrame):
 
 		# Outer wrapper: scrollable content on top, fixed action bar at bottom
 		outer = ctk.CTkFrame(self.capture_dialog, fg_color=self.style["fondo"])
-		outer.pack(fill="both", expand=True, padx=14, pady=14)
+		outer.pack(fill="both", expand=True, padx=18, pady=18)
 		outer.grid_rowconfigure(0, weight=1)
 		outer.grid_rowconfigure(1, weight=0)
 		outer.grid_columnconfigure(0, weight=1)
 
-		# Scrollable form area
+		# Scrollable form area en dos columnas
 		form_scroll = ctk.CTkScrollableFrame(outer, fg_color=self.style["surface"], corner_radius=18)
 		form_scroll.grid(row=0, column=0, sticky="nsew", pady=(0, 10))
-		form_scroll.grid_columnconfigure(0, weight=1)
-		form_panel = form_scroll
+		form_scroll.grid_columnconfigure(0, weight=1, minsize=350)
+		form_scroll.grid_columnconfigure(1, weight=1, minsize=350)
+		form_panel_left = ctk.CTkFrame(form_scroll, fg_color="transparent")
+		form_panel_left.grid(row=0, column=0, sticky="nsew", padx=(18, 9), pady=10)
+		form_panel_right = ctk.CTkFrame(form_scroll, fg_color="transparent")
+		form_panel_right.grid(row=0, column=1, sticky="nsew", padx=(9, 18), pady=10)
 
+		# Título
 		self.capture_title_label = ctk.CTkLabel(
-			form_panel,
+			form_panel_left,
 			text="Nueva captura trimestral",
 			font=self.fonts["label_bold"],
 			text_color=self.style["texto_oscuro"],
 		)
-		self.capture_title_label.grid(row=0, column=0, padx=18, pady=(14, 8), sticky="w")
+		self.capture_title_label.grid(row=0, column=0, padx=0, pady=(0, 8), sticky="w")
 
+		# Columna izquierda: datos principales
 		self.capture_inspector_value_label = ctk.CTkLabel(
-			form_panel,
+			form_panel_left,
 			textvariable=self.inspector_var,
 			font=self.fonts["label"],
 			text_color=self.style["texto_oscuro"],
@@ -349,10 +360,10 @@ class TrimestralView(ctk.CTkFrame):
 			height=38,
 			anchor="w",
 		)
-		self._field(form_panel, 1, "Ejecutivo Tecnico", self.capture_inspector_value_label)
+		self._field(form_panel_left, 1, "Ejecutivo Tecnico", self.capture_inspector_value_label)
 
 		self.norm_selector = ctk.CTkComboBox(
-			form_panel,
+			form_panel_left,
 			variable=self.norm_var,
 			values=["SIN_NORMA"],
 			height=38,
@@ -362,15 +373,28 @@ class TrimestralView(ctk.CTkFrame):
 			dropdown_hover_color=self.style["primario"],
 			command=lambda _value: self._refresh_capture_history_preview(),
 		)
-		self._field(form_panel, 2, "Norma", self.norm_selector)
+		self._field(form_panel_left, 2, "Norma", self.norm_selector)
 
-		self._field(form_panel, 3, "Anio", ctk.CTkEntry(form_panel, textvariable=self.year_var, height=38, border_color="#D5D8DC"))
+		# Menú de año (últimos 5 años y el actual)
+		from datetime import datetime
+		current_year = datetime.now().year
+		year_options = [str(y) for y in range(current_year, current_year - 6, -1)]
+		self._field(form_panel_left, 3, "Año", ctk.CTkComboBox(
+			form_panel_left,
+			variable=self.year_var,
+			values=year_options,
+			height=38,
+			fg_color="#FFFFFF",
+			border_color="#D5D8DC",
+			button_color=self.style["primario"],
+			dropdown_hover_color=self.style["primario"],
+		))
 		self._field(
-			form_panel,
+			form_panel_left,
 			4,
 			"Trimestre",
 			ctk.CTkComboBox(
-				form_panel,
+				form_panel_left,
 				variable=self.quarter_var,
 				values=["T1", "T2", "T3", "T4"],
 				height=38,
@@ -380,66 +404,154 @@ class TrimestralView(ctk.CTkFrame):
 				dropdown_hover_color=self.style["primario"],
 			),
 		)
-		self.score_entry = ctk.CTkEntry(form_panel, textvariable=self.score_var, height=38, border_color="#D5D8DC")
-		self._field(form_panel, 5, "Calificacion", self.score_entry)
+
+		# Columna derecha: calificación y notas
+
+		# Calificación con aclaración de porcentaje
+		self.score_entry = ctk.CTkEntry(form_panel_right, textvariable=self.score_var, height=38, border_color="#D5D8DC")
+		self._field(form_panel_right, 1, "Calificación (%) [1-100]", self.score_entry)
 
 		ctk.CTkLabel(
-			form_panel,
+			form_panel_right,
 			text="Notas",
 			font=self.fonts["label"],
 			text_color=self.style["texto_oscuro"],
-		).grid(row=11, column=0, padx=18, pady=(10, 6), sticky="w")
-		self.notes_box = ctk.CTkTextbox(form_panel, height=90, corner_radius=16)
-		self.notes_box.grid(row=12, column=0, padx=18, pady=(0, 4), sticky="ew")
+		).grid(row=3, column=0, padx=0, pady=(10, 6), sticky="w")
+		self.notes_box = ctk.CTkTextbox(form_panel_right, height=90, corner_radius=16)
+		self.notes_box.grid(row=4, column=0, padx=0, pady=(0, 4), sticky="ew")
 
-		ctk.CTkLabel(
-			form_panel,
-			text="Historial reciente de la norma",
-			font=self.fonts["label"],
-			text_color=self.style["texto_oscuro"],
-		).grid(row=13, column=0, padx=18, pady=(8, 6), sticky="w")
-		self.capture_history_box = ctk.CTkTextbox(form_panel, height=100, corner_radius=16)
-		self.capture_history_box.grid(row=14, column=0, padx=18, pady=(0, 14), sticky="ew")
-		self.capture_history_box.configure(state="disabled")
+		# Tabla temporal para capturas múltiples (abajo, ocupa ambas columnas)
+		self.temp_table = ttk.Treeview(form_scroll, columns=("norma", "año", "trimestre", "calificacion", "estado"), show="headings", height=4)
+		for col, width in zip(["norma", "año", "trimestre", "calificacion", "estado"], [100, 60, 80, 100, 120]):
+			self.temp_table.heading(col, text=col.capitalize())
+			self.temp_table.column(col, width=width)
+		self.temp_table.grid(row=1, column=0, columnspan=2, padx=18, pady=(0, 8), sticky="ew")
 
-		# Fixed action bar — always visible at the bottom of the dialog
-		actions = ctk.CTkFrame(outer, fg_color=self.style["surface"], corner_radius=16)
-		actions.grid(row=1, column=0, sticky="ew")
-		actions.grid_columnconfigure(0, weight=1)
-		actions.grid_columnconfigure(1, weight=1)
-		actions.grid_columnconfigure(2, weight=1)
-		actions.grid_columnconfigure(3, weight=1)
-		ctk.CTkButton(
-			actions,
-			text="Limpiar",
-			fg_color=self.style["fondo"],
+		# Botones debajo de la tabla
+		button_row = ctk.CTkFrame(form_scroll, fg_color="transparent")
+		button_row.grid(row=2, column=0, columnspan=2, padx=18, pady=(0, 8), sticky="ew")
+		button_row.grid_columnconfigure(0, weight=1)
+		button_row.grid_columnconfigure(1, weight=1)
+		self.add_button = ctk.CTkButton(
+			button_row,
+			text="Agregar a lista",
+			fg_color=self.style["primario"],
 			text_color=self.style["texto_oscuro"],
-			hover_color="#E9ECEF",
-			command=lambda: self.clear_form(full_reset=False),
-		).grid(row=0, column=0, padx=(10, 4), pady=10, sticky="ew")
-		ctk.CTkButton(
-			actions,
-			text="Guardar",
+			hover_color="#D8C220",
+			command=self._add_temp_score,
+		)
+		self.add_button.grid(row=0, column=0, padx=(0, 8), sticky="ew")
+		self.save_all_button = ctk.CTkButton(
+			button_row,
+			text="Guardar todo",
 			fg_color=self.style["secundario"],
 			hover_color="#1D1D1D",
-			command=self.save_score,
-		).grid(row=0, column=1, padx=4, pady=10, sticky="ew")
-		self.capture_delete_button = ctk.CTkButton(
-			actions,
+			command=self._save_all_temp_scores,
+		)
+		self.save_all_button.grid(row=0, column=1, padx=(8, 0), sticky="ew")
+		# Botón eliminar (opcional: elimina la fila seleccionada de la tabla)
+		self.delete_button = ctk.CTkButton(
+			button_row,
 			text="Eliminar",
 			fg_color=self.style["peligro"],
 			hover_color="#B43C31",
-			command=self.delete_score,
+			command=self._delete_selected_temp_score,
 		)
-		self.capture_delete_button.grid(row=0, column=2, padx=4, pady=10, sticky="ew")
-		ctk.CTkButton(
-			actions,
-			text="Cerrar",
-			fg_color=self.style["fondo"],
-			text_color=self.style["texto_oscuro"],
-			hover_color="#E9ECEF",
-			command=self._close_capture_dialog,
-		).grid(row=0, column=3, padx=(4, 10), pady=10, sticky="ew")
+		self.delete_button.grid(row=0, column=2, padx=(8, 0), sticky="ew")
+
+	def _delete_selected_temp_score(self):
+		selected = self.temp_table.selection()
+		if not selected:
+			messagebox.showinfo("Trimestral", "Selecciona una fila para eliminar.")
+			return
+		idx = self.temp_table.index(selected[0])
+		del self.temp_scores[idx]
+		self._refresh_temp_table()
+
+	       # (El formulario y la tabla ya están correctamente definidos arriba, no se requiere duplicar ni redefinir aquí)
+		# (Botones de acción ya están definidos bajo la tabla temporal)
+
+	def _add_temp_score(self):
+		# Obtiene los datos del formulario
+		norm = self.norm_var.get()
+		year = self.year_var.get()
+		quarter = self.quarter_var.get()
+		score = self.score_var.get()
+		inspector = self.inspector_var.get().strip()
+		notes = self.notes_box.get("1.0", "end").strip() if self.notes_box is not None else ""
+		# Validación básica
+		if not norm or not year or not quarter or not score or not inspector:
+			messagebox.showerror("Trimestral", "Completa todos los campos antes de agregar.")
+			return
+		# Validar porcentaje
+		try:
+			score_val = float(score)
+			if not (1 <= score_val <= 100):
+				raise ValueError
+		except Exception:
+			messagebox.showerror("Trimestral", "La calificación debe ser un número entre 1 y 100.")
+			return
+		# No permitir duplicados de norma+trimestre+año ni si ya está calificado/enviado
+		inspector_scores = self.controller.list_trimestral_scores(inspector_name=inspector, include_unsent=True)
+		for item in inspector_scores:
+			if item.get("norm") == norm and str(item.get("year")) == year and str(item.get("quarter")) == quarter:
+				if item.get("sent_at"):
+					messagebox.showwarning("Trimestral", f"Ya existe una calificación enviada para {norm} {quarter} {year}. No se puede modificar.")
+					return
+				else:
+					messagebox.showwarning("Trimestral", f"Ya existe una calificación pendiente para {norm} {quarter} {year}.")
+					return
+		for item in self.temp_scores:
+			if item["norm"] == norm and item["year"] == year and item["quarter"] == quarter:
+				messagebox.showwarning("Trimestral", "Ya capturaste esta norma para ese trimestre/año.")
+				return
+		# Agrega a la lista temporal
+		self.temp_scores.append({
+			"inspector": inspector,
+			"norm": norm,
+			"year": year,
+			"quarter": quarter,
+			"score": score,
+			"notes": notes,
+			"estado": "Pendiente"
+		})
+		self._refresh_temp_table()
+		self.score_var.set("")
+		if self.notes_box is not None:
+			try:
+				if self.notes_box.winfo_exists():
+					self.notes_box.delete("1.0", "end")
+			except tk.TclError:
+				pass
+
+	def _refresh_temp_table(self):
+		# Limpia la tabla y la repuebla
+		for row in self.temp_table.get_children():
+			self.temp_table.delete(row)
+		for item in self.temp_scores:
+			self.temp_table.insert("", "end", values=(item["norm"], item["year"], item["quarter"], item["score"], item["estado"]))
+
+	def _save_all_temp_scores(self):
+		if not self.temp_scores:
+			messagebox.showinfo("Trimestral", "No hay capturas pendientes para guardar.")
+			return
+		errores = 0
+		for item in self.temp_scores:
+			try:
+				self.controller.save_trimestral_score(item, None)
+				item["estado"] = "Asignada"
+			except Exception as e:
+				errores += 1
+				item["estado"] = f"Error: {e}"
+		self._refresh_temp_table()
+		if errores == 0:
+			messagebox.showinfo("Trimestral", "Todas las calificaciones fueron guardadas correctamente.")
+			self.temp_scores.clear()
+			self._refresh_temp_table()
+		else:
+			messagebox.showwarning("Trimestral", f"{errores} calificaciones no se pudieron guardar.")
+
+	# Bloqueo de edición tras envío (en la lógica de edición y guardado real ya existe, pero aquí puedes agregar validación visual si lo deseas)
 
 		self._sync_capture_norm_selector()
 		self._refresh_capture_history_preview()
