@@ -583,6 +583,38 @@ def _load_module(module_path: str):
 
 
 class CalibrationController:
+	def delete_client_agreement_pdf(self, client_name: str, pdf_filename: str) -> bool:
+		"""Delete a specific agreement PDF for a client. Returns True if deleted."""
+		target_dir = self._agreement_client_dir(str(client_name))
+		pdf_path = target_dir / pdf_filename
+		if pdf_path.exists() and pdf_path.is_file():
+			pdf_path.unlink()
+			return True
+		return False
+
+	def delete_criteria_document(self, resolution_number: str) -> bool:
+		"""Delete a criteria document by its resolution number from app_state and filesystem."""
+		documents_log = self.app_state.get("criteria_documents", [])
+		idx = next((i for i, doc in enumerate(documents_log)
+					if str(doc.get("resolution_number")) == str(resolution_number)), None)
+		if idx is None:
+			return False
+		doc = documents_log[idx]
+		# Remove file from filesystem
+		output_path = doc.get("output_path")
+		if output_path:
+			try:
+				path = Path(output_path)
+				if path.exists() and path.is_file():
+					path.unlink()
+			except Exception:
+				pass
+		# Remove from log and save
+		del documents_log[idx]
+		self.app_state["criteria_documents"] = documents_log
+		_write_json(STATE_FILE, self.app_state)
+		self.reload()
+		return True
 	def __init__(self, root_dir: Path | None = None) -> None:
 		_seed_runtime_data_dir()
 		self.root_dir = root_dir or ROOT_DIR

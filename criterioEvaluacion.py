@@ -1401,6 +1401,25 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 		scroll_frame.grid(row=2, column=0, padx=18, pady=(0, 12), sticky="nsew")
 		scroll_frame.grid_columnconfigure(0, weight=1)
 
+
+		def _delete_agreement(agreement):
+			if messagebox.askyesno("Eliminar acuerdo", "¿Seguro que deseas eliminar este acuerdo?", parent=history_window):
+				deleted = self.controller.delete_client_agreement_pdf(client_name, agreement.get("title", ""))
+				if deleted:
+					messagebox.showinfo("Eliminar acuerdo", "Acuerdo eliminado correctamente.", parent=history_window)
+					_render_rows()
+				else:
+					messagebox.showerror("Eliminar acuerdo", "No se pudo eliminar el acuerdo.", parent=history_window)
+
+		def _delete_criteria(doc):
+			if messagebox.askyesno("Eliminar criterio", "¿Seguro que deseas eliminar este criterio?", parent=history_window):
+				deleted = self.controller.delete_criteria_document(doc.get("resolution_number", ""))
+				if deleted:
+					messagebox.showinfo("Eliminar criterio", "Criterio eliminado correctamente.", parent=history_window)
+					_render_rows()
+				else:
+					messagebox.showerror("Eliminar criterio", "No se pudo eliminar el criterio.", parent=history_window)
+
 		def _render_rows() -> None:
 			for child in scroll_frame.winfo_children():
 				child.destroy()
@@ -1426,6 +1445,7 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 					agreement_row.grid(row=row_idx, column=0, sticky="ew", pady=(0, 10))
 					agreement_row.grid_columnconfigure(0, weight=1)
 					agreement_row.grid_columnconfigure(1, weight=0)
+					agreement_row.grid_columnconfigure(2, weight=0)
 
 					text = f"{agreement.get('title', 'Acuerdo')} | Fecha: {agreement.get('generated_at', '-') }"
 					ctk.CTkLabel(
@@ -1438,6 +1458,7 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 					).grid(row=0, column=0, padx=12, pady=10, sticky="ew")
 
 					agreement_path = str(agreement.get("output_path", "")).strip()
+					btn_col = 1
 					if agreement_path and Path(agreement_path).exists():
 						ctk.CTkButton(
 							agreement_row,
@@ -1447,7 +1468,17 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 							text_color=STYLE["texto_oscuro"],
 							hover_color="#D8C220",
 							command=lambda path=agreement_path: self._open_pdf_from_history(path),
-						).grid(row=0, column=1, padx=12, pady=10)
+						).grid(row=0, column=btn_col, padx=6, pady=10)
+						btn_col += 1
+					ctk.CTkButton(
+						agreement_row,
+						text="Eliminar",
+						width=90,
+						fg_color=STYLE["peligro"],
+						text_color=STYLE["texto_claro"],
+						hover_color="#c0392b",
+						command=lambda a=agreement: _delete_agreement(a),
+					).grid(row=0, column=btn_col, padx=6, pady=10)
 					row_idx += 1
 
 			if agreements and history:
@@ -1482,6 +1513,7 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 				row.grid(row=row_idx, column=0, sticky="ew", pady=(0, 10))
 				row.grid_columnconfigure(0, weight=1)
 				row.grid_columnconfigure(1, weight=0)
+				row.grid_columnconfigure(2, weight=0)
 
 				info_text = (
 					f"Res: {doc.get('resolution_number', '-')} | "
@@ -1500,6 +1532,7 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 				).grid(row=0, column=0, padx=12, pady=10, sticky="ew")
 
 				output_path = str(doc.get("output_path", "")).strip()
+				btn_col = 1
 				if output_path and Path(output_path).exists():
 					ctk.CTkButton(
 						row,
@@ -1509,7 +1542,17 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 						text_color=STYLE["texto_oscuro"],
 						hover_color="#D8C220",
 						command=lambda path=output_path: self._open_pdf_from_history(path),
-					).grid(row=0, column=1, padx=12, pady=10)
+					).grid(row=0, column=btn_col, padx=6, pady=10)
+					btn_col += 1
+				ctk.CTkButton(
+					row,
+					text="Eliminar",
+					width=90,
+					fg_color=STYLE["peligro"],
+					text_color=STYLE["texto_claro"],
+					hover_color="#c0392b",
+					command=lambda d=doc: _delete_criteria(d),
+				).grid(row=0, column=btn_col, padx=6, pady=10)
 				row_idx += 1
 
 		norm_combo.configure(command=lambda _value: _render_rows())
