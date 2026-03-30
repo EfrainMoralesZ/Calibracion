@@ -35,12 +35,11 @@ class TrimestralView(ctk.CTkFrame):
 		self.temp_table = None  # Widget de tabla temporal
 		self.add_button = None  # Botón para agregar a la tabla temporal
 		self.save_all_button = None  # Botón para guardar todas las capturas
-		# Elimina los StringVar globales para el formulario de captura
-		self.inspector_var = None
-		self.norm_var = None
-		self.year_var = None
-		self.quarter_var = None
-		self.score_var = None
+		self.inspector_var = ctk.StringVar()
+		self.norm_var = ctk.StringVar()
+		self.year_var = ctk.StringVar(value=str(datetime.now().year))
+		self.quarter_var = ctk.StringVar(value="T1")
+		self.score_var = ctk.StringVar()
 
 		self.tree: ttk.Treeview | None = None
 		self.notes_box: ctk.CTkTextbox | None = None
@@ -314,7 +313,6 @@ class TrimestralView(ctk.CTkFrame):
 			return
 
 		self._close_capture_dialog(reset_state=False)
-
 
 		self.capture_dialog = ctk.CTkToplevel(self)
 		self.capture_dialog.title("Captura trimestral")
@@ -594,17 +592,11 @@ class TrimestralView(ctk.CTkFrame):
 		except tk.TclError:
 			return
 
-		# Validación defensiva para evitar errores si las variables ya son None
-		if not isinstance(self.inspector_var, ctk.StringVar):
-			return
-		if not isinstance(self.norm_var, ctk.StringVar):
-			return
-
 		norm_values = self._capture_norm_values(self.inspector_var.get())
 		self.norm_selector.configure(values=norm_values)
 		current_norm = self._norm_key(self.norm_var.get())
 		if current_norm not in norm_values:
-			self.norm_var.set(norm_values[0] if norm_values else "SIN_NORMA")
+			self.norm_var.set(norm_values[0])
 		else:
 			self.norm_var.set(current_norm)
 
@@ -615,12 +607,6 @@ class TrimestralView(ctk.CTkFrame):
 			if not self.capture_history_box.winfo_exists():
 				return
 		except tk.TclError:
-			return
-
-		# Validación defensiva para evitar errores si las variables ya son None
-		if not isinstance(self.inspector_var, ctk.StringVar):
-			return
-		if not isinstance(self.norm_var, ctk.StringVar):
 			return
 
 		inspector_name = self.inspector_var.get().strip()
@@ -658,18 +644,6 @@ class TrimestralView(ctk.CTkFrame):
 	def _open_capture_dialog(self, inspector_name: str | None = None, score: dict | None = None) -> None:
 		if not self.can_edit:
 			return
-
-		# Inicialización defensiva de StringVar solo si es None o no es instancia correcta
-		if not isinstance(self.inspector_var, ctk.StringVar):
-			self.inspector_var = ctk.StringVar()
-		if not isinstance(self.norm_var, ctk.StringVar):
-			self.norm_var = ctk.StringVar()
-		if not isinstance(self.year_var, ctk.StringVar):
-			self.year_var = ctk.StringVar()
-		if not isinstance(self.quarter_var, ctk.StringVar):
-			self.quarter_var = ctk.StringVar()
-		if not isinstance(self.score_var, ctk.StringVar):
-			self.score_var = ctk.StringVar()
 
 		# Block editing if the score was already sent
 		if score is not None and str(score.get("sent_at", "")).strip():
@@ -718,7 +692,6 @@ class TrimestralView(ctk.CTkFrame):
 		if reset_state:
 			self.clear_form(full_reset=True)
 
-		# Limpiar referencias a widgets y variables para evitar callbacks a widgets destruidos
 		self.capture_dialog = None
 		self.capture_title_label = None
 		self.capture_inspector_value_label = None
@@ -727,15 +700,6 @@ class TrimestralView(ctk.CTkFrame):
 		self.norm_selector = None
 		self.notes_box = None
 		self.score_entry = None
-		self.temp_table = None
-		self.add_button = None
-		self.save_all_button = None
-		self.delete_button = None
-		self.inspector_var = None
-		self.norm_var = None
-		self.year_var = None
-		self.quarter_var = None
-		self.score_var = None
 
 		if dialog is None:
 			return
@@ -758,8 +722,6 @@ class TrimestralView(ctk.CTkFrame):
 
 	def _update_capture_title(self) -> None:
 		if self.capture_title_label is None:
-			return
-		if not isinstance(self.inspector_var, ctk.StringVar):
 			return
 
 		base_text = "Editar captura trimestral" if self.selected_score_id else "Nueva captura trimestral"
@@ -2676,25 +2638,15 @@ class TrimestralView(ctk.CTkFrame):
 				canvas.create_text(x, bottom + 14, text=label, fill="#6D7480", font=("Arial", 8))
 
 	def clear_form(self, full_reset: bool = False) -> None:
-		inspector_name = ""
-		norm_value = ""
-		if not full_reset:
-			if isinstance(self.inspector_var, ctk.StringVar):
-				inspector_name = self.inspector_var.get().strip()
-			if isinstance(self.norm_var, ctk.StringVar):
-				norm_value = self._norm_key(self.norm_var.get())
+		inspector_name = "" if full_reset else self.inspector_var.get().strip()
+		norm_value = "" if full_reset else self._norm_key(self.norm_var.get())
 
 		self.selected_score_id = None
-		if isinstance(self.inspector_var, ctk.StringVar):
-			self.inspector_var.set(inspector_name)
-		if isinstance(self.norm_var, ctk.StringVar):
-			self.norm_var.set(norm_value)
-		if isinstance(self.year_var, ctk.StringVar):
-			self.year_var.set(str(datetime.now().year))
-		if isinstance(self.quarter_var, ctk.StringVar):
-			self.quarter_var.set("T1")
-		if isinstance(self.score_var, ctk.StringVar):
-			self.score_var.set("")
+		self.inspector_var.set(inspector_name)
+		self.norm_var.set(norm_value)
+		self.year_var.set(str(datetime.now().year))
+		self.quarter_var.set("T1")
+		self.score_var.set("")
 		if self.notes_box is not None:
 			try:
 				if self.notes_box.winfo_exists():
@@ -2762,10 +2714,13 @@ class TrimestralView(ctk.CTkFrame):
 		if self.tree is None:
 			return
 		selected = self.tree.selection()
+		if not selected:
+			return
+		score = self.row_cache.get(selected[0])
+		if score is None:
+			return
+
+		self.selected_score_id = selected[0]
 		if not self.can_edit:
 			return
-		# ...aquí va la lógica real de selección de fila, si aplica...
-		self._sync_capture_norm_selector()
-		self._refresh_capture_history_preview()
-		self._update_capture_title()
-		self._sync_capture_delete_state()
+		self._open_capture_dialog(score=score)
