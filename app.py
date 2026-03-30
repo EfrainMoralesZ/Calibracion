@@ -192,10 +192,10 @@ def _safe_focus(widget) -> None:
         return
 
 
-# Principal.py contiene toda la lógica de la sección Principal.
+ # supervision.py contiene toda la lógica de la sección Supervisión.
 # Se importa aquí, después de que STYLE, FONTS y utilidades están definidos,
-# para que el import circular (principal → app) funcione correctamente.
-from Principal import PrincipalView  # noqa: E402
+# para que el import circular (supervision → app) funcione correctamente.
+from supervision import PrincipalView  # noqa: E402
 from criterioEvaluacion import CriteriaEvaluationView  # noqa: E402
 
 
@@ -960,7 +960,7 @@ class CalibrationApp(ctk.CTk):
     def _build_page_factories(self, can_edit: bool) -> dict[str, Callable[[], ctk.CTkFrame]]:
         if can_edit:
             return {
-                "Principal": lambda: PrincipalView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
+                "Supervisión": lambda: PrincipalView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
                 "Criterios": lambda: CriteriaEvaluationView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
                 "Dashboard": lambda: DashboardView(self.content_frame, self.controller, STYLE, FONTS),
                 "Calendario": lambda: CalendarView(self.content_frame, self.controller, STYLE, FONTS, can_edit),
@@ -971,7 +971,7 @@ class CalibrationApp(ctk.CTk):
         is_supervisor = self.controller._role_name() == "supervisor"
 
         non_admin_factories = {
-            "Principal": lambda: PrincipalView(self.content_frame, self.controller, is_supervisor, self.refresh_all_views),
+            "Supervisión": lambda: PrincipalView(self.content_frame, self.controller, is_supervisor, self.refresh_all_views),
             "Criterios": lambda: CriteriaEvaluationView(self.content_frame, self.controller, can_edit, self.refresh_all_views),
             "Dashboard": lambda: DashboardView(self.content_frame, self.controller, STYLE, FONTS),
             "Calendario": lambda: CalendarView(self.content_frame, self.controller, STYLE, FONTS, is_supervisor),

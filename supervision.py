@@ -65,7 +65,7 @@ class InspectorEditDialog(ctk.CTkToplevel):
         self.name_var = ctk.StringVar(value=inspector_name or "")
         self.check_vars: dict[str, ctk.BooleanVar] = {}
 
-        self.title("Ejecutivo Tecnico")
+        self.title("Ejecutivo Técnico")
         self.geometry("720x620")
         self.resizable(False, False)
         self.configure(fg_color=STYLE["fondo"])
@@ -147,7 +147,7 @@ class InspectorEditDialog(ctk.CTkToplevel):
                 self.inspector_name,
             )
         except ValueError as error:
-            messagebox.showerror("Principal", str(error), parent=self)
+            messagebox.showerror("Supervisión", str(error), parent=self)
             return
 
         self.on_saved()
@@ -1701,71 +1701,78 @@ class PrincipalView(ctk.CTkFrame):
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_rowconfigure(1, weight=1)
 
-        toolbar = ctk.CTkFrame(
-            panel,
-            fg_color="#FFFFFF",
-            corner_radius=20,
-            border_width=1,
-            border_color="#E3E6EA",
-        )
-        toolbar.grid(row=0, column=0, padx=20, pady=(20, 12), sticky="ew")
-        toolbar.grid_columnconfigure(1, weight=1)
+        # Determinar si el usuario es ejecutivo técnico o especialista
+        current_user = getattr(self.controller, "current_user", None)
+        hide_toolbar = False
+        if current_user and self.controller.is_executive_role(current_user):
+            hide_toolbar = True
 
-        ctk.CTkLabel(
-            toolbar,
-            text="Buscar",
-            font=FONTS["small_bold"],
-            text_color=STYLE["texto_oscuro"],
-        ).grid(row=0, column=0, padx=(18, 10), pady=(16, 6), sticky="w")
+        if not hide_toolbar:
+            toolbar = ctk.CTkFrame(
+                panel,
+                fg_color="#FFFFFF",
+                corner_radius=20,
+                border_width=1,
+                border_color="#E3E6EA",
+            )
+            toolbar.grid(row=0, column=0, padx=20, pady=(20, 12), sticky="ew")
+            toolbar.grid_columnconfigure(1, weight=1)
 
-        search_entry = ctk.CTkEntry(
-            toolbar,
-            textvariable=self.search_var,
-            height=38,
-            border_color="#94A3B8",
-        )
-        search_entry.grid(row=0, column=1, padx=(0, 10), pady=(16, 6), sticky="ew")
+            ctk.CTkLabel(
+                toolbar,
+                text="Buscar",
+                font=FONTS["small_bold"],
+                text_color=STYLE["texto_oscuro"],
+            ).grid(row=0, column=0, padx=(18, 10), pady=(16, 6), sticky="w")
 
-        ctk.CTkButton(
-            toolbar,
-            text="Limpiar",
-            width=92,
-            height=36,
-            fg_color=STYLE["fondo"],
-            text_color=STYLE["texto_oscuro"],
-            hover_color="#E9ECEF",
-            command=self._clear_filters,
-        ).grid(row=0, column=2, padx=(0, 14), pady=(16, 6), sticky="ew")
+            search_entry = ctk.CTkEntry(
+                toolbar,
+                textvariable=self.search_var,
+                height=38,
+                border_color="#94A3B8",
+            )
+            search_entry.grid(row=0, column=1, padx=(0, 10), pady=(16, 6), sticky="ew")
 
-        filter_group = ctk.CTkFrame(toolbar, fg_color="transparent")
-        filter_group.grid(row=0, column=3, padx=(0, 18), pady=(16, 6), sticky="e")
-        filter_group.grid_columnconfigure(1, weight=1)
+            ctk.CTkButton(
+                toolbar,
+                text="Limpiar",
+                width=92,
+                height=36,
+                fg_color=STYLE["fondo"],
+                text_color=STYLE["texto_oscuro"],
+                hover_color="#E9ECEF",
+                command=self._clear_filters,
+            ).grid(row=0, column=2, padx=(0, 14), pady=(16, 6), sticky="ew")
 
-        ctk.CTkLabel(
-            filter_group,
-            text="Estado",
-            font=FONTS["small_bold"],
-            text_color=STYLE["texto_oscuro"],
-        ).grid(row=0, column=0, padx=(0, 10), sticky="w")
+            filter_group = ctk.CTkFrame(toolbar, fg_color="transparent")
+            filter_group.grid(row=0, column=3, padx=(0, 18), pady=(16, 6), sticky="e")
+            filter_group.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkComboBox(
-            filter_group,
-            variable=self.status_filter_var,
-            values=self.FILTER_OPTIONS,
-            width=170,
-            height=38,
-            fg_color="#FFFFFF",
-            border_color="#94A3B8",
-            button_color=STYLE["primario"],
-            dropdown_hover_color=STYLE["primario"],
-        ).grid(row=0, column=1, sticky="ew")
+            ctk.CTkLabel(
+                filter_group,
+                text="Estado",
+                font=FONTS["small_bold"],
+                text_color=STYLE["texto_oscuro"],
+            ).grid(row=0, column=0, padx=(0, 10), sticky="w")
 
-        ctk.CTkLabel(
-            toolbar,
-            textvariable=self.results_var,
-            font=FONTS["small"],
-            text_color="#6D7480",
-        ).grid(row=1, column=0, columnspan=4, padx=18, pady=(0, 16), sticky="w")
+            ctk.CTkComboBox(
+                filter_group,
+                variable=self.status_filter_var,
+                values=self.FILTER_OPTIONS,
+                width=170,
+                height=38,
+                fg_color="#FFFFFF",
+                border_color="#94A3B8",
+                button_color=STYLE["primario"],
+                dropdown_hover_color=STYLE["primario"],
+            ).grid(row=0, column=1, sticky="ew")
+
+            ctk.CTkLabel(
+                toolbar,
+                textvariable=self.results_var,
+                font=FONTS["small"],
+                text_color="#6D7480",
+            ).grid(row=1, column=0, columnspan=4, padx=18, pady=(0, 16), sticky="w")
 
         self.cards_frame = ctk.CTkScrollableFrame(
             panel,
@@ -1775,11 +1782,11 @@ class PrincipalView(ctk.CTkFrame):
             scrollbar_button_hover_color="#B7BEC8",
         )
         self.cards_frame.grid(row=1, column=0, padx=20, pady=(0, 8), sticky="nsew")
-        self.cards_frame.grid_columnconfigure(0, weight=1, uniform="principal_cards")
-        self.cards_frame.grid_columnconfigure(1, weight=1, uniform="principal_cards")
-        self.cards_frame.grid_columnconfigure(2, weight=1, uniform="principal_cards")
-        self.cards_frame.grid_columnconfigure(3, weight=1, uniform="principal_cards")
-        self.cards_frame.grid_columnconfigure(4, weight=1, uniform="principal_cards")
+        self.cards_frame.grid_columnconfigure(0, weight=1, uniform="Supervision_cards")
+        self.cards_frame.grid_columnconfigure(1, weight=1, uniform="Supervision_cards")
+        self.cards_frame.grid_columnconfigure(2, weight=1, uniform="Supervision_cards")
+        self.cards_frame.grid_columnconfigure(3, weight=1, uniform="Supervision_cards")
+        self.cards_frame.grid_columnconfigure(4, weight=1, uniform="Supervision_cards")
 
         self._pager_frame = ctk.CTkFrame(panel, fg_color="transparent")
         self._pager_frame.grid(row=2, column=0, padx=20, pady=(0, 16), sticky="ew")
@@ -1796,6 +1803,17 @@ class PrincipalView(ctk.CTkFrame):
             self.search_var.get(),
             self.status_filter_var.get(),
         )
+        current_user = getattr(self.controller, "current_user", None)
+        if current_user and self.controller.is_executive_role(current_user):
+            # Usar coincidencia canónica de nombre para asegurar que siempre vea su propia tarjeta
+            canonical_user_name = self.controller._resolve_canonical_person_name(current_user.get("name", ""))
+            filtered_rows = []
+            for row in rows:
+                row_name = row.get("name", "")
+                canonical_row_name = self.controller._resolve_canonical_person_name(row_name)
+                if canonical_row_name == canonical_user_name:
+                    filtered_rows.append(row)
+            rows = filtered_rows
         self.row_cache = {row.get("row_id", row["name"]): row for row in rows}
         self._all_rows = rows
         self._current_page = 0
@@ -1964,7 +1982,6 @@ class PrincipalView(ctk.CTkFrame):
         card.grid(row=index // 5, column=index % 5, padx=6, pady=6, sticky="nsew")
         card.grid_propagate(False)
         card.grid_columnconfigure(1, weight=1)
-        # row 2 (norms box) absorbs extra vertical space so the button stays at bottom
         card.grid_rowconfigure(2, weight=1)
 
         ctk.CTkLabel(
@@ -2028,16 +2045,39 @@ class PrincipalView(ctk.CTkFrame):
             text_color="#6D7480",
         ).grid(row=3, column=0, columnspan=3, padx=12, pady=(0, 4), sticky="w")
 
-        ctk.CTkButton(
-            card,
-            text="📋  Supervisar",
-            height=34,
-            font=FONTS["small_bold"],
-            fg_color=STYLE["primario"],
-            text_color=STYLE["texto_oscuro"],
-            hover_color="#D8C220",
-            command=lambda current=row_id, current_row=row: self._open_row_actions(current, current_row),
-        ).grid(row=4, column=0, columnspan=3, padx=12, pady=(0, 12), sticky="ew")
+        # Mostrar solo historial para ejecutivos técnicos y especialistas
+        current_user = getattr(self.controller, "current_user", None)
+        if current_user and self.controller.is_executive_role(current_user):
+            ctk.CTkButton(
+                card,
+                text="📊  Ver historial",
+                height=34,
+                font=FONTS["small_bold"],
+                fg_color=STYLE["primario"],
+                text_color=STYLE["texto_oscuro"],
+                hover_color="#D8C220",
+                command=lambda: self._open_personal_score_history(row["name"]),
+            ).grid(row=4, column=0, columnspan=3, padx=12, pady=(0, 12), sticky="ew")
+        else:
+            ctk.CTkButton(
+                card,
+                text="📋  Supervisar",
+                height=34,
+                font=FONTS["small_bold"],
+                fg_color=STYLE["primario"],
+                text_color=STYLE["texto_oscuro"],
+                hover_color="#D8C220",
+                command=lambda current=row_id, current_row=row: self._open_row_actions(current, current_row),
+            ).grid(row=4, column=0, columnspan=3, padx=12, pady=(0, 12), sticky="ew")
+
+    def _open_personal_score_history(self, inspector_name: str) -> None:
+        # Abre el historial de calificaciones directamente para el usuario actual
+        class Dummy:
+            pass
+        dummy_self = Dummy()
+        dummy_self.inspector_name = inspector_name
+        # Reutiliza el método de NormSelectionDialog para mostrar el historial
+        NormSelectionDialog._open_score_history(dummy_self)
 
     def _set_selected_row(self, row_id: str) -> None:
         self.selected_row_id = row_id
@@ -2075,7 +2115,7 @@ class PrincipalView(ctk.CTkFrame):
     def open_actions(self, selected_row: dict | None = None) -> None:
         selected_row = selected_row or self.get_selected_row()
         if not selected_row:
-            messagebox.showinfo("Principal", "Selecciona un ejecutivo tecnico.")
+            messagebox.showinfo("Supervisión", "Selecciona un ejecutivo técnico.")
             return
 
         inspector_name = selected_row["name"]
@@ -2106,7 +2146,7 @@ class PrincipalView(ctk.CTkFrame):
         selected_name = inspector_name or self.get_selected_name()
         if not self.can_edit or not selected_name:
             return
-        if not messagebox.askyesno("Principal", f"Deseas eliminar a {selected_name}?"):
+        if not messagebox.askyesno("Supervisión", f"¿Deseas eliminar a {selected_name}?"):
             return
         self.controller.delete_principal_record(selected_name)
         self._handle_change()

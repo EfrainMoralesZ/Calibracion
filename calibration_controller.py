@@ -944,14 +944,14 @@ class CalibrationController:
 
 	def available_sections(self, user: dict[str, Any] | None = None) -> list[str]:
 		if self.has_full_access(user):
-			return ["Principal", "Criterios", "Dashboard", "Calendario", "Trimestral", "Configuraciones"]
+			return ["Supervisión", "Criterios", "Dashboard", "Calendario", "Trimestral", "Configuraciones"]
 		role_name = self._role_name(user)
 		if role_name == "talento humano":
-			return ["Principal", "Dashboard"]
+			return ["Supervisión", "Dashboard"]
 		if role_name == "supervisor":
-			return ["Principal", "Calendario"]
+			return ["Supervisión", "Calendario"]
 		if self.is_executive_role(user):
-			return ["Calendario", "Trimestral", "Criterios"]
+			return ["Supervisión", "Calendario", "Trimestral", "Criterios"]
 		return ["Calendario", "Trimestral"]
 
 	def _resolve_canonical_person_name(self, value: str | None) -> str:
