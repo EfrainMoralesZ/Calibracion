@@ -951,7 +951,7 @@ class CalibrationController:
 		if role_name == "supervisor":
 			return ["Supervisión", "Calendario"]
 		if self.is_executive_role(user):
-			return ["Supervisión", "Calendario", "Trimestral", "Criterios"]
+			return ["Calendario", "Criterios", "Trimestral", "Supervisión"]
 		return ["Calendario", "Trimestral"]
 
 	def _resolve_canonical_person_name(self, value: str | None) -> str:

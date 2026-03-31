@@ -5,10 +5,10 @@
       "inspector_supervised": "Aitana Yolitzin Sánchez Tenorio",
       "selected_norm": "NOM-004-SE-2021",
       "client": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
-      "visit_date": "2026-03-30",
-      "score": 58.6,
+      "visit_date": "2026-03-31",
+      "score": 62.1,
       "soft_skills_score": 52.6,
-      "technical_skills_score": 66.7,
+      "technical_skills_score": 77.8,
       "status": "Critico",
       "observations": "",
       "corrective_actions": "",
@@ -31,17 +31,17 @@
         },
         {
           "activity": "¿Se encuentra rasurado y con buena presentación personal?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿Cumple con el protocolo de vestimenta ejecutiva de V&C?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿Lleva las botas limpias y en buen estado?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
@@ -61,7 +61,7 @@
         },
         {
           "activity": "¿El colaborador escucha las necesidades del cliente?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
@@ -76,17 +76,17 @@
         },
         {
           "activity": "¿Responde con rapidez, mantiene informado al cliente y responde de manera concisa?",
-          "result": "conforme",
+          "result": "no_conforme",
           "observations": ""
         },
         {
           "activity": "¿Muestra comprensión hacia la situación del cliente?",
-          "result": "conforme",
+          "result": "no_conforme",
           "observations": ""
         },
         {
           "activity": "¿No espera a que el cliente pregunte, se anticipa?",
-          "result": "conforme",
+          "result": "no_conforme",
           "observations": ""
         },
         {
@@ -106,7 +106,7 @@
         },
         {
           "activity": "¿Tiene el suficiente conocimiento técnico para evaluar de manera correcta los criterios normativos?",
-          "result": "conforme",
+          "result": "no_conforme",
           "observations": ""
         }
       ],
@@ -118,7 +118,7 @@
         },
         {
           "activity": "¿Se está realizando el escaneo de todas las cajas para la correcta identificación de artículos?",
-          "result": "conforme",
+          "result": "no_conforme",
           "observations": ""
         },
         {
@@ -138,22 +138,22 @@
         },
         {
           "activity": "¿Se solicita y archiva la documentación requerida (pedimento y facturas) para cada embarque?",
-          "result": "conforme",
+          "result": "no_conforme",
           "observations": ""
         },
         {
           "activity": "¿Se están tomando fotografías claras y suficientes como evidencia del proceso?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿La documentación se cargan a la nube conforme a las reglas establecidas (nomenclatura, carpeta, fecha, evidencia)?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "Colocar el nombre del técnico que está liberando, así como colocar en el cuerpo del correo el tipo de liberación (preliberación o liberación)",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         }
       ],
@@ -163,13 +163,13 @@
           "applicable_norm": "NOM-004-SE-2021",
           "result": "conforme",
           "c_nc": "C",
-          "observations": "tgbgb gtr grt r g rgtr grt grt r gr gr"
+          "observations": "ava e aw fawe awf"
         }
       ],
       "image_folder": "C:/Users/bost2/OneDrive/Escritorio/Miles M/wallapaper",
       "score_breakdown": {
-        "conforme": 17,
-        "no_conforme": 12,
+        "conforme": 18,
+        "no_conforme": 11,
         "no_aplica": 0,
         "aplicables": 29
       },
@@ -180,16 +180,16 @@
         "aplicables": 19
       },
       "technical_skills_breakdown": {
-        "conforme": 6,
-        "no_conforme": 3,
+        "conforme": 7,
+        "no_conforme": 2,
         "no_aplica": 0,
         "aplicables": 9
       },
       "score_by_norm": {
-        "NOM-004-SE-2021": 58.6
+        "NOM-004-SE-2021": 62.1
       },
       "form_structure": "supervision_v2",
-      "saved_at": "2026-03-30 10:17",
+      "saved_at": "2026-03-31 11:34",
       "form_completed": true
     },
     "Aitana Yolitzin Sánchez Tenorio": {
@@ -197,10 +197,10 @@
       "inspector_supervised": "Aitana Yolitzin Sánchez Tenorio",
       "selected_norm": "NOM-004-SE-2021",
       "client": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
-      "visit_date": "2026-03-30",
-      "score": 58.6,
+      "visit_date": "2026-03-31",
+      "score": 62.1,
       "soft_skills_score": 52.6,
-      "technical_skills_score": 66.7,
+      "technical_skills_score": 77.8,
       "status": "Critico",
       "observations": "",
       "corrective_actions": "",
@@ -223,17 +223,17 @@
         },
         {
           "activity": "¿Se encuentra rasurado y con buena presentación personal?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿Cumple con el protocolo de vestimenta ejecutiva de V&C?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿Lleva las botas limpias y en buen estado?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
@@ -253,7 +253,7 @@
         },
         {
           "activity": "¿El colaborador escucha las necesidades del cliente?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
@@ -268,17 +268,17 @@
         },
         {
           "activity": "¿Responde con rapidez, mantiene informado al cliente y responde de manera concisa?",
-          "result": "conforme",
+          "result": "no_conforme",
           "observations": ""
         },
         {
           "activity": "¿Muestra comprensión hacia la situación del cliente?",
-          "result": "conforme",
+          "result": "no_conforme",
           "observations": ""
         },
         {
           "activity": "¿No espera a que el cliente pregunte, se anticipa?",
-          "result": "conforme",
+          "result": "no_conforme",
           "observations": ""
         },
         {
@@ -298,7 +298,7 @@
         },
         {
           "activity": "¿Tiene el suficiente conocimiento técnico para evaluar de manera correcta los criterios normativos?",
-          "result": "conforme",
+          "result": "no_conforme",
           "observations": ""
         }
       ],
@@ -310,7 +310,7 @@
         },
         {
           "activity": "¿Se está realizando el escaneo de todas las cajas para la correcta identificación de artículos?",
-          "result": "conforme",
+          "result": "no_conforme",
           "observations": ""
         },
         {
@@ -330,22 +330,22 @@
         },
         {
           "activity": "¿Se solicita y archiva la documentación requerida (pedimento y facturas) para cada embarque?",
-          "result": "conforme",
+          "result": "no_conforme",
           "observations": ""
         },
         {
           "activity": "¿Se están tomando fotografías claras y suficientes como evidencia del proceso?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿La documentación se cargan a la nube conforme a las reglas establecidas (nomenclatura, carpeta, fecha, evidencia)?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "Colocar el nombre del técnico que está liberando, así como colocar en el cuerpo del correo el tipo de liberación (preliberación o liberación)",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         }
       ],
@@ -355,13 +355,13 @@
           "applicable_norm": "NOM-004-SE-2021",
           "result": "conforme",
           "c_nc": "C",
-          "observations": "tgbgb gtr grt r g rgtr grt grt r gr gr"
+          "observations": "ava e aw fawe awf"
         }
       ],
       "image_folder": "C:/Users/bost2/OneDrive/Escritorio/Miles M/wallapaper",
       "score_breakdown": {
-        "conforme": 17,
-        "no_conforme": 12,
+        "conforme": 18,
+        "no_conforme": 11,
         "no_aplica": 0,
         "aplicables": 29
       },
@@ -372,16 +372,16 @@
         "aplicables": 19
       },
       "technical_skills_breakdown": {
-        "conforme": 6,
-        "no_conforme": 3,
+        "conforme": 7,
+        "no_conforme": 2,
         "no_aplica": 0,
         "aplicables": 9
       },
       "score_by_norm": {
-        "NOM-004-SE-2021": 58.6
+        "NOM-004-SE-2021": 62.1
       },
       "form_structure": "supervision_v2",
-      "saved_at": "2026-03-30 10:17",
+      "saved_at": "2026-03-31 11:34",
       "form_completed": true
     }
   },

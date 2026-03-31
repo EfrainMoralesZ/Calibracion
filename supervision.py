@@ -373,6 +373,8 @@ class NormSelectionDialog(ctk.CTkToplevel):
             "Fecha",
             "Supervisor",
             "Estatus",
+            "Archivo",
+            "Resultados",
         ]
         for col, title in enumerate(headers):
             ctk.CTkLabel(
@@ -392,7 +394,7 @@ class NormSelectionDialog(ctk.CTkToplevel):
                 text="No se pudo cargar el historial de calificaciones.",
                 font=FONTS["small"],
                 text_color="#6D7480",
-            ).grid(row=1, column=0, columnspan=7, padx=8, pady=8, sticky="w")
+            ).grid(row=1, column=0, columnspan=9, padx=8, pady=8, sticky="w")
             return
 
         history_rows = self.controller.get_norm_score_history(self.inspector_name)
@@ -409,7 +411,7 @@ class NormSelectionDialog(ctk.CTkToplevel):
                 text="Sin calificaciones guardadas para este ejecutivo técnico.",
                 font=FONTS["small"],
                 text_color="#6D7480",
-            ).grid(row=1, column=0, columnspan=7, padx=8, pady=8, sticky="w")
+            ).grid(row=1, column=0, columnspan=9, padx=8, pady=8, sticky="w")
             return
 
         def _fmt_percent(value: object) -> str:
@@ -431,7 +433,7 @@ class NormSelectionDialog(ctk.CTkToplevel):
                 str(row.get("evaluator", "Sin supervisor")).strip() or "Sin supervisor",
                 str(row.get("status", "Sin estatus")).strip() or "Sin estatus",
             ]
-
+            # Render info columns
             for col, value in enumerate(values):
                 anchor = "w" if col in {0, 5, 6} else "center"
                 padx = (4, 0) if col == 0 else 6
@@ -443,6 +445,93 @@ class NormSelectionDialog(ctk.CTkToplevel):
                     anchor=anchor,
                     justify="left",
                 ).grid(row=idx, column=col, padx=padx, pady=(0, 8), sticky="ew")
+            # Archivo: botón Abrir si existe ruta
+            archivo_path = row.get("archivo_path")
+            def _abrir_archivo(path=archivo_path):
+                if path and os.path.exists(path):
+                    os.startfile(path)
+                else:
+                    messagebox.showinfo("Archivo", "No se encontró el archivo asociado.")
+            ctk.CTkButton(
+                parent,
+                text="Abrir",
+                width=80,
+                fg_color=STYLE["secundario"],
+                hover_color="#1D1D1D",
+                command=_abrir_archivo if archivo_path else lambda: messagebox.showinfo("Archivo", "No hay archivo disponible."),
+            ).grid(row=idx, column=7, padx=6, pady=(0, 8))
+            # Resultados: botón Enviar, Confirmar recibido, o enviado
+            enviado = row.get("enviado", False)
+            confirmado = row.get("confirmado", False)
+            current_user = getattr(self.controller, "current_user", None)
+            is_ejecutivo = self.controller.is_executive_role(current_user) if current_user else False
+            # Si no enviado, mostrar botón Enviar (solo para supervisor/coordinador/admin)
+            if not enviado and not is_ejecutivo:
+                from calibration_controller import _read_json, _write_json
+                def _enviar(row=row):
+                    # Persistir el cambio en historico.json
+                    history_path = self.controller._history_dir(self.inspector_name) / "historico.json"
+                    history = _read_json(history_path, [])
+                    # Buscar el registro por fecha y norma
+                    for h in history:
+                        if (
+                            str(h.get("norm", "")).strip() == str(row.get("norm", "")).strip()
+                            and str(h.get("visit_date", "") or h.get("saved_at", "")).strip() == visit_date
+                        ):
+                            h["enviado"] = True
+                    _write_json(history_path, history)
+                    row["enviado"] = True
+                    messagebox.showinfo("Enviado", f"Calificación enviada a {self.inspector_name}.")
+                    self._render_score_history(parent, norm_filter, date_from, date_to)
+                ctk.CTkButton(
+                    parent,
+                    text="Enviar",
+                    width=90,
+                    fg_color=STYLE["primario"],
+                    hover_color="#D8C220",
+                    command=_enviar,
+                ).grid(row=idx, column=8, padx=6, pady=(0, 8))
+            # Si enviado pero no confirmado, mostrar botón Confirmar recibido (solo para ejecutivo)
+            elif enviado and not confirmado and is_ejecutivo:
+                from calibration_controller import _read_json, _write_json
+                def _confirmar(row=row):
+                    # Persistir el cambio en historico.json
+                    history_path = self.controller._history_dir(self.inspector_name) / "historico.json"
+                    history = _read_json(history_path, [])
+                    for h in history:
+                        if (
+                            str(h.get("norm", "")).strip() == str(row.get("norm", "")).strip()
+                            and str(h.get("visit_date", "") or h.get("saved_at", "")).strip() == visit_date
+                        ):
+                            h["confirmado"] = True
+                    _write_json(history_path, history)
+                    row["confirmado"] = True
+                    messagebox.showinfo("Confirmado", "Has confirmado la recepción de tu evaluación. Se notificará a los coordinadores y admin.")
+                    self._render_score_history(parent, norm_filter, date_from, date_to)
+                ctk.CTkButton(
+                    parent,
+                    text="Confirmar recibido",
+                    width=120,
+                    fg_color=STYLE["secundario"],
+                    hover_color="#1D1D1D",
+                    command=_confirmar,
+                ).grid(row=idx, column=8, padx=6, pady=(0, 8))
+            # Si enviado y confirmado, mostrar texto "Confirmado"
+            elif enviado and confirmado:
+                ctk.CTkLabel(
+                    parent,
+                    text="Confirmado",
+                    font=FONTS["small_bold"],
+                    text_color="#0D6B42",
+                ).grid(row=idx, column=8, padx=6, pady=(0, 8))
+            # Si enviado pero no confirmado y no es ejecutivo, mostrar texto "Enviado"
+            elif enviado and not confirmado and not is_ejecutivo:
+                ctk.CTkLabel(
+                    parent,
+                    text="Enviado",
+                    font=FONTS["small_bold"],
+                    text_color="#B84A33",
+                ).grid(row=idx, column=8, padx=6, pady=(0, 8))
 
     def _open_score_history(self) -> None:
         dialog = ctk.CTkToplevel(self)
@@ -2072,12 +2161,67 @@ class PrincipalView(ctk.CTkFrame):
 
     def _open_personal_score_history(self, inspector_name: str) -> None:
         # Abre el historial de calificaciones directamente para el usuario actual
-        class Dummy:
-            pass
-        dummy_self = Dummy()
-        dummy_self.inspector_name = inspector_name
-        # Reutiliza el método de NormSelectionDialog para mostrar el historial
-        NormSelectionDialog._open_score_history(dummy_self)
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(f"Historial de calificaciones - {inspector_name}")
+        dialog.geometry("1180x620")
+        dialog.minsize(980, 500)
+        dialog.configure(fg_color=STYLE["fondo"])
+        dialog.transient(self)
+        dialog.grab_set()
+
+        wrapper = ctk.CTkFrame(dialog, fg_color=STYLE["surface"], corner_radius=24)
+        wrapper.pack(fill="both", expand=True, padx=18, pady=18)
+        wrapper.grid_columnconfigure(0, weight=1)
+        wrapper.grid_rowconfigure(3, weight=1)
+
+        ctk.CTkLabel(
+            wrapper,
+            text=f"Historial de calificaciones de {inspector_name}",
+            font=FONTS["subtitle"],
+            text_color=STYLE["texto_oscuro"],
+        ).grid(row=0, column=0, padx=20, pady=(20, 6), sticky="w")
+        ctk.CTkLabel(
+            wrapper,
+            text="Consulta el detalle guardado por norma, fecha, supervisor y estatus.",
+            font=FONTS["small"],
+            text_color="#6D7480",
+            wraplength=1060,
+            justify="left",
+        ).grid(row=1, column=0, padx=20, pady=(0, 12), sticky="w")
+
+        # --- Filter row ---
+        filter_row = ctk.CTkFrame(wrapper, fg_color="transparent")
+        filter_row.grid(row=2, column=0, padx=20, pady=(0, 10), sticky="ew")
+
+        norm_filter_var = ctk.StringVar()
+        date_from_var = ctk.StringVar()
+        date_to_var = ctk.StringVar()
+
+        ctk.CTkLabel(filter_row, text="Norma:", font=FONTS["small_bold"], text_color=STYLE["texto_oscuro"]).grid(row=0, column=0, padx=(0, 8), sticky="w")
+        norm_combo = ctk.CTkComboBox(filter_row, variable=norm_filter_var, values=["Todas"], width=120)
+        norm_combo.grid(row=0, column=1, padx=(0, 18), sticky="w")
+        ctk.CTkLabel(filter_row, text="Desde:", font=FONTS["small_bold"], text_color=STYLE["texto_oscuro"]).grid(row=0, column=2, padx=(0, 8), sticky="w")
+        ctk.CTkEntry(filter_row, textvariable=date_from_var, width=100).grid(row=0, column=3, padx=(0, 18), sticky="w")
+        ctk.CTkLabel(filter_row, text="Hasta:", font=FONTS["small_bold"], text_color=STYLE["texto_oscuro"]).grid(row=0, column=4, padx=(0, 8), sticky="w")
+        ctk.CTkEntry(filter_row, textvariable=date_to_var, width=100).grid(row=0, column=5, padx=(0, 18), sticky="w")
+        ctk.CTkButton(filter_row, text="Filtrar", width=80, fg_color=STYLE["primario"]).grid(row=0, column=6, padx=(0, 8), sticky="w")
+        ctk.CTkButton(filter_row, text="Limpiar", width=80, fg_color=STYLE["fondo"], text_color=STYLE["texto_oscuro"], hover_color="#E9ECEF").grid(row=0, column=7, sticky="w")
+
+        # Aquí deberías agregar la lógica para mostrar el historial real del usuario inspector_name
+        # Por ahora, solo se muestra la estructura vacía
+
+        actions = ctk.CTkFrame(wrapper, fg_color="transparent")
+        actions.grid(row=3, column=0, padx=20, pady=(0, 18), sticky="ew")
+        actions.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkButton(
+            actions,
+            text="Cerrar",
+            fg_color=STYLE["fondo"],
+            text_color=STYLE["texto_oscuro"],
+            hover_color="#E9ECEF",
+            command=dialog.destroy,
+        ).grid(row=0, column=0, sticky="e")
 
     def _set_selected_row(self, row_id: str) -> None:
         self.selected_row_id = row_id
