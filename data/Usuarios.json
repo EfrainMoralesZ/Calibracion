@@ -7,28 +7,16 @@
       "role": "Talento Humano"
     },
     {
-      "name": "Marcos Uriel Flores Gomez",
-      "username": "mflores",
-      "password": "kzqrv",
-      "role": "Sub Gerente"
-    },
-    {
       "name": "Mario Terrez Gonzalez",
       "username": "mterrez",
       "password": "mbyht",
-      "role": "coordinador operativo"
+      "role": "Coordinador operativo"
     },
     {
       "name": "Andrea Paola Ramos Santos",
       "username": "aramos",
       "password": "qvljn",
       "role": "Coordinadora en fiabilidad"
-    },
-    {
-      "name": "Arturo Flores Gómez",
-      "username": "aflores",
-      "password": "plxwn",
-      "role": "Gerente"
     },
     {
       "name": "Arturo Ivan Cortes Flores",

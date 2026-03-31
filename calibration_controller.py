@@ -1523,10 +1523,33 @@ class CalibrationController:
 			"form_completed": True,
 		}
 
-		history = self.get_history(inspector_name)
-		history.append(evaluation)
-		self._write_history(inspector_name, history)
+		# Guardar cada formulario en un archivo JSON individual
+		from uuid import uuid4
+		import json
+		from pathlib import Path
 
+		# Carpeta: data/historico/<EJECUTIVO>/FORMATOS DE SUPERVISION
+		from pathlib import Path
+		import shutil
+		base_folder = self._history_dir(inspector_name)
+		formatos_folder = base_folder / "FORMATOS DE SUPERVISION"
+		formatos_folder.mkdir(parents=True, exist_ok=True)
+		ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+		unique_id = uuid4().hex[:8]
+		norm_slug = str(clean_norm).replace(" ", "_").replace("/", "-")
+		base_filename = f"Supervision_{ts}_{norm_slug}_{unique_id}"
+		json_path = formatos_folder / f"{base_filename}.json"
+		pdf_path = formatos_folder / f"{base_filename}.pdf"
+		# Guardar JSON
+		with open(json_path, "w", encoding="utf-8") as f:
+			json.dump(evaluation, f, ensure_ascii=False, indent=2)
+
+		# Si el PDF ya fue generado en otro flujo, moverlo aquí si es necesario
+		# Si no, el flujo de generación de PDF debe usar pdf_path como destino
+		evaluation["pdf_path"] = str(pdf_path)
+		evaluation["json_path"] = str(json_path)
+
+		# Actualizar app_state con el último formulario
 		self.app_state["evaluations"][inspector_name] = evaluation
 		_write_json(STATE_FILE, self.app_state)
 		self.reload()
@@ -3083,34 +3106,36 @@ def _controller_save_evaluation(self, inspector_name: str, payload: dict[str, An
 		"inspector_supervised": inspector_supervised,
 		"selected_norm": clean_norm or "Sin norma",
 		"client": clean_client,
-		"visit_date": clean_date,
-		"score": score,
-		"soft_skills_score": soft_skills_score,
-		"technical_skills_score": technical_skills_score,
-		"status": clean_status,
-		"observations": clean_observations,
-		"corrective_actions": clean_actions,
-		"evaluator": evaluator or (self.current_user or {}).get("name", "Sin evaluador"),
-		"protocol_answers": protocol_answers,
-		"process_answers": process_answers,
-		"technical_normative_rows": technical_normative_rows,
-		"image_folder": image_folder,
-		"score_breakdown": score_breakdown,
-		"soft_skills_breakdown": soft_skills_breakdown,
-		"technical_skills_breakdown": technical_skills_breakdown,
-		"score_by_norm": normalized_score_by_norm,
-		"form_structure": "supervision_v2",
-		"saved_at": _timestamp(),
-		"form_completed": True,
 	}
+	return evaluation
+	def get_history(self, inspector_name: str) -> list[dict[str, Any]]:
+		clean_name = str(inspector_name or "").strip()
+		if not clean_name:
+			return []
 
-	history = self.get_history(inspector_name)
-	history.append(evaluation)
-	self._write_history(inspector_name, history)
-
-	eval_key = _controller_evaluation_key(inspector_name, evaluation["selected_norm"])
-	self.app_state["evaluations"][eval_key] = evaluation
-	self.app_state["evaluations"][inspector_name] = evaluation
+		from pathlib import Path
+		import json
+		folder = self._history_dir(clean_name)
+		if not folder.exists():
+			return []
+		# Leer todos los archivos .json (excepto historico.json y visitas.json)
+		files = [f for f in folder.glob("*.json") if f.name not in ("historico.json", "visitas.json")]
+		history = []
+		for file in files:
+			try:
+				with open(file, "r", encoding="utf-8") as f:
+					data = json.load(f)
+				if isinstance(data, dict):
+					history.append(data)
+			except Exception:
+				continue
+		# Ordenar por fecha de guardado
+		history = sorted(history, key=lambda item: item.get("saved_at", ""))
+		# Cache y último
+		self._history_cache[clean_name] = history
+		if history:
+			self._cache_latest_evaluation_entry(clean_name, history[-1])
+		return [dict(item) for item in history if isinstance(item, dict)]
 	_write_json(STATE_FILE, self.app_state)
 	self.reload()
 	return evaluation

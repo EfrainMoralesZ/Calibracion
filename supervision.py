@@ -1701,28 +1701,48 @@ class EvaluationDialog(ctk.CTkToplevel):
             return
 
         selected_norm = self._get_selected_norm_token() or self.initial_norm
+        # Guardar siempre en la carpeta estándar del ejecutivo técnico
         default_path = self.controller.get_default_document_path(self.inspector_name, kind, selected_norm)
-        destination = filedialog.asksaveasfilename(
-            parent=self,
-            title="Guardar documento",
-            defaultextension=".pdf",
-            initialdir=str(default_path.parent),
-            initialfile=default_path.name,
-            filetypes=[("PDF", "*.pdf")],
-        )
-        if not destination:
-            return
+        formatos_folder = default_path.parent
+        formatos_folder.mkdir(parents=True, exist_ok=True)
+        # Nombre base con fecha y hora
+        from datetime import datetime
+        from uuid import uuid4
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = uuid4().hex[:8]
+        norm_slug = str(selected_norm).replace(" ", "_").replace("/", "-")
+        base_filename = f"Supervision_{ts}_{norm_slug}_{unique_id}"
+        pdf_path = formatos_folder / f"{base_filename}.pdf"
+        json_path = formatos_folder / f"{base_filename}.json"
 
+        # Guardar JSON usando el método del controller
         if self._persist_evaluation(payload) is None:
             return
 
+        # Generar el PDF en la carpeta estándar
         self._set_document_busy(True, "Generando Formato de Supervisión. Espera un momento...")
         self._document_worker = threading.Thread(
             target=self._run_document_generation,
-            args=(kind, destination, selected_norm),
+            args=(kind, str(pdf_path), selected_norm),
             daemon=True,
         )
         self._document_worker.start()
+
+        # Permitir descarga manual adicional si el usuario lo desea
+        destination = filedialog.asksaveasfilename(
+            parent=self,
+            title="Guardar documento (opcional)",
+            defaultextension=".pdf",
+            initialdir=str(formatos_folder),
+            initialfile=f"{base_filename}.pdf",
+            filetypes=[("PDF", "*.pdf")],
+        )
+        if destination and destination != str(pdf_path):
+            import shutil
+            try:
+                shutil.copy2(str(pdf_path), destination)
+            except Exception:
+                pass
 
     def _reset_form_fields(self) -> None:
         self.client_var.set("")
