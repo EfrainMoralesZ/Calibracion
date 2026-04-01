@@ -445,13 +445,26 @@ class NormSelectionDialog(ctk.CTkToplevel):
                     anchor=anchor,
                     justify="left",
                 ).grid(row=idx, column=col, padx=padx, pady=(0, 8), sticky="ew")
-            # Archivo: botón Abrir si existe ruta
-            archivo_path = row.get("archivo_path")
-            def _abrir_archivo(path=archivo_path):
+            # Archivo: botón Abrir para abrir el PDF correspondiente
+            archivo_path = row.get("archivo_path", "")
+            pdf_path = ""
+            if archivo_path:
+                from pathlib import Path as _Path
+                _ap = _Path(archivo_path)
+                # El PDF tiene el mismo nombre base que el JSON, en la misma carpeta
+                _candidate = _ap.with_suffix(".pdf")
+                if _candidate.exists():
+                    pdf_path = str(_candidate)
+                else:
+                    # Buscar en la carpeta documentos/ (ubicación legacy)
+                    _docs_candidate = _ap.parent.parent / "documentos" / _candidate.name
+                    if _docs_candidate.exists():
+                        pdf_path = str(_docs_candidate)
+            def _abrir_archivo(path=pdf_path):
                 if path and os.path.exists(path):
                     os.startfile(path)
                 else:
-                    messagebox.showinfo("Archivo", "No se encontró el archivo asociado.")
+                    messagebox.showinfo("Archivo", "No se encontró el PDF asociado.")
             ctk.CTkButton(
                 parent,
                 text="Abrir",
@@ -467,19 +480,20 @@ class NormSelectionDialog(ctk.CTkToplevel):
             is_ejecutivo = self.controller.is_executive_role(current_user) if current_user else False
             # Si no enviado, mostrar botón Enviar (solo para supervisor/coordinador/admin)
             if not enviado and not is_ejecutivo:
-                from calibration_controller import _read_json, _write_json
                 def _enviar(row=row):
-                    # Persistir el cambio en historico.json
-                    history_path = self.controller._history_dir(self.inspector_name) / "historico.json"
-                    history = _read_json(history_path, [])
-                    # Buscar el registro por fecha y norma
-                    for h in history:
-                        if (
-                            str(h.get("norm", "")).strip() == str(row.get("norm", "")).strip()
-                            and str(h.get("visit_date", "") or h.get("saved_at", "")).strip() == visit_date
-                        ):
-                            h["enviado"] = True
-                    _write_json(history_path, history)
+                    # Actualizar enviado en el archivo JSON individual
+                    archivo = row.get("archivo_path", "")
+                    if archivo and os.path.exists(archivo):
+                        import json as _json
+                        try:
+                            with open(archivo, "r", encoding="utf-8") as _f:
+                                data = _json.load(_f)
+                            data["enviado"] = True
+                            with open(archivo, "w", encoding="utf-8") as _f:
+                                _json.dump(data, _f, ensure_ascii=False, indent=2)
+                        except Exception:
+                            pass
+                    self.controller.reload()
                     row["enviado"] = True
                     messagebox.showinfo("Enviado", f"Calificación enviada a {self.inspector_name}.")
                     self._render_score_history(parent, norm_filter, date_from, date_to)
@@ -488,23 +502,26 @@ class NormSelectionDialog(ctk.CTkToplevel):
                     text="Enviar",
                     width=90,
                     fg_color=STYLE["primario"],
+                    text_color=STYLE["secundario"],
                     hover_color="#D8C220",
                     command=_enviar,
                 ).grid(row=idx, column=8, padx=6, pady=(0, 8))
             # Si enviado pero no confirmado, mostrar botón Confirmar recibido (solo para ejecutivo)
             elif enviado and not confirmado and is_ejecutivo:
-                from calibration_controller import _read_json, _write_json
                 def _confirmar(row=row):
-                    # Persistir el cambio en historico.json
-                    history_path = self.controller._history_dir(self.inspector_name) / "historico.json"
-                    history = _read_json(history_path, [])
-                    for h in history:
-                        if (
-                            str(h.get("norm", "")).strip() == str(row.get("norm", "")).strip()
-                            and str(h.get("visit_date", "") or h.get("saved_at", "")).strip() == visit_date
-                        ):
-                            h["confirmado"] = True
-                    _write_json(history_path, history)
+                    # Actualizar confirmado en el archivo JSON individual
+                    archivo = row.get("archivo_path", "")
+                    if archivo and os.path.exists(archivo):
+                        import json as _json
+                        try:
+                            with open(archivo, "r", encoding="utf-8") as _f:
+                                data = _json.load(_f)
+                            data["confirmado"] = True
+                            with open(archivo, "w", encoding="utf-8") as _f:
+                                _json.dump(data, _f, ensure_ascii=False, indent=2)
+                        except Exception:
+                            pass
+                    self.controller.reload()
                     row["confirmado"] = True
                     messagebox.showinfo("Confirmado", "Has confirmado la recepción de tu evaluación. Se notificará a los coordinadores y admin.")
                     self._render_score_history(parent, norm_filter, date_from, date_to)
@@ -1701,25 +1718,22 @@ class EvaluationDialog(ctk.CTkToplevel):
             return
 
         selected_norm = self._get_selected_norm_token() or self.initial_norm
-        # Guardar siempre en la carpeta estándar del ejecutivo técnico
-        default_path = self.controller.get_default_document_path(self.inspector_name, kind, selected_norm)
-        formatos_folder = default_path.parent
-        formatos_folder.mkdir(parents=True, exist_ok=True)
-        # Nombre base con fecha y hora
-        from datetime import datetime
-        from uuid import uuid4
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        unique_id = uuid4().hex[:8]
-        norm_slug = str(selected_norm).replace(" ", "_").replace("/", "-")
-        base_filename = f"Supervision_{ts}_{norm_slug}_{unique_id}"
-        pdf_path = formatos_folder / f"{base_filename}.pdf"
-        json_path = formatos_folder / f"{base_filename}.json"
 
         # Guardar JSON usando el método del controller
-        if self._persist_evaluation(payload) is None:
+        saved = self._persist_evaluation(payload)
+        if saved is None:
             return
 
-        # Generar el PDF en la carpeta estándar
+        # Usar la ruta de PDF devuelta por save_evaluation (junto al JSON)
+        pdf_path = saved.get("pdf_path", "")
+        if not pdf_path:
+            default_path = self.controller.get_default_document_path(self.inspector_name, kind, selected_norm)
+            pdf_path = str(default_path)
+
+        formatos_folder = os.path.dirname(pdf_path)
+        base_filename = os.path.splitext(os.path.basename(pdf_path))[0]
+
+        # Generar el PDF en la carpeta FORMATOS DE SUPERVISION
         self._set_document_busy(True, "Generando Formato de Supervisión. Espera un momento...")
         self._document_worker = threading.Thread(
             target=self._run_document_generation,
@@ -2180,7 +2194,6 @@ class PrincipalView(ctk.CTkFrame):
             ).grid(row=4, column=0, columnspan=3, padx=12, pady=(0, 12), sticky="ew")
 
     def _open_personal_score_history(self, inspector_name: str) -> None:
-        # Abre el historial de calificaciones directamente para el usuario actual
         dialog = ctk.CTkToplevel(self)
         dialog.title(f"Historial de calificaciones - {inspector_name}")
         dialog.geometry("1180x620")
@@ -2224,14 +2237,133 @@ class PrincipalView(ctk.CTkFrame):
         ctk.CTkEntry(filter_row, textvariable=date_from_var, width=100).grid(row=0, column=3, padx=(0, 18), sticky="w")
         ctk.CTkLabel(filter_row, text="Hasta:", font=FONTS["small_bold"], text_color=STYLE["texto_oscuro"]).grid(row=0, column=4, padx=(0, 8), sticky="w")
         ctk.CTkEntry(filter_row, textvariable=date_to_var, width=100).grid(row=0, column=5, padx=(0, 18), sticky="w")
-        ctk.CTkButton(filter_row, text="Filtrar", width=80, fg_color=STYLE["primario"]).grid(row=0, column=6, padx=(0, 8), sticky="w")
-        ctk.CTkButton(filter_row, text="Limpiar", width=80, fg_color=STYLE["fondo"], text_color=STYLE["texto_oscuro"], hover_color="#E9ECEF").grid(row=0, column=7, sticky="w")
 
-        # Aquí deberías agregar la lógica para mostrar el historial real del usuario inspector_name
-        # Por ahora, solo se muestra la estructura vacía
+        # --- Scrollable content ---
+        scroll = ctk.CTkScrollableFrame(wrapper, fg_color="transparent")
+        scroll.grid(row=3, column=0, padx=10, pady=(0, 10), sticky="nsew")
+        for col_idx in range(8):
+            scroll.grid_columnconfigure(col_idx, weight=1)
 
+        def _render_personal_history(norm_filter: str = "", date_from: str = "", date_to: str = ""):
+            for child in scroll.winfo_children():
+                child.destroy()
+
+            headers = ["Norma", "Calificación global", "Hab. blandas", "Hab. técnicas", "Fecha", "Supervisor", "Estatus", "Archivo"]
+            for col, title in enumerate(headers):
+                ctk.CTkLabel(
+                    scroll,
+                    text=title,
+                    font=FONTS["small_bold"],
+                    text_color=STYLE["texto_oscuro"],
+                    fg_color=STYLE["primario"],
+                    corner_radius=8,
+                    padx=8,
+                    pady=4,
+                ).grid(row=0, column=col, padx=(0 if col == 0 else 6, 0), pady=(0, 8), sticky="ew")
+
+            history_rows = self.controller.get_norm_score_history(inspector_name)
+            # Solo mostrar evaluaciones enviadas al ejecutivo
+            history_rows = [r for r in history_rows if r.get("enviado", False)]
+            if norm_filter and norm_filter != "Todas":
+                norm_filter_lower = norm_filter.lower()
+                history_rows = [r for r in history_rows if norm_filter_lower in str(r.get("norm", "")).lower()]
+            if date_from:
+                history_rows = [r for r in history_rows if (str(r.get("visit_date", "") or r.get("saved_at", ""))[:10]) >= date_from]
+            if date_to:
+                history_rows = [r for r in history_rows if (str(r.get("visit_date", "") or r.get("saved_at", ""))[:10]) <= date_to]
+
+            if not history_rows:
+                ctk.CTkLabel(
+                    scroll,
+                    text="Sin calificaciones enviadas para este ejecutivo técnico.",
+                    font=FONTS["small"],
+                    text_color="#6D7480",
+                ).grid(row=1, column=0, columnspan=8, padx=8, pady=8, sticky="w")
+                return
+
+            # Populate norm filter combo
+            norms_in_history = sorted({str(r.get("norm", "")).strip() for r in history_rows if str(r.get("norm", "")).strip()})
+            norm_combo.configure(values=["Todas"] + norms_in_history)
+
+            def _fmt_percent(value: object) -> str:
+                try:
+                    if value is None or str(value).strip() == "":
+                        return "--"
+                    return f"{float(value):.1f}%"
+                except (TypeError, ValueError):
+                    return "--"
+
+            for idx, row in enumerate(history_rows, start=1):
+                visit_date_val = str(row.get("visit_date", "")).strip() or str(row.get("saved_at", "")).strip() or "--"
+                values = [
+                    str(row.get("norm", "Sin norma")).strip() or "Sin norma",
+                    _fmt_percent(row.get("score")),
+                    _fmt_percent(row.get("soft_skills_score")),
+                    _fmt_percent(row.get("technical_skills_score")),
+                    visit_date_val,
+                    str(row.get("evaluator", "Sin supervisor")).strip() or "Sin supervisor",
+                    str(row.get("status", "Sin estatus")).strip() or "Sin estatus",
+                ]
+                for col, value in enumerate(values):
+                    anchor = "w" if col in {0, 5, 6} else "center"
+                    padx = (4, 0) if col == 0 else 6
+                    ctk.CTkLabel(
+                        scroll,
+                        text=value,
+                        font=FONTS["small"],
+                        text_color=STYLE["texto_oscuro"],
+                        anchor=anchor,
+                        justify="left",
+                    ).grid(row=idx, column=col, padx=padx, pady=(0, 8), sticky="ew")
+
+                # Botón Abrir PDF
+                archivo_path = row.get("archivo_path", "")
+                pdf_path = ""
+                if archivo_path:
+                    from pathlib import Path as _Path
+                    _ap = _Path(archivo_path)
+                    _candidate = _ap.with_suffix(".pdf")
+                    if _candidate.exists():
+                        pdf_path = str(_candidate)
+                    else:
+                        _docs_candidate = _ap.parent.parent / "documentos" / _candidate.name
+                        if _docs_candidate.exists():
+                            pdf_path = str(_docs_candidate)
+                def _abrir(path=pdf_path):
+                    if path and os.path.exists(path):
+                        os.startfile(path)
+                    else:
+                        messagebox.showinfo("Archivo", "No se encontró el PDF asociado.")
+                ctk.CTkButton(
+                    scroll,
+                    text="Abrir",
+                    width=80,
+                    fg_color=STYLE["secundario"],
+                    hover_color="#1D1D1D",
+                    command=_abrir,
+                ).grid(row=idx, column=7, padx=6, pady=(0, 8))
+
+        def _apply_filter():
+            self.controller.reload()
+            _render_personal_history(
+                norm_filter=norm_filter_var.get().strip(),
+                date_from=date_from_var.get().strip(),
+                date_to=date_to_var.get().strip(),
+            )
+
+        def _clear_filter():
+            norm_filter_var.set("Todas")
+            date_from_var.set("")
+            date_to_var.set("")
+            self.controller.reload()
+            _render_personal_history()
+
+        ctk.CTkButton(filter_row, text="Filtrar", width=80, fg_color=STYLE["primario"], text_color=STYLE["secundario"], command=_apply_filter).grid(row=0, column=6, padx=(0, 8), sticky="w")
+        ctk.CTkButton(filter_row, text="Limpiar", width=80, fg_color=STYLE["fondo"], text_color=STYLE["texto_oscuro"], hover_color="#E9ECEF", command=_clear_filter).grid(row=0, column=7, sticky="w")
+
+        # --- Footer ---
         actions = ctk.CTkFrame(wrapper, fg_color="transparent")
-        actions.grid(row=3, column=0, padx=20, pady=(0, 18), sticky="ew")
+        actions.grid(row=4, column=0, padx=20, pady=(0, 18), sticky="ew")
         actions.grid_columnconfigure(0, weight=1)
 
         ctk.CTkButton(
@@ -2242,6 +2374,8 @@ class PrincipalView(ctk.CTkFrame):
             hover_color="#E9ECEF",
             command=dialog.destroy,
         ).grid(row=0, column=0, sticky="e")
+
+        _render_personal_history()
 
     def _set_selected_row(self, row_id: str) -> None:
         self.selected_row_id = row_id

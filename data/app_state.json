@@ -195,13 +195,13 @@
     "Aitana Yolitzin Sánchez Tenorio": {
       "inspector_name": "Aitana Yolitzin Sánchez Tenorio",
       "inspector_supervised": "Aitana Yolitzin Sánchez Tenorio",
-      "selected_norm": "NOM-004-SE-2021",
+      "selected_norm": "NOM-024-SCFI-2013",
       "client": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
-      "visit_date": "2026-03-31",
-      "score": 62.1,
-      "soft_skills_score": 52.6,
-      "technical_skills_score": 77.8,
-      "status": "Critico",
+      "visit_date": "2026-04-01",
+      "score": 96.3,
+      "soft_skills_score": 100.0,
+      "technical_skills_score": 100.0,
+      "status": "Estable",
       "observations": "",
       "corrective_actions": "",
       "evaluator": "Efrain Morales Zamarrón",
@@ -258,48 +258,48 @@
         },
         {
           "activity": "¿Usa un lenguaje claro sin tecnicismos evitando ambigüedades?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿Personaliza la comunicación de acuerdo con el perfil?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿Responde con rapidez, mantiene informado al cliente y responde de manera concisa?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿Muestra comprensión hacia la situación del cliente?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿No espera a que el cliente pregunte, se anticipa?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿Es cordial formal, respetuoso, evita hacer comentarios de los proveedores y del cliente?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿Cierra confirmando acuerdos?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿El ejecutivo sabe clasificar entre los diferentes campos de aplicación de las NOMs?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿Tiene el suficiente conocimiento técnico para evaluar de manera correcta los criterios normativos?",
-          "result": "no_conforme",
-          "observations": ""
+          "result": "no_aplica",
+          "observations": "holi"
         }
       ],
       "process_answers": [
@@ -310,13 +310,13 @@
         },
         {
           "activity": "¿Se está realizando el escaneo de todas las cajas para la correcta identificación de artículos?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
           "activity": "¿El ejecutivo valida la correcta colocación de etiquetas en muestreo?",
-          "result": "conforme",
-          "observations": ""
+          "result": "no_aplica",
+          "observations": "holi"
         },
         {
           "activity": "¿Se genera de manera completa y precisa la base de etiquetado NOM para el maquilador?",
@@ -330,7 +330,7 @@
         },
         {
           "activity": "¿Se solicita y archiva la documentación requerida (pedimento y facturas) para cada embarque?",
-          "result": "no_conforme",
+          "result": "conforme",
           "observations": ""
         },
         {
@@ -352,37 +352,39 @@
       "technical_normative_rows": [
         {
           "sku": "080703",
-          "applicable_norm": "NOM-004-SE-2021",
-          "result": "conforme",
-          "c_nc": "C",
-          "observations": "ava e aw fawe awf"
+          "applicable_norm": "NOM-024-SCFI-2013",
+          "result": "no_conforme",
+          "c_nc": "NC",
+          "observations": ""
         }
       ],
       "image_folder": "C:/Users/bost2/OneDrive/Escritorio/Miles M/wallapaper",
       "score_breakdown": {
-        "conforme": 18,
-        "no_conforme": 11,
-        "no_aplica": 0,
-        "aplicables": 29
+        "conforme": 26,
+        "no_conforme": 1,
+        "no_aplica": 2,
+        "aplicables": 27
       },
       "soft_skills_breakdown": {
-        "conforme": 10,
-        "no_conforme": 9,
-        "no_aplica": 0,
-        "aplicables": 19
+        "conforme": 18,
+        "no_conforme": 0,
+        "no_aplica": 1,
+        "aplicables": 18
       },
       "technical_skills_breakdown": {
-        "conforme": 7,
-        "no_conforme": 2,
-        "no_aplica": 0,
-        "aplicables": 9
+        "conforme": 8,
+        "no_conforme": 0,
+        "no_aplica": 1,
+        "aplicables": 8
       },
       "score_by_norm": {
-        "NOM-004-SE-2021": 62.1
+        "NOM-024-SCFI-2013": 96.3
       },
       "form_structure": "supervision_v2",
-      "saved_at": "2026-03-31 11:34",
-      "form_completed": true
+      "saved_at": "2026-04-01 12:48",
+      "form_completed": true,
+      "pdf_path": "C:\\Users\\bost2\\OneDrive\\Escritorio\\Calibracion\\data\\historico\\Aitana_Yolitzin_Sanchez_Tenorio\\FORMATOS DE SUPERVISION\\Supervision_20260401_124804_NOM-024-SCFI-2013_bd65dbc3.pdf",
+      "json_path": "C:\\Users\\bost2\\OneDrive\\Escritorio\\Calibracion\\data\\historico\\Aitana_Yolitzin_Sanchez_Tenorio\\FORMATOS DE SUPERVISION\\Supervision_20260401_124804_NOM-024-SCFI-2013_bd65dbc3.json"
     }
   },
   "document_counters": {

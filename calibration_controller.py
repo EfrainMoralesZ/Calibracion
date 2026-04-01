@@ -1245,6 +1245,32 @@ class CalibrationController:
 				if entry_name and _normalize_person_name(entry_name) != target_identity:
 					continue
 				filtered.append(item)
+
+			# Also read individual JSON files from FORMATOS DE SUPERVISION
+			formatos_dir = self._history_dir(clean_name) / "FORMATOS DE SUPERVISION"
+			if formatos_dir.exists() and formatos_dir.is_dir():
+				existing_ids = {item.get("saved_at", "") for item in filtered if isinstance(item, dict)}
+				for json_file in formatos_dir.glob("*.json"):
+					try:
+						entry = _read_json(json_file, None)
+						if not isinstance(entry, dict):
+							continue
+						entry_name = str(entry.get("inspector_name", "")).strip()
+						if entry_name and _normalize_person_name(entry_name) != target_identity:
+							continue
+						entry_saved = entry.get("saved_at", "")
+						entry_norm = entry.get("selected_norm", "")
+						dup_key = (entry_saved, entry_norm)
+						if entry_saved and any(
+							(item.get("saved_at", ""), item.get("selected_norm", "")) == dup_key
+							for item in filtered
+						):
+							continue
+						entry["archivo_path"] = str(json_file)
+						filtered.append(entry)
+					except Exception:
+						continue
+
 			cached_history = sorted(filtered, key=lambda item: item.get("saved_at", ""))
 			self._history_cache[clean_name] = cached_history
 			if cached_history:
@@ -2785,9 +2811,6 @@ class CalibrationController:
 	def _visits_file(self, inspector_name: str) -> Path:
 		return self._history_dir(inspector_name) / "visitas.json"
 
-	def _write_history(self, inspector_name: str, history: list[dict[str, Any]]) -> None:
-		_write_json(self._history_file(inspector_name), history)
-
 	def _sync_visit_history(self, inspector_name: str) -> None:
 		_write_json(self._visits_file(inspector_name), self.list_visits(name=inspector_name))
 
@@ -2863,6 +2886,9 @@ def _controller_get_norm_score_history(
 					"evaluator": evaluator,
 					"visit_date": visit_date,
 					"saved_at": saved_at,
+					"archivo_path": entry.get("archivo_path") or entry.get("json_path") or "",
+					"enviado": entry.get("enviado", False),
+					"confirmado": entry.get("confirmado", False),
 				}
 			)
 
@@ -3106,36 +3132,43 @@ def _controller_save_evaluation(self, inspector_name: str, payload: dict[str, An
 		"inspector_supervised": inspector_supervised,
 		"selected_norm": clean_norm or "Sin norma",
 		"client": clean_client,
+		"visit_date": clean_date,
+		"score": score,
+		"soft_skills_score": soft_skills_score,
+		"technical_skills_score": technical_skills_score,
+		"status": clean_status,
+		"observations": clean_observations,
+		"corrective_actions": clean_actions,
+		"evaluator": evaluator or (self.current_user or {}).get("name", "Sin evaluador"),
+		"protocol_answers": protocol_answers,
+		"process_answers": process_answers,
+		"technical_normative_rows": technical_normative_rows,
+		"image_folder": image_folder,
+		"score_breakdown": score_breakdown,
+		"soft_skills_breakdown": soft_skills_breakdown,
+		"technical_skills_breakdown": technical_skills_breakdown,
+		"score_by_norm": normalized_score_by_norm,
+		"form_structure": "supervision_v2",
+		"saved_at": _timestamp(),
+		"form_completed": True,
 	}
-	return evaluation
-	def get_history(self, inspector_name: str) -> list[dict[str, Any]]:
-		clean_name = str(inspector_name or "").strip()
-		if not clean_name:
-			return []
 
-		from pathlib import Path
-		import json
-		folder = self._history_dir(clean_name)
-		if not folder.exists():
-			return []
-		# Leer todos los archivos .json (excepto historico.json y visitas.json)
-		files = [f for f in folder.glob("*.json") if f.name not in ("historico.json", "visitas.json")]
-		history = []
-		for file in files:
-			try:
-				with open(file, "r", encoding="utf-8") as f:
-					data = json.load(f)
-				if isinstance(data, dict):
-					history.append(data)
-			except Exception:
-				continue
-		# Ordenar por fecha de guardado
-		history = sorted(history, key=lambda item: item.get("saved_at", ""))
-		# Cache y último
-		self._history_cache[clean_name] = history
-		if history:
-			self._cache_latest_evaluation_entry(clean_name, history[-1])
-		return [dict(item) for item in history if isinstance(item, dict)]
+	base_folder = self._history_dir(inspector_name)
+	formatos_folder = base_folder / "FORMATOS DE SUPERVISION"
+	formatos_folder.mkdir(parents=True, exist_ok=True)
+	ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+	unique_id = uuid4().hex[:8]
+	norm_slug = str(clean_norm).replace(" ", "_").replace("/", "-")
+	base_filename = f"Supervision_{ts}_{norm_slug}_{unique_id}"
+	json_path = formatos_folder / f"{base_filename}.json"
+	pdf_path = formatos_folder / f"{base_filename}.pdf"
+	with open(json_path, "w", encoding="utf-8") as f:
+		json.dump(evaluation, f, ensure_ascii=False, indent=2)
+
+	evaluation["pdf_path"] = str(pdf_path)
+	evaluation["json_path"] = str(json_path)
+
+	self.app_state["evaluations"][inspector_name] = evaluation
 	_write_json(STATE_FILE, self.app_state)
 	self.reload()
 	return evaluation
