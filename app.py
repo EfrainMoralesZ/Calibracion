@@ -687,7 +687,7 @@ class CalibrationApp(ctk.CTk):
             corner_radius=14,
             border_width=2,
             border_color="#E5C100",
-            width=160,
+            width=190,
             height=65,
         )
         avg_card.grid(row=0, column=0, padx=(0, 12), sticky="nsew")
@@ -725,7 +725,7 @@ class CalibrationApp(ctk.CTk):
             corner_radius=14,
             border_width=2,
             border_color="#E5C100",
-            width=145,
+            width=175,
             height=65,
         )
         alerts_card.grid(row=0, column=1, padx=(0, 12), sticky="nsew")

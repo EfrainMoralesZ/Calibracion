@@ -2241,14 +2241,14 @@ class PrincipalView(ctk.CTkFrame):
         # --- Scrollable content ---
         scroll = ctk.CTkScrollableFrame(wrapper, fg_color="transparent")
         scroll.grid(row=3, column=0, padx=10, pady=(0, 10), sticky="nsew")
-        for col_idx in range(8):
+        for col_idx in range(9):
             scroll.grid_columnconfigure(col_idx, weight=1)
 
         def _render_personal_history(norm_filter: str = "", date_from: str = "", date_to: str = ""):
             for child in scroll.winfo_children():
                 child.destroy()
 
-            headers = ["Norma", "Calificación global", "Hab. blandas", "Hab. técnicas", "Fecha", "Supervisor", "Estatus", "Archivo"]
+            headers = ["Norma", "Calificación global", "Hab. blandas", "Hab. técnicas", "Fecha", "Supervisor", "Estatus", "Archivo", "Confirmación"]
             for col, title in enumerate(headers):
                 ctk.CTkLabel(
                     scroll,
@@ -2278,7 +2278,7 @@ class PrincipalView(ctk.CTkFrame):
                     text="Sin calificaciones enviadas para este ejecutivo técnico.",
                     font=FONTS["small"],
                     text_color="#6D7480",
-                ).grid(row=1, column=0, columnspan=8, padx=8, pady=8, sticky="w")
+                ).grid(row=1, column=0, columnspan=9, padx=8, pady=8, sticky="w")
                 return
 
             # Populate norm filter combo
@@ -2342,6 +2342,46 @@ class PrincipalView(ctk.CTkFrame):
                     hover_color="#1D1D1D",
                     command=_abrir,
                 ).grid(row=idx, column=7, padx=6, pady=(0, 8))
+
+                # Botón Confirmar recibido
+                confirmado = row.get("confirmado", False)
+                if not confirmado:
+                    def _confirmar_personal(row=row):
+                        archivo = row.get("archivo_path", "")
+                        if archivo and os.path.exists(archivo):
+                            import json as _json
+                            try:
+                                with open(archivo, "r", encoding="utf-8") as _f:
+                                    data = _json.load(_f)
+                                data["confirmado"] = True
+                                with open(archivo, "w", encoding="utf-8") as _f:
+                                    _json.dump(data, _f, ensure_ascii=False, indent=2)
+                            except Exception:
+                                pass
+                        self.controller.reload()
+                        row["confirmado"] = True
+                        messagebox.showinfo("Confirmado", "Has confirmado la recepción de tu evaluación.")
+                        _render_personal_history(
+                            norm_filter=norm_filter_var.get().strip(),
+                            date_from=date_from_var.get().strip(),
+                            date_to=date_to_var.get().strip(),
+                        )
+                    ctk.CTkButton(
+                        scroll,
+                        text="Confirmar recibido",
+                        width=120,
+                        fg_color=STYLE["primario"],
+                        text_color=STYLE["secundario"],
+                        hover_color="#D8C220",
+                        command=_confirmar_personal,
+                    ).grid(row=idx, column=8, padx=6, pady=(0, 8))
+                else:
+                    ctk.CTkLabel(
+                        scroll,
+                        text="Confirmado ✓",
+                        font=FONTS["small_bold"],
+                        text_color="#0D6B42",
+                    ).grid(row=idx, column=8, padx=6, pady=(0, 8))
 
         def _apply_filter():
             self.controller.reload()

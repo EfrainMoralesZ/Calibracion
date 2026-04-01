@@ -189,5 +189,6 @@
   "form_structure": "supervision_v2",
   "saved_at": "2026-04-01 12:48",
   "form_completed": true,
-  "enviado": true
+  "enviado": true,
+  "confirmado": true
 }
