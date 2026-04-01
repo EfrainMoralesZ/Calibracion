@@ -1,6 +1,6 @@
 # Manual Técnico — Sistema de Calibración V&C
 
-> Versión: 1.0 · Fecha: Marzo 2026  
+> Versión: 1.1 · Fecha: Abril 2026  
 > Audiencia: Ejecutivos técnicos y desarrolladores responsables de mantenimiento, despliegue y evolución del sistema.
 
 ---
@@ -87,9 +87,13 @@ El archivo `data/app_state.json` se genera automáticamente en la primera ejecuc
 
 ```
 img/
-  logo.png        ← Logo mostrado en la pantalla de login
-  plantilla.png   ← Fondo (imagen LETTER) usado en PDFs de supervisión
-  icono.ico       ← Ícono de la ventana principal
+  alerta.png         ← Ícono de alerta para notificaciones UI
+  icono.ico          ← Ícono de la ventana principal
+  logo.png           ← Logo mostrado en la pantalla de login
+  medalla_bronce.png ← Medalla bronce para sistema de medallas trimestral
+  medalla_oro.png    ← Medalla oro para sistema de medallas trimestral
+  medalla_plata.png  ← Medalla plata/platino para sistema de medallas trimestral
+  plantilla.png      ← Fondo (imagen LETTER) usado en PDFs de supervisión
 ```
 
 ### 3.5 Ejecutar la aplicación
@@ -105,29 +109,30 @@ python app.py
 ### 4.1 Diagrama de capas
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                    app.py (Shell)                    │
-│   Ventana principal · Navegación · Gestión de roles  │
-├──────────┬───────────┬───────────┬───────────────────┤
-│ login.py │dashboard.py│calendario.py│trimestral.py  │
-│          │configura-  │            │                 │
-│          │ciones.py   │            │                 │
-├──────────┴───────────┴───────────┴───────────────────┤
-│               index.py (CalibrationController)       │
-│  Lógica de negocio · Persistencia JSON · Historial   │
-├──────────────────────────────────────────────────────┤
-│           Documentos PDF.py/                         │
-│   FormatoSupervision.py · ReporteTrimestral.py       │
-├──────────────────────────────────────────────────────┤
-│                   data/  (JSON)                      │
-└──────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                        app.py (Shell)                        │
+│     Ventana principal · Navegación · Gestión de roles        │
+├──────────┬────────────┬──────────────┬───────────────────────┤
+│ login.py │dashboard.py│calendario.py │ trimestral.py         │
+│          │configura-  │supervision.py│ criterioEvaluacion.py │
+│          │ciones.py   │              │                       │
+├──────────┴────────────┴──────────────┴───────────────────────┤
+│       calibration_controller.py (CalibrationController)      │
+│    Lógica de negocio · Persistencia JSON · Historial         │
+├──────────────────────────────────────────────────────────────┤
+│                   Documentos PDF.py/                         │
+│  FormatoSupervision.py · ReporteTrimestral.py                │
+│  CriterioEvaluacionTecnica.py                                │
+├──────────────────────────────────────────────────────────────┤
+│                       data/  (JSON)                          │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### 4.2 Flujo de arranque
 
 1. `app.py` configura el comportamiento DPI en Windows (`_configure_windows_dpi_behavior`).
 2. Instancia `CalibrationController` (carga catálogos, consolida histórico).
-3. Muestra `LoginView`; al autenticar dispara `on_login(role, name)`.
+3. Muestra `LoginView`; al autenticar dispara `_handle_login(username, password)`.
 4. `app.py` construye las secciones disponibles según el rol (`available_sections`, `page_factories`).
 5. La navegación lateral llama a `page_factories[section]()` para renderizar cada vista bajo demanda.
 
@@ -140,9 +145,9 @@ python app.py
 Responsabilidades:
 - Configuración DPI (`ctypes` + `ctk.deactivate_automatic_dpi_awareness`).
 - Paleta de colores global (`STYLE`) y tokens tipográficos (`FONTS`).
-- Construcción de la barra lateral de navegación según `available_sections`.
+- Construcción de la barra de navegación horizontal según `available_sections`.
 - Ciclo `refresh_all_views()` que propaga cambios de catálogo a todas las vistas activas.
-- Aloja el `EvaluationDialog`: formulario de supervisión con descarga de PDF.
+- KPIs en header: tarjetas de promedio, alertas y medallas (Oro, Platino, Bronce) para ejecutivos y admins.
 
 **Paleta oficial:**
 
@@ -152,24 +157,27 @@ Responsabilidades:
 | `secundario` | `#282828` | Fondos oscuros, texto |
 | `exito` | `#008D53` | Estados positivos |
 | `advertencia` | `#ff1500` | Alertas y estados críticos |
+| `peligro` | `#d74a3d` | Estados de peligro |
 | `fondo` / `surface` | `#F8F9FA` | Fondo de vistas y paneles |
 
-### 5.2 `index.py` — CalibrationController
+### 5.2 `calibration_controller.py` — CalibrationController
 
 Núcleo de la lógica de negocio y acceso a datos. Expone métodos para:
 
 | Grupo | Métodos destacados |
 |---|---|
 | Catálogos | `get_inspectors()`, `get_norms()`, `get_clients()`, `get_users()` |
+| Autenticación | `authenticate()`, `is_admin()`, `has_full_access()`, `is_executive_role()` |
+| Secciones | `available_sections()` — retorna secciones visibles según rol |
 | Historial | `get_history(inspector)`, `save_history_entry()` |
 | Visitas | `get_visits()`, `save_visit()`, `delete_visit()` |
 | Trimestral | `list_trimestral_scores()`, `save_trimestral_score()`, `send_trimestral_scores()` |
 | Boletas | `get_boleta(inspector, year, quarter)`, `save_boleta()` |
 | Reporte normas | `get_norms_report()`, `save_norms_report_entry()` |
 
-> **Importante:** Varios métodos de `CalibrationController` se sobrescriben vía _monkey-patch_ al final del archivo. Si se modifica solo la clase y no ese bloque final, los cambios pueden no reflejarse en tiempo de ejecución.
-
 Las consultas de alto uso están cacheadas con `@lru_cache` y se invalidan en `reload()`.
+
+**Sistema de medallas:** definido en `TRIMESTRAL_MEDAL_RULES` — Oro (≥100), Platino (≥90), Bronce (≥80).
 
 ### 5.3 `dashboard.py` — DashboardView
 
@@ -188,12 +196,29 @@ Las consultas de alto uso están cacheadas con `@lru_cache` y se invalidan en `r
 
 ### 5.5 `trimestral.py` — TrimestralView
 
-- **Pestaña Captura trimestral** (solo admin): alta, edición y envío de calificaciones por norma/trimestre/inspector.
+- **Pestaña Captura trimestral** (solo acceso completo): alta, edición y envío de calificaciones por norma/trimestre/inspector.
 - **Pestaña Historial trimestral**: cards con score por norma, paginadas (9 por página); curva de evolución histórica.
 - Estado `CRITICO` cuando `score < 90`, marcado visualmente en boletas.
+- Sistema de medallas: Oro (≥100), Platino (≥90), Bronce (≥80) con íconos visuales.
 - Al enviar (`sent_at` registrado), los ejecutivos pasan a modo visualización.
 
-### 5.6 `configuraciones.py` — ConfigurationView
+### 5.6 `supervision.py` — PrincipalView
+
+- Tarjetas de supervisión por ejecutivo con formulario de evaluación integrado.
+- Checklist de protocolo (preguntas de supervisión) y captura de actividades.
+- Selección de carpeta de evidencias (imágenes) para generar PDF.
+- Genera PDF de supervisión vía `FormatoSupervision.py`.
+- Registro de supervisión guardado en `data/historico/<ejecutivo>/historico.json`.
+
+### 5.7 `criterioEvaluacion.py` — CriteriaEvaluationView
+
+- Formulario independiente por ejecutivo/norma para evaluación de criterios técnicos.
+- Tarjetas por cliente con paginación de 12 en 12.
+- Roles de gestión eligen ejecutivo antes de la NOM; ejecutivos seleccionan su propio perfil.
+- Genera PDF de criterios de evaluación técnica vía `CriterioEvaluacionTecnica.py`.
+- Acuerdos y criterios archivados en `data/clientes/acuerdos/<CLIENTE>/`.
+
+### 5.8 `configuraciones.py` — ConfigurationView
 
 Pestañas:
 1. **Normas**: alta, edición y baja de normas (NOM, nombre, sección).
@@ -203,10 +228,11 @@ Pestañas:
 
 Tras guardar cualquier catálogo dispara `on_change()` que propaga `refresh_all_views()` en `app.py`.
 
-### 5.7 `login.py` — LoginView
+### 5.9 `login.py` — LoginView
 
 - Carga logo desde `img/logo.png` o `img/Logo.png` usando `CTkImage` + Pillow.
-- Valida credenciales contra `Usuarios.json` y retorna rol (`admin` / `ejecutivo`).
+- Valida credenciales contra `Usuarios.json` vía `controller.authenticate()`.
+- Soporta múltiples roles (ver sección 7).
 - Manejo de foco automático con `after()` para compatibilidad DPI.
 
 ---
@@ -218,11 +244,14 @@ Tras guardar cualquier catálogo dispara `on_change()` que propaga `refresh_all_
 ```
 data/
 ├── BD-Calibracion.json          # Inspectores: nombre, acreditaciones por norma
+├── BD-Calibracion.xlsx          # Respaldo Excel de la base de calibración
 ├── Usuarios.json                # Usuarios: username, password, rol, nombre_completo
 ├── Normas.json                  # Normas: NOM, nombre, sección
 ├── Clientes.json                # Clientes: RFC, contrato, direcciones, servicio
 ├── app_state.json               # Estado operativo (generado en runtime)
 ├── reporte de normas.json       # Reportes de normas por visita (month=YYYY-MM)
+├── clientes/
+│   └── acuerdos/<CLIENTE>/      # Acuerdos y criterios de evaluación por cliente
 ├── historico/
 │   └── <Nombre_Apellido>/
 │       ├── historico.json       # Entradas de supervisión del ejecutivo
@@ -230,6 +259,7 @@ data/
 │       └── boletas/
 │           └── <año>/
 │               └── T<n>_boleta.json  # Boleta trimestral (boleta_status=CRITICO si <90)
+├── reportes/                    # Reportes generados
 ├── visitas/
 │   └── semana_<YYYY-MM-DD>/
 │       └── visitas.json         # Visitas de la semana
@@ -246,25 +276,33 @@ Las carpetas en `data/historico/` se nombran con el patrón `Nombre_Apellido1_Ap
 
 | Función | Archivo | Propósito |
 |---|---|---|
-| `_read_json(path, default)` | `index.py` | Lectura segura; retorna `default` si el archivo no existe o está vacío |
-| `_write_json(path, payload)` | `index.py` | Escritura atómica; crea directorios intermedios si no existen |
-| `_safe_slug(value)` | `index.py` | Convierte texto en slug alfanumérico con guiones bajos |
-| `_safe_folder_name(value)` | `index.py` | Sanitiza nombres para rutas de directorio |
+| `_read_json(path, default)` | `calibration_controller.py` | Lectura segura; retorna `default` si el archivo no existe o está vacío |
+| `_write_json(path, payload)` | `calibration_controller.py` | Escritura atómica; crea directorios intermedios si no existen |
+| `_safe_slug(value)` | `calibration_controller.py` | Convierte texto en slug alfanumérico con guiones bajos |
+| `_safe_folder_name(value)` | `calibration_controller.py` | Sanitiza nombres para rutas de directorio |
 
 ---
 
 ## 7. Roles y permisos
 
-| Sección | admin | ejecutivo |
-|---|:---:|:---:|
-| Principal (tarjetas de supervisión) | ✔ | ✗ |
-| Dashboard (desempeño y curvas) | ✔ | ✗ |
-| Calendario (con edición) | ✔ | ✔ (solo lectura) |
-| Trimestral (captura) | ✔ | ✗ |
-| Trimestral (visualización) | ✔ | ✔ |
-| Configuraciones | ✔ | ✗ |
+### 7.1 Roles del sistema
 
-Los roles se determinan en `Usuarios.json` (campo `rol`). La lógica de construcción de secciones está en `app.py` bajo `available_sections` y `page_factories`.
+Roles con **acceso completo** (equivalentes a admin): `admin`, `gerente`, `sub gerente`, `coordinador operativo`, `coordinadora en fiabilidad`.
+
+Otros roles: `talento humano`, `supervisor`, `ejecutivo tecnico`, `especialidades`.
+
+### 7.2 Permisos por sección
+
+| Sección | Acceso completo | Talento humano | Supervisor | Ejecutivo técnico / Especialidades |
+|---|:---:|:---:|:---:|:---:|
+| Supervisión | ✔ | ✔ | ✔ | ✔ (lectura) |
+| Criterios | ✔ | ✗ | ✗ | ✔ |
+| Dashboard | ✔ | ✔ | ✗ | ✗ |
+| Calendario | ✔ (edición) | ✗ | ✔ (edición) | ✔ (lectura) |
+| Trimestral | ✔ (captura + envío) | ✗ | ✗ | ✔ (visualización) |
+| Configuraciones | ✔ | ✗ | ✗ | ✗ |
+
+Los roles se determinan en `Usuarios.json` (campo `role`). La normalización de roles se realiza en `_normalize_role_name()`. La lógica de secciones visibles está en `CalibrationController.available_sections()` y las fábricas de vistas en `app.py` bajo `_build_page_factories()`.
 
 ---
 
@@ -286,9 +324,18 @@ Los roles se determinan en `Usuarios.json` (campo `rol`). La lógica de construc
   - `"menor"` → rojo oscuro `#B94A2C`
 - Encabezado con datos del periodo y ejecutivo.
 
-### 8.3 Invocación desde la UI
+### 8.3 Criterio de Evaluación Técnica (`Documentos PDF.py/CriterioEvaluacionTecnica.py`)
 
-Los PDFs se generan desde `EvaluationDialog` en `app.py`. El botón de descarga está habilitado según el estado actual del formulario; los `StringVar` del formulario alimentan directamente los módulos de generación.
+- Genera ficha de consultas normativas por ejecutivo/norma/cliente.
+- Encabezado con datos de Verificación & Control UVA.
+- Fondo: reutiliza `img/plantilla.png` como plantilla.
+- Tablas con criterios de evaluación técnica.
+
+### 8.4 Invocación desde la UI
+
+- **PDF de supervisión**: se genera desde `supervision.py` (`PrincipalView`).
+- **PDF de criterios**: se genera desde `criterioEvaluacion.py` (`CriteriaEvaluationView`).
+- **PDF trimestral**: se genera desde la vista trimestral.
 
 ---
 
@@ -297,9 +344,9 @@ Los PDFs se generan desde `EvaluationDialog` en `app.py`. El botón de descarga 
 ### 9.1 Supervisión de visita
 
 ```
-Admin abre EvaluationDialog
-  → Selecciona inspector, norma y cliente
-  → Llena actividades (checklist de la norma)
+Admin abre PrincipalView (Supervisión)
+  → Selecciona ejecutivo y norma
+  → Llena checklist de protocolo y actividades
   → Selecciona carpeta de evidencias (opcional)
   → Genera PDF  →  FormatoSupervision.py
   → Registro guardado en data/historico/<ejecutivo>/historico.json
@@ -339,6 +386,17 @@ Admin (ConfigurationView):
   → Todas las vistas activas recargan caches
 ```
 
+### 9.5 Evaluación de criterios técnicos
+
+```
+Usuario abre CriteriaEvaluationView (Criterios)
+  → Selecciona ejecutivo (gestión) o usa perfil propio (ejecutivo)
+  → Selecciona norma y cliente
+  → Captura criterios de evaluación técnica
+  → Genera PDF  →  CriterioEvaluacionTecnica.py
+  → Acuerdo archivado en data/clientes/acuerdos/<CLIENTE>/
+```
+
 ---
 
 ## 10. Convenciones de código
@@ -347,7 +405,7 @@ Admin (ConfigurationView):
 |---|---|
 | Imports | `from __future__ import annotations` en todos los módulos para soporte de tipos adelantados |
 | Rutas | Siempre `pathlib.Path`; nunca concatenación de strings |
-| JSON | `_read_json` / `_write_json` de `index.py`; nunca `open()` directo desde vistas |
+| JSON | `_read_json` / `_write_json` de `calibration_controller.py`; nunca `open()` directo desde vistas |
 | Normalización de nombres | `_normalize_person_name()` para comparaciones de identidad; nunca comparar cadenas literales con acentos |
 | Widgets CTk | `CTkComboBox` usa `variable=`, **no** `textvariable=` |
 | Imágenes | `CTkImage` + Pillow; nunca `PhotoImage` de tkinter (incompatible con HiDPI) |
@@ -382,10 +440,7 @@ Admin (ConfigurationView):
 **Causa:** `Usuarios.json` y `BD-Calibracion.json` pueden usar acentuación distinta.  
 **Solución:** Siempre comparar con identidad normalizada (`_normalize_person_name` / `_folder_identity`).
 
-### 11.6 Método monkey-patched no aplicado tras edición de la clase
 
-**Causa:** Varios métodos de `CalibrationController` se sobreescriben al final de `index.py`.  
-**Solución:** Al modificar la clase, revisar y actualizar también el bloque final del archivo.
 
 ---
 
@@ -401,8 +456,8 @@ Admin (ConfigurationView):
 ### 12.2 Agregar un nuevo usuario / ejecutivo
 
 1. **Configuraciones → Usuarios** → `Nuevo usuario`.
-2. Completar nombre completo, username, contraseña y rol (`admin` o `ejecutivo`).
-3. Si el rol es `ejecutivo`, ir a **Configuraciones → Ejecutivos** y agregar sus normas acreditadas.
+2. Completar nombre completo, username, contraseña y rol (ej. `admin`, `gerente`, `supervisor`, `ejecutivo tecnico`, etc.).
+3. Si el rol es `ejecutivo tecnico` o `especialidades`, ir a **Configuraciones → Ejecutivos** y agregar sus normas acreditadas.
 4. En **BD-Calibracion.json** puede ser necesario agregar el registro del inspector si el sistema no lo crea automáticamente.
 
 ### 12.3 Actualizar dependencias
@@ -417,8 +472,8 @@ Verificar compatibilidad de CustomTkinter con la versión Python instalada antes
 ### 12.4 Validar integridad del código sin ejecutar la app
 
 ```powershell
-python -m py_compile app.py index.py dashboard.py configuraciones.py calendario.py login.py trimestral.py
-python -m py_compile "Documentos PDF.py/FormatoSupervision.py" "Documentos PDF.py/ReporteTrimestral.py"
+python -m py_compile app.py calibration_controller.py dashboard.py configuraciones.py calendario.py login.py trimestral.py supervision.py criterioEvaluacion.py ui_shared.py
+python -m py_compile "Documentos PDF.py/FormatoSupervision.py" "Documentos PDF.py/ReporteTrimestral.py" "Documentos PDF.py/CriterioEvaluacionTecnica.py"
 ```
 
 ### 12.5 Respaldar datos
@@ -436,4 +491,4 @@ Si se detectan inconsistencias en el histórico de un ejecutivo, llamar `control
 ---
 
 *Sistema de Calibración V&C — Documentación técnica interna.*  
-*Actualizado: Marzo 2026*
+*Actualizado: Abril 2026*

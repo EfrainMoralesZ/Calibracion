@@ -43,7 +43,8 @@ python app.py
 |---|---|
 | `app.py` | Punto de entrada de la app, `CalibrationApp`, navegación, layout general e inicialización de UI. |
 | `calibration_controller.py` | `CalibrationController`: lógica de negocio, acceso/persistencia JSON, cachés, métricas y generación de documentos. |
-| `Principal.py` | Vistas y diálogos de la sección Principal: selección de norma, captura de supervisión y acciones de calibración. |
+| `supervision.py` | Vista de supervisión (`PrincipalView`): tarjetas por ejecutivo, formulario de evaluación y generación de PDF de supervisión. |
+| `criterioEvaluacion.py` | Vista de criterios de evaluación técnica (`CriteriaEvaluationView`): formulario por ejecutivo/norma/cliente con generación de PDF de criterios y evidencias. |
 | `ui_shared.py` | Estilos, tipografías y utilidades visuales compartidas (escalado, enfoque y centrado de ventanas). |
 | `runtime_paths.py` | Rutas de recursos/runtime para ejecución normal y empaquetada (`.exe`). |
 
@@ -51,12 +52,11 @@ python app.py
 
 | Archivo | Qué hace |
 |---|---|
-| `login.py` | Pantalla de acceso y autenticación por roles (`admin` / `ejecutivo`). |
+| `login.py` | Pantalla de acceso y autenticación multirrol. |
 | `dashboard.py` | Panel de indicadores: tarjetas de normas, curva de aprendizaje y resumen operativo. |
 | `calendario.py` | Programación y seguimiento de visitas en calendario, con reporte de normas aplicadas. |
-| `trimestral.py` | Captura, consulta y envío de calificaciones trimestrales por inspector/norma. |
+| `trimestral.py` | Captura, consulta y envío de calificaciones trimestrales por inspector/norma. Sistema de medallas (Oro, Platino, Bronce). |
 | `configuraciones.py` | Administración de catálogos: normas, usuarios, clientes y direcciones. |
-| `formulario.py` | Utilidades/formulario legado de apoyo para flujos históricos del proyecto. |
 
 ### Generación de PDF
 
@@ -64,6 +64,7 @@ python app.py
 |---|---|
 | `Documentos PDF.py/FormatoSupervision.py` | Construye el PDF del formato de supervisión con resultados y evidencias. |
 | `Documentos PDF.py/ReporteTrimestral.py` | Construye el PDF del reporte trimestral (global o por usuario). |
+| `Documentos PDF.py/CriterioEvaluacionTecnica.py` | Construye el PDF de ficha de consultas normativas con criterios de evaluación técnica. |
 
 ### Scripts de build y utilidades
 
@@ -76,13 +77,16 @@ python app.py
 
 ## Roles
 
-| Sección | admin | ejecutivo |
-|---|:---:|:---:|
-| Principal (supervisiones) | ✔ | ✗ |
-| Dashboard | ✔ | ✗ |
-| Calendario | ✔ (edición) | ✔ (lectura) |
-| Trimestral | ✔ (captura + envío) | ✔ (visualización) |
-| Configuraciones | ✔ | ✗ |
+Roles con **acceso completo** (equivalentes a admin): `admin`, `gerente`, `sub gerente`, `coordinador operativo`, `coordinadora en fiabilidad`.
+
+| Sección | Acceso completo | Talento humano | Supervisor | Ejecutivo técnico / Especialidades |
+|---|:---:|:---:|:---:|:---:|
+| Supervisión | ✔ | ✔ | ✔ | ✔ (lectura) |
+| Criterios | ✔ | ✗ | ✗ | ✔ |
+| Dashboard | ✔ | ✔ | ✗ | ✗ |
+| Calendario | ✔ (edición) | ✗ | ✔ (edición) | ✔ (lectura) |
+| Trimestral | ✔ (captura + envío) | ✗ | ✗ | ✔ (visualización) |
+| Configuraciones | ✔ | ✗ | ✗ | ✗ |
 
 ---
 
@@ -93,12 +97,16 @@ Toda la información se almacena localmente en archivos JSON:
 ```
 data/
 ├── BD-Calibracion.json        # Ejecutivos y acreditaciones por norma
+├── BD-Calibracion.xlsx        # Respaldo Excel de la base de calibración
 ├── Usuarios.json              # Credenciales y roles
 ├── Normas.json                # Catálogo de normas
 ├── Clientes.json              # Clientes, contratos y direcciones
 ├── app_state.json             # Estado operativo (generado en runtime)
 ├── reporte de normas.json     # Reportes por visita
+├── clientes/
+│   └── acuerdos/<CLIENTE>/    # Acuerdos y criterios por cliente
 ├── historico/<ejecutivo>/     # Supervisiones, visitas y boletas trimestrales
+├── reportes/                  # Reportes generados
 ├── visitas/semana_<fecha>/    # Visitas semanales
 └── trimestral/T<n>_<año>/     # Calificaciones trimestrales
 ```
@@ -107,7 +115,11 @@ data/
 
 ```
 img/
-├── logo.png        # Logo para pantalla de login
-├── plantilla.png   # Fondo LETTER para PDFs de supervisión
-└── icono.ico       # Ícono de la ventana principal
+├── alerta.png         # Ícono de alerta para notificaciones UI
+├── icono.ico          # Ícono de la ventana principal
+├── logo.png           # Logo para pantalla de login
+├── medalla_bronce.png # Medalla bronce para sistema de medallas trimestral
+├── medalla_oro.png    # Medalla oro para sistema de medallas trimestral
+├── medalla_plata.png  # Medalla plata/platino para sistema de medallas trimestral
+└── plantilla.png      # Fondo LETTER para PDFs de supervisión
 ```
