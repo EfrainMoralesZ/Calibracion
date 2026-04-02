@@ -3,10 +3,12 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = [('img', 'img'), ('data', 'data'), ('Documentos PDF.py', 'Documentos PDF.py')]
 binaries = []
-hiddenimports = ['ui_shared']
+hiddenimports = ['ui_shared', 'supervision', 'criterioEvaluacion', 'calibration_controller', 'runtime_paths', 'calendario', 'configuraciones', 'dashboard', 'login', 'trimestral']
 tmp_ret = collect_all('customtkinter')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('reportlab')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('pillow')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 

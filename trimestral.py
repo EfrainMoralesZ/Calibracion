@@ -45,6 +45,7 @@ class TrimestralView(ctk.CTkFrame):
 		self.notes_box: ctk.CTkTextbox | None = None
 		self.score_entry: ctk.CTkEntry | None = None
 		self.norm_selector: ctk.CTkComboBox | None = None
+		self.quarter_selector_capture: ctk.CTkComboBox | None = None
 		self.cards_frame: ctk.CTkScrollableFrame | None = None
 		self.capture_dialog: ctk.CTkToplevel | None = None
 		self.capture_title_label: ctk.CTkLabel | None = None
@@ -388,22 +389,20 @@ class TrimestralView(ctk.CTkFrame):
 			border_color="#D5D8DC",
 			button_color=self.style["primario"],
 			dropdown_hover_color=self.style["primario"],
+			command=lambda _v: self._on_capture_period_change(),
 		))
-		self._field(
+		self.quarter_selector_capture = ctk.CTkComboBox(
 			form_panel_left,
-			4,
-			"Trimestre",
-			ctk.CTkComboBox(
-				form_panel_left,
-				variable=self.quarter_var,
-				values=["T1", "T2", "T3", "T4"],
-				height=38,
-				fg_color="#FFFFFF",
-				border_color="#D5D8DC",
-				button_color=self.style["primario"],
-				dropdown_hover_color=self.style["primario"],
-			),
+			variable=self.quarter_var,
+			values=["T1", "T2", "T3", "T4"],
+			height=38,
+			fg_color="#FFFFFF",
+			border_color="#D5D8DC",
+			button_color=self.style["primario"],
+			dropdown_hover_color=self.style["primario"],
+			command=lambda _v: self._on_capture_period_change(),
 		)
+		self._field(form_panel_left, 4, "Trimestre", self.quarter_selector_capture)
 
 		# Columna derecha: calificación y notas
 
@@ -413,12 +412,27 @@ class TrimestralView(ctk.CTkFrame):
 
 		ctk.CTkLabel(
 			form_panel_right,
-			text="Notas",
-			font=self.fonts["label"],
+			text="📝 Notas / Observaciones",
+			font=self.fonts["label_bold"],
 			text_color=self.style["texto_oscuro"],
 		).grid(row=3, column=0, padx=0, pady=(10, 6), sticky="w")
-		self.notes_box = ctk.CTkTextbox(form_panel_right, height=90, corner_radius=16)
+		self.notes_box = ctk.CTkTextbox(
+			form_panel_right,
+			height=140,
+			corner_radius=12,
+			border_width=2,
+			border_color="#D5D8DC",
+			fg_color="#FFFFFF",
+			text_color=self.style["texto_oscuro"],
+			font=self.fonts["label"],
+		)
 		self.notes_box.grid(row=4, column=0, padx=0, pady=(0, 4), sticky="ew")
+		ctk.CTkLabel(
+			form_panel_right,
+			text="Estas notas seran visibles para el ejecutivo evaluado.",
+			font=self.fonts["small"],
+			text_color="#6D7480",
+		).grid(row=5, column=0, padx=0, pady=(0, 4), sticky="w")
 
 		# Tabla temporal para capturas múltiples (abajo, ocupa ambas columnas)
 		self.temp_table = ttk.Treeview(form_scroll, columns=("norma", "año", "trimestre", "calificacion", "estado"), show="headings", height=4)
@@ -551,6 +565,8 @@ class TrimestralView(ctk.CTkFrame):
 		else:
 			messagebox.showwarning("Trimestral", f"{errores} calificaciones no se pudieron guardar.")
 
+		self.refresh()
+
 	# Bloqueo de edición tras envío (en la lógica de edición y guardado real ya existe, pero aquí puedes agregar validación visual si lo deseas)
 
 		self._sync_capture_norm_selector()
@@ -581,6 +597,23 @@ class TrimestralView(ctk.CTkFrame):
 			unique.append(token)
 			seen.add(token)
 
+		# Excluir normas ya calificadas para el trimestre/año seleccionado
+		selected_year = self.year_var.get().strip()
+		selected_quarter = self.quarter_var.get().strip().upper()
+		if clean_name and selected_year and selected_quarter:
+			existing_scores = self.controller.list_trimestral_scores(
+				inspector_name=clean_name, include_unsent=True,
+			)
+			graded_norms: set[str] = set()
+			for item in existing_scores:
+				if str(item.get("year", "")).strip() == selected_year and str(item.get("quarter", "")).strip().upper() == selected_quarter:
+					graded_norms.add(self._norm_key(item))
+			# Tambien excluir las ya agregadas en la tabla temporal
+			for item in self.temp_scores:
+				if str(item.get("year", "")).strip() == selected_year and str(item.get("quarter", "")).strip().upper() == selected_quarter:
+					graded_norms.add(self._norm_key(item))
+			unique = [token for token in unique if token not in graded_norms]
+
 		return unique or ["SIN_NORMA"]
 
 	def _sync_capture_norm_selector(self) -> None:
@@ -599,6 +632,31 @@ class TrimestralView(ctk.CTkFrame):
 			self.norm_var.set(norm_values[0])
 		else:
 			self.norm_var.set(current_norm)
+
+	def _on_capture_period_change(self) -> None:
+		"""Muestra alerta si el trimestre seleccionado ya fue enviado y re-sincroniza normas."""
+		inspector_name = self.inspector_var.get().strip()
+		if inspector_name:
+			existing = self.controller.list_trimestral_scores(
+				inspector_name=inspector_name, include_unsent=True,
+			)
+			selected_year = self.year_var.get().strip()
+			selected_quarter = self.quarter_var.get().strip().upper()
+			# Verificar si el trimestre seleccionado ya fue enviado
+			if selected_quarter in ("T1", "T2", "T3", "T4") and selected_year:
+				quarter_scores = [
+					item for item in existing
+					if str(item.get("year", "")).strip() == selected_year
+					and str(item.get("quarter", "")).strip().upper() == selected_quarter
+				]
+				if quarter_scores and all(str(item.get("sent_at", "")).strip() for item in quarter_scores):
+					messagebox.showinfo(
+						"Trimestral",
+						f"El trimestre {selected_quarter} {selected_year} ya fue calificado y enviado.",
+						parent=self,
+					)
+		self._sync_capture_norm_selector()
+		self._refresh_capture_history_preview()
 
 	def _refresh_capture_history_preview(self) -> None:
 		if self.capture_history_box is None:
@@ -698,6 +756,7 @@ class TrimestralView(ctk.CTkFrame):
 		self.capture_delete_button = None
 		self.capture_history_box = None
 		self.norm_selector = None
+		self.quarter_selector_capture = None
 		self.notes_box = None
 		self.score_entry = None
 
@@ -1403,7 +1462,7 @@ class TrimestralView(ctk.CTkFrame):
 				corner_radius=20,
 				border_width=1,
 				border_color="#E3E6EA",
-				height=268,
+				height=320,
 			)
 			card.grid(row=0, column=0, sticky="nsew")
 			card.grid_propagate(False)
@@ -2053,6 +2112,7 @@ class TrimestralView(ctk.CTkFrame):
 					medal_text = medal["title"] if medal["key"] else "Sin medalla"
 					medal_message = _medal_message(medal.get("key", ""))
 					updated_text = str(score_row.get("updated_at", "")).strip() or "--"
+					notes_text = str(score_row.get("notes", "")).strip()
 
 					ctk.CTkLabel(
 						row_frame,
@@ -2108,6 +2168,19 @@ class TrimestralView(ctk.CTkFrame):
 						justify="left",
 						wraplength=220,
 					).grid(row=0, column=5, sticky="w")
+
+					if notes_text:
+						notes_frame = ctk.CTkFrame(card, fg_color="#FFF8E1", corner_radius=8)
+						notes_frame.grid(row=row_index + len(period_rows) + 10, column=0, padx=20, pady=(0, 6), sticky="ew")
+						ctk.CTkLabel(
+							notes_frame,
+							text=f"📝 Notas: {notes_text}",
+							font=self.fonts["small"],
+							text_color="#5D4E00",
+							anchor="w",
+							justify="left",
+							wraplength=800,
+						).pack(padx=10, pady=6, anchor="w")
 
 		def _on_year_change(_value=None) -> None:
 			quarter_values = _available_quarters()

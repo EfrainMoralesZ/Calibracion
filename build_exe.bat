@@ -21,8 +21,18 @@ python -m PyInstaller ^
   --name CalibracionVC ^
   --icon "img\icono.ico" ^
   --hidden-import ui_shared ^
+  --hidden-import supervision ^
+  --hidden-import criterioEvaluacion ^
+  --hidden-import calibration_controller ^
+  --hidden-import runtime_paths ^
+  --hidden-import calendario ^
+  --hidden-import configuraciones ^
+  --hidden-import dashboard ^
+  --hidden-import login ^
+  --hidden-import trimestral ^
   --collect-all customtkinter ^
   --collect-all reportlab ^
+  --collect-all pillow ^
   --add-data "img;img" ^
   --add-data "data;data" ^
   --add-data "Documentos PDF.py;Documentos PDF.py" ^

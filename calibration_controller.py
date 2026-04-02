@@ -573,6 +573,15 @@ def _default_state() -> dict[str, Any]:
 @lru_cache(maxsize=4)
 def _load_module(module_path: str):
 	path = Path(module_path)
+
+	# Ensure the app root is on sys.path so modules loaded from
+	# sub-directories (e.g. "Documentos PDF.py/") can resolve
+	# top-level imports like ``runtime_paths`` in frozen builds.
+	import sys
+	root = str(resource_path("."))
+	if root not in sys.path:
+		sys.path.insert(0, root)
+
 	spec = importlib.util.spec_from_file_location(path.stem, path)
 	if spec is None or spec.loader is None:
 		raise ImportError(f"No se pudo cargar el modulo: {path}")

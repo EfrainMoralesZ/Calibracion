@@ -1803,7 +1803,8 @@ class CalendarView(ctk.CTkFrame):
             self.norm_report_status_var.set("Marca las normas aplicadas y guarda el reporte de la visita.")
 
         if self.save_norm_report_button is not None:
-            enabled = confirmation_status not in {"cancelada"}
+            finalized_at = str(visit.get("finalized_at", "")).strip()
+            enabled = confirmation_status not in {"cancelada"} and not finalized_at
             self.save_norm_report_button.configure(state="normal" if enabled else "disabled")
 
     def _save_visit_norm_report(self) -> None:

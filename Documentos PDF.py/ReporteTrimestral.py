@@ -10,6 +10,8 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfgen import canvas as pdf_canvas
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from runtime_paths import resource_path, writable_path
+
 
 ACCENT_HEX = "#1B2A4A"
 DARK_HEX = "#282828"
@@ -23,8 +25,12 @@ LIGHT = colors.HexColor(LIGHT_HEX)
 SUCCESS = colors.HexColor(SUCCESS_HEX)
 WARNING = colors.HexColor(WARNING_HEX)
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
-TEMPLATE_PATH = ROOT_DIR / "img" / "plantilla.png"
+
+def _template_path() -> Path | None:
+	for candidate in (resource_path("img", "plantilla.png"), writable_path("img", "plantilla.png")):
+		if candidate.exists():
+			return candidate
+	return None
 
 
 def _status_color(status_text: str) -> str:
@@ -120,8 +126,9 @@ def build_trimestral_dashboard_pdf(output_path: str | Path, payload: dict) -> Pa
 	def _decorate_page(pdf, _doc) -> None:
 		page_width, page_height = LETTER
 		pdf.saveState()
-		if TEMPLATE_PATH.exists():
-			pdf.drawImage(str(TEMPLATE_PATH), 0, 0, width=page_width, height=page_height, mask="auto")
+		tpl = _template_path()
+		if tpl is not None:
+			pdf.drawImage(str(tpl), 0, 0, width=page_width, height=page_height, mask="auto")
 		pdf.setFillColor(DARK)
 		pdf.setFont("Helvetica-Bold", 14)
 		pdf.drawCentredString(page_width / 2, page_height - 28, report_title)

@@ -1019,13 +1019,13 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 		return True
 
 	def _sync_download_state(self) -> None:
-		can_use = self.can_edit and not self._document_generation_in_progress
+		can_use = not self._document_generation_in_progress
 		if self.download_criterio_button is not None:
 			self.download_criterio_button.configure(state="normal" if can_use else "disabled")
 		self.form_status_var.set(
 			"Completa formulario para generar PDF con criterios por cliente y evidencias."
 			if can_use
-			else "Solo lectura para tu rol o hay una generacion en curso."
+			else "Hay una generacion en curso."
 		)
 
 	def _set_document_busy(self, busy: bool, status_message: str | None = None) -> None:
@@ -1075,7 +1075,7 @@ class CriteriaEvaluationDialog(ctk.CTkToplevel):
 			self._reset_form()
 
 	def _download_document(self, kind: str) -> None:
-		if not self.can_edit or self._document_generation_in_progress:
+		if self._document_generation_in_progress:
 			return
 
 		if kind == "criterio":
@@ -1470,15 +1470,16 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 							command=lambda path=agreement_path: self._open_pdf_from_history(path),
 						).grid(row=0, column=btn_col, padx=6, pady=10)
 						btn_col += 1
-					ctk.CTkButton(
-						agreement_row,
-						text="Eliminar",
-						width=90,
-						fg_color=STYLE["peligro"],
-						text_color=STYLE["texto_claro"],
-						hover_color="#c0392b",
-						command=lambda a=agreement: _delete_agreement(a),
-					).grid(row=0, column=btn_col, padx=6, pady=10)
+					if self.controller.has_full_access():
+						ctk.CTkButton(
+							agreement_row,
+							text="Eliminar",
+							width=90,
+							fg_color=STYLE["peligro"],
+							text_color=STYLE["texto_claro"],
+							hover_color="#c0392b",
+							command=lambda a=agreement: _delete_agreement(a),
+						).grid(row=0, column=btn_col, padx=6, pady=10)
 					row_idx += 1
 
 			if agreements and history:
@@ -1544,15 +1545,16 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 						command=lambda path=output_path: self._open_pdf_from_history(path),
 					).grid(row=0, column=btn_col, padx=6, pady=10)
 					btn_col += 1
-				ctk.CTkButton(
-					row,
-					text="Eliminar",
-					width=90,
-					fg_color=STYLE["peligro"],
-					text_color=STYLE["texto_claro"],
-					hover_color="#c0392b",
-					command=lambda d=doc: _delete_criteria(d),
-				).grid(row=0, column=btn_col, padx=6, pady=10)
+				if self.controller.has_full_access():
+					ctk.CTkButton(
+						row,
+						text="Eliminar",
+						width=90,
+						fg_color=STYLE["peligro"],
+						text_color=STYLE["texto_claro"],
+						hover_color="#c0392b",
+						command=lambda d=doc: _delete_criteria(d),
+					).grid(row=0, column=btn_col, padx=6, pady=10)
 				row_idx += 1
 
 		norm_combo.configure(command=lambda _value: _render_rows())
