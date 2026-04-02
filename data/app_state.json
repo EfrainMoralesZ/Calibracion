@@ -398,6 +398,13 @@
       "start_date": "2026-04-03",
       "end_date": "2026-04-20",
       "created_at": "2026-04-02T12:28:29.520018"
+    },
+    {
+      "id": "20260402130422293615",
+      "executive": "Braulio Saul Garcia Maganda",
+      "start_date": "2026-04-22",
+      "end_date": "2026-04-25",
+      "created_at": "2026-04-02T13:04:22.293615"
     }
   ],
   "workshops": [

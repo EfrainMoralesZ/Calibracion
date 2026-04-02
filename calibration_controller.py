@@ -2192,6 +2192,25 @@ class CalibrationController:
 				self.reload()
 				return
 
+	def mark_visit_reasignada(self, visit_id: str, new_date: str) -> None:
+		"""Mark a visit as reasignada (grey) when moving it to another date."""
+		if not VISITS_DIR.exists():
+			return
+		for _wfolder in VISITS_DIR.iterdir():
+			if not _wfolder.is_dir():
+				continue
+			_wvisits = _read_json(_wfolder / "visitas.json", [])
+			_existing = next((v for v in _wvisits if v.get("id") == visit_id), None)
+			if _existing:
+				_existing["acceptance_status"] = "reasignada"
+				_existing["cancellation_reason"] = f"Reasignada al {new_date}"
+				_existing["reassigned_to_date"] = new_date
+				_existing["reassigned_by"] = (self.current_user or {}).get("name", "Sistema")
+				_existing["updated_at"] = _timestamp()
+				_write_json(_wfolder / "visitas.json", _wvisits)
+				self.reload()
+				return
+
 	def reassign_visit(self, visit_id: str, new_inspectors: list[str]) -> None:
 		"""Reassign a visit to different technical executives."""
 		if not new_inspectors:

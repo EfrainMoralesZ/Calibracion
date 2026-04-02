@@ -1,0 +1,51 @@
+[
+  {
+    "id": "c37158239d5f422d946286f9554f1cbe",
+    "group_id": "c37158239d5f422d946286f9554f1cbe",
+    "inspectors": [
+      "Aitana Yolitzin Sanchez Tenorio"
+    ],
+    "inspector": "Aitana Yolitzin Sanchez Tenorio",
+    "client": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+    "address": "ADVANCE TEPOTZOTLAN II | Manzana 027, Capula, 54603 Tepotzotlán, Méx., Capula, Tepotzotlán, Estado de México, 54603",
+    "service": "DICTAMEN",
+    "visit_date": "2026-04-27",
+    "assignment_time": "09:00",
+    "departure_time": "18:00",
+    "status": "Reprogramada",
+    "notes": "",
+    "acceptance_responses": {},
+    "acceptance_status": "reasignada",
+    "accepted_by": "",
+    "assigned_by": "Efrain Morales Zamarrón",
+    "updated_at": "2026-04-02 13:57",
+    "accepted_count": 0,
+    "required_acceptances": 1,
+    "cancellation_reason": "Reasignada al 2026-04-28",
+    "reassigned_to_date": "2026-04-28",
+    "reassigned_by": "Efrain Morales Zamarrón"
+  },
+  {
+    "id": "6c4f8aec0cdf436187585e5f2faa7b51",
+    "group_id": "6c4f8aec0cdf436187585e5f2faa7b51",
+    "inspectors": [
+      "Aitana Yolitzin Sanchez Tenorio"
+    ],
+    "inspector": "Aitana Yolitzin Sanchez Tenorio",
+    "client": "ARTICULOS DEPORTIVOS DECATHLON SA DE CV",
+    "address": "ADVANCE TEPOTZOTLAN II | Manzana 027, Capula, 54603 Tepotzotlán, Méx., Capula, Tepotzotlán, Estado de México, 54603",
+    "service": "DICTAMEN",
+    "visit_date": "2026-04-28",
+    "assignment_time": "09:00",
+    "departure_time": "18:00",
+    "status": "Reprogramada",
+    "notes": "",
+    "acceptance_responses": {},
+    "acceptance_status": "asignada",
+    "accepted_by": "",
+    "assigned_by": "Efrain Morales Zamarrón",
+    "updated_at": "2026-04-02 13:57",
+    "accepted_count": 0,
+    "required_acceptances": 1
+  }
+]

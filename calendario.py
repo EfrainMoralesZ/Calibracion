@@ -8,6 +8,7 @@ from tkinter import TclError, filedialog, messagebox, ttk
 import tkinter as tk
 
 import customtkinter as ctk
+from tkcalendar import DateEntry
 
 
 class CalendarView(ctk.CTkFrame):
@@ -129,25 +130,20 @@ class CalendarView(ctk.CTkFrame):
             tabs.add("Reporte Sábado")
             self._build_saturday_report_tab(tabs.tab("Reporte Sábado"))
 
-        if self.can_edit:
-            tabs.add("Vacaciones y Talleres")
-            self._build_vacations_workshops_tab(tabs.tab("Vacaciones y Talleres"))
-
     def _build_calendar_tab(self, tab) -> None:
-        # Para ejecutivos: 3 columnas (calendario grande, detalle, normas compactas)
-        # Para admin: 2 columnas (calendario, detalle con formulario)
-        if not self.can_edit:
-            tab.grid_columnconfigure(0, weight=5, minsize=600)  # Calendario mucho más grande
-            tab.grid_columnconfigure(1, weight=2, minsize=330)  # Detalle de visita
-            tab.grid_columnconfigure(2, weight=1, minsize=90)  # Normas aplicadas más pequeña
+        if self.can_edit:
+            self._build_calendar_tab_admin(tab)
         else:
-            tab.grid_columnconfigure(0, weight=5, minsize=600)
-            tab.grid_columnconfigure(1, weight=2, minsize=320)
+            self._build_calendar_tab_exec(tab)
+
+    def _build_calendar_tab_admin(self, tab) -> None:
+        tab.grid_columnconfigure(0, weight=1)
         tab.grid_rowconfigure(0, weight=1)
 
         calendar_shell = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=22)
-        calendar_shell.grid(row=0, column=0, sticky="nsew", padx=(0, 0), pady=12)
+        calendar_shell.grid(row=0, column=0, sticky="nsew", padx=0, pady=12)
         calendar_shell.grid_columnconfigure(0, weight=1)
+        calendar_shell.grid_rowconfigure(1, weight=1)
 
         ctk.CTkLabel(
             calendar_shell,
@@ -159,44 +155,108 @@ class CalendarView(ctk.CTkFrame):
         calendar_panel = ctk.CTkFrame(calendar_shell, fg_color=self.style["fondo"], corner_radius=18)
         calendar_panel.grid(row=1, column=0, padx=0, pady=(0, 0), sticky="nsew")
         calendar_panel.grid_columnconfigure(0, weight=1)
-        calendar_shell.grid_rowconfigure(1, weight=1)
 
         month_nav = ctk.CTkFrame(calendar_panel, fg_color="transparent")
         month_nav.grid(row=0, column=0, padx=10, pady=(6, 4), sticky="ew")
         month_nav.grid_columnconfigure(1, weight=1)
 
         ctk.CTkButton(
-            month_nav,
-            text="<",
-            width=36,
-            fg_color=self.style["fondo"],
-            text_color=self.style["texto_oscuro"],
-            hover_color="#E9ECEF",
-            command=self._previous_month,
+            month_nav, text="<", width=36,
+            fg_color=self.style["fondo"], text_color=self.style["texto_oscuro"],
+            hover_color="#E9ECEF", command=self._previous_month,
         ).grid(row=0, column=0, padx=(0, 8))
         ctk.CTkLabel(
-            month_nav,
-            textvariable=self.month_title_var,
-            font=self.fonts["label_bold"],
-            text_color=self.style["texto_oscuro"],
+            month_nav, textvariable=self.month_title_var,
+            font=self.fonts["label_bold"], text_color=self.style["texto_oscuro"],
         ).grid(row=0, column=1, sticky="w")
         ctk.CTkButton(
-            month_nav,
-            text="Hoy",
-            width=72,
-            fg_color=self.style["primario"],
-            text_color=self.style["texto_oscuro"],
-            hover_color="#D8C220",
-            command=self._go_today,
+            month_nav, text="Hoy", width=72,
+            fg_color=self.style["primario"], text_color=self.style["texto_oscuro"],
+            hover_color="#D8C220", command=self._go_today,
         ).grid(row=0, column=2, padx=8)
         ctk.CTkButton(
-            month_nav,
-            text=">",
-            width=36,
-            fg_color=self.style["fondo"],
-            text_color=self.style["texto_oscuro"],
-            hover_color="#E9ECEF",
-            command=self._next_month,
+            month_nav, text=">", width=36,
+            fg_color=self.style["fondo"], text_color=self.style["texto_oscuro"],
+            hover_color="#E9ECEF", command=self._next_month,
+        ).grid(row=0, column=3)
+
+        week_header = ctk.CTkFrame(calendar_panel, fg_color="transparent")
+        week_header.grid(row=1, column=0, padx=10, sticky="ew")
+        for idx, day_name in enumerate(["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"]):
+            week_header.grid_columnconfigure(idx, weight=1)
+            ctk.CTkLabel(
+                week_header, text=day_name, font=self.fonts["small_bold"], text_color="#6D7480",
+            ).grid(row=0, column=idx, padx=2, pady=(0, 2), sticky="nsew")
+
+        self.calendar_grid_frame = ctk.CTkFrame(calendar_panel, fg_color="transparent")
+        self.calendar_grid_frame.grid(row=2, column=0, padx=0, pady=(0, 0), sticky="nsew")
+        calendar_panel.grid_rowconfigure(2, weight=1)
+
+        legend = ctk.CTkFrame(calendar_panel, fg_color="transparent")
+        legend.grid(row=3, column=0, padx=10, pady=(6, 10), sticky="ew")
+        legend_items = [
+            ("Asignada", "#FFFFFF", "#282828"), ("Aceptada", "#ECD925", "#282828"),
+            ("Reasignada", "#E4E7EB", "#3C4657"), ("Finalizada", "#D1F7D1", "#00A84F"),
+            ("Cancelada", "#F7D1D1", "#D1534E"), ("Vacaciones", "#FFE0B2", "#BF6C00"),
+            ("Taller", "#D4EDFC", "#1A6FA0"),
+        ]
+        for col in range(len(legend_items)):
+            legend.grid_columnconfigure(col, weight=1, uniform="legend")
+        for col, (label, color, txt_color) in enumerate(legend_items):
+            li = ctk.CTkFrame(legend, fg_color=color, corner_radius=6, border_width=1, border_color="#D5D8DC")
+            li.grid(row=0, column=col, padx=(0 if col == 0 else 4, 0), sticky="ew")
+            li.grid_propagate(False)
+            li.configure(height=28)
+            ctk.CTkLabel(li, text=label, font=self.fonts["small"],
+                         text_color=txt_color).pack(expand=True, pady=4)
+
+        ctk.CTkLabel(
+            calendar_panel, text="Doble clic en un dia para agregar visita, vacaciones o taller",
+            font=self.fonts["small"], text_color="#9AA0A8",
+        ).grid(row=4, column=0, padx=14, pady=(0, 8), sticky="w")
+
+    def _build_calendar_tab_exec(self, tab) -> None:
+        tab.grid_columnconfigure(0, weight=5, minsize=600)
+        tab.grid_columnconfigure(1, weight=2, minsize=330)
+        tab.grid_columnconfigure(2, weight=1, minsize=90)
+        tab.grid_rowconfigure(0, weight=1)
+
+        calendar_shell = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=22)
+        calendar_shell.grid(row=0, column=0, sticky="nsew", padx=(0, 0), pady=12)
+        calendar_shell.grid_columnconfigure(0, weight=1)
+        calendar_shell.grid_rowconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            calendar_shell, text="Calendario Operativo",
+            font=self.fonts["label_bold"], text_color=self.style["texto_oscuro"],
+        ).grid(row=0, column=0, padx=18, pady=(16, 8), sticky="w")
+
+        calendar_panel = ctk.CTkFrame(calendar_shell, fg_color=self.style["fondo"], corner_radius=18)
+        calendar_panel.grid(row=1, column=0, padx=0, pady=(0, 0), sticky="nsew")
+        calendar_panel.grid_columnconfigure(0, weight=1)
+
+        month_nav = ctk.CTkFrame(calendar_panel, fg_color="transparent")
+        month_nav.grid(row=0, column=0, padx=10, pady=(6, 4), sticky="ew")
+        month_nav.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(
+            month_nav, text="<", width=36,
+            fg_color=self.style["fondo"], text_color=self.style["texto_oscuro"],
+            hover_color="#E9ECEF", command=self._previous_month,
+        ).grid(row=0, column=0, padx=(0, 8))
+        ctk.CTkLabel(
+            month_nav, textvariable=self.month_title_var,
+            font=self.fonts["label_bold"], text_color=self.style["texto_oscuro"],
+        ).grid(row=0, column=1, sticky="w")
+        ctk.CTkButton(
+            month_nav, text="Hoy", width=72,
+            fg_color=self.style["primario"], text_color=self.style["texto_oscuro"],
+            hover_color="#D8C220", command=self._go_today,
+        ).grid(row=0, column=2, padx=8)
+        ctk.CTkButton(
+            month_nav, text=">", width=36,
+            fg_color=self.style["fondo"], text_color=self.style["texto_oscuro"],
+            hover_color="#E9ECEF", command=self._next_month,
         ).grid(row=0, column=3)
 
         week_header = ctk.CTkFrame(calendar_panel, fg_color="transparent")
@@ -204,186 +264,109 @@ class CalendarView(ctk.CTkFrame):
         for idx, day_name in enumerate(["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"]):
             week_header.grid_columnconfigure(idx, weight=1, minsize=96)
             ctk.CTkLabel(
-                week_header,
-                text=day_name,
-                font=self.fonts["small_bold"],
-                text_color="#6D7480",
+                week_header, text=day_name, font=self.fonts["small_bold"], text_color="#6D7480",
             ).grid(row=0, column=idx, padx=2, pady=(0, 2), sticky="nsew")
 
         self.calendar_grid_frame = ctk.CTkFrame(calendar_panel, fg_color="transparent")
         self.calendar_grid_frame.grid(row=2, column=0, padx=0, pady=(0, 0), sticky="nsew")
         calendar_panel.grid_rowconfigure(2, weight=1)
 
-        # Leyenda de estados
         legend = ctk.CTkFrame(calendar_panel, fg_color="transparent")
-        legend.grid(row=3, column=0, padx=10, pady=(6, 10), sticky="w")
+        legend.grid(row=3, column=0, padx=10, pady=(6, 10), sticky="ew")
+        legend_items = [
+            ("Asignada", "#FFFFFF", "#282828"), ("Aceptada", "#ECD925", "#282828"),
+            ("Reasignada", "#E4E7EB", "#3C4657"), ("Finalizada", "#D1F7D1", "#00A84F"),
+            ("Cancelada", "#F7D1D1", "#D1534E"), ("Vacaciones", "#FFE0B2", "#BF6C00"),
+            ("Taller", "#D4EDFC", "#1A6FA0"),
+        ]
+        for col in range(len(legend_items)):
+            legend.grid_columnconfigure(col, weight=1, uniform="legend")
+        for col, (label, color, txt_color) in enumerate(legend_items):
+            li = ctk.CTkFrame(legend, fg_color=color, corner_radius=6, border_width=1, border_color="#D5D8DC")
+            li.grid(row=0, column=col, padx=(0 if col == 0 else 4, 0), sticky="ew")
+            li.grid_propagate(False)
+            li.configure(height=28)
+            ctk.CTkLabel(li, text=label, font=self.fonts["small"],
+                         text_color=txt_color).pack(expand=True, pady=4)
 
-        for col, (label, color) in enumerate([
-            ("Asignada", "#FFFFFF"),
-            ("Aceptada", "#ECD925"),
-            ("Reasignada", "#E4E7EB"),
-            ("Finalizada", "#D1F7D1"),
-            ("Cancelada", "#F7D1D1"),
-            ("Vacaciones", "#FFE0B2"),
-            ("Taller", "#D4EDFC"),
-        ]):
-            legend_item = ctk.CTkFrame(legend, fg_color=color, corner_radius=6, border_width=1, border_color="#D5D8DC")
-            legend_item.grid(row=0, column=col, padx=(0 if col == 0 else 8, 0), sticky="w")
-            legend_item.grid_propagate(False)
-            legend_item.configure(width=105, height=28)
-            text_color = "#282828" if col in [0, 1] else self.style["texto_oscuro"]
-            ctk.CTkLabel(
-                legend_item,
-                text=label,
-                font=self.fonts["small"],
-                text_color=text_color,
-            ).pack(pady=6)
-
-
-        # Contenedor para detalle y botón fijo
+        # Side panel for exec detail
         self.side_panel_container = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=22)
         self.side_panel_container.grid(row=0, column=1, sticky="nsew", pady=12)
         self.side_panel_container.grid_rowconfigure(0, weight=1)
         self.side_panel_container.grid_rowconfigure(1, weight=0)
         self.side_panel_container.grid_columnconfigure(0, weight=1)
 
-        # Frame scrollable para el contenido de detalle
-        self.side_panel = ctk.CTkScrollableFrame(self.side_panel_container, fg_color="transparent", corner_radius=0, scrollbar_button_color=None, scrollbar_button_hover_color=None)
+        self.side_panel = ctk.CTkScrollableFrame(self.side_panel_container, fg_color="transparent", corner_radius=0,
+                                                  scrollbar_button_color=None, scrollbar_button_hover_color=None)
         self.side_panel.grid(row=0, column=0, sticky="nsew")
         self.side_panel.grid_columnconfigure(0, weight=1)
 
-        # Frame fijo inferior para el botón
         self.bottom_button_frame = ctk.CTkFrame(self.side_panel_container, fg_color="transparent")
         self.bottom_button_frame.grid(row=1, column=0, sticky="ew", padx=0, pady=(0, 10))
         self.bottom_button_frame.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
-            self.side_panel,
-            text="Detalle de visita",
-            font=self.fonts["label_bold"],
-            text_color=self.style["texto_oscuro"],
+            self.side_panel, text="Detalle de visita",
+            font=self.fonts["label_bold"], text_color=self.style["texto_oscuro"],
         ).grid(row=0, column=0, padx=18, pady=(16, 4), sticky="w")
 
-        self._readonly_notice = ctk.CTkLabel(
+        message = ctk.CTkLabel(
             self.side_panel,
-            text="Solo lectura — visita del pasado",
-            font=self.fonts["small"],
-            text_color="#9AA0A8",
+            text="Selecciona una visita para consultar la informacion principal y observaciones registradas.",
+            font=self.fonts["small"], text_color="#6D7480", wraplength=330, justify="left",
         )
-        self._readonly_notice.grid(row=0, column=0, padx=18, pady=(44, 0), sticky="w")
-        self._readonly_notice.grid_remove()
+        message.grid(row=1, column=0, padx=18, pady=(0, 12), sticky="w")
 
-        if self.can_edit:
-            self._build_form(self.side_panel)
-            # Agreement banner for admin — shown below the form when client has agreements
-            self._agreement_banner = ctk.CTkFrame(
-                self.side_panel,
-                fg_color="#FFF3CD",
-                corner_radius=10,
-                border_width=1,
-                border_color="#F0C040",
-            )
-            self._agreement_banner.grid(row=2, column=0, padx=18, pady=(0, 10), sticky="ew")
-            self._agreement_banner.grid_columnconfigure(0, weight=1)
-            ctk.CTkLabel(
-                self._agreement_banner,
-                text="⚠️  Este cliente tiene acuerdos registrados. Revísalos antes de realizar la visita.",
-                font=self.fonts["small"],
-                text_color="#7A5A00",
-                wraplength=280,
-                justify="left",
-            ).grid(row=0, column=0, padx=12, pady=10, sticky="w")
-            self._agreement_banner.grid_remove()
-        else:
-            # Vista para ejecutivos: Columna 2 = Detalle de visita
-            message = ctk.CTkLabel(
-                self.side_panel,
-                text=(
-                    "Selecciona una visita para consultar la informacion principal y observaciones registradas."
-                ),
-                font=self.fonts["small"],
-                text_color="#6D7480",
-                wraplength=330,
-                justify="left",
-            )
-            message.grid(row=1, column=0, padx=18, pady=(0, 12), sticky="w")
+        self._agreement_banner = ctk.CTkFrame(
+            self.side_panel, fg_color="#FFF3CD", corner_radius=10, border_width=1, border_color="#F0C040",
+        )
+        self._agreement_banner.grid(row=2, column=0, padx=18, pady=(0, 8), sticky="ew")
+        self._agreement_banner.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            self._agreement_banner,
+            text="⚠️  Este cliente tiene acuerdos registrados. Revísalos antes de realizar la visita.",
+            font=self.fonts["small"], text_color="#7A5A00", wraplength=330, justify="left",
+        ).grid(row=0, column=0, padx=12, pady=10, sticky="w")
+        self._agreement_banner.grid_remove()
 
-            # Agreement banner — shown above notes when client has agreements
-            self._agreement_banner = ctk.CTkFrame(
-                self.side_panel,
-                fg_color="#FFF3CD",
-                corner_radius=10,
-                border_width=1,
-                border_color="#F0C040",
-            )
-            self._agreement_banner.grid(row=2, column=0, padx=18, pady=(0, 8), sticky="ew")
-            self._agreement_banner.grid_columnconfigure(0, weight=1)
-            ctk.CTkLabel(
-                self._agreement_banner,
-                text="⚠️  Este cliente tiene acuerdos registrados. Revísalos antes de realizar la visita.",
-                font=self.fonts["small"],
-                text_color="#7A5A00",
-                wraplength=330,
-                justify="left",
-            ).grid(row=0, column=0, padx=12, pady=10, sticky="w")
-            self._agreement_banner.grid_remove()
+        self.notes_box = ctk.CTkTextbox(self.side_panel, height=420, corner_radius=18)
+        self.notes_box.grid(row=3, column=0, padx=18, pady=(0, 12), sticky="nsew")
+        self.notes_box.configure(state="disabled")
 
-            self.notes_box = ctk.CTkTextbox(self.side_panel, height=420, corner_radius=18)
-            self.notes_box.grid(row=3, column=0, padx=18, pady=(0, 12), sticky="nsew")
-            self.notes_box.configure(state="disabled")
+        # Normas panel (column 2)
+        self.normas_panel = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=22)
+        self.normas_panel.grid(row=0, column=2, sticky="nsew", padx=(0, 0), pady=12)
+        self.normas_panel.grid_columnconfigure(0, weight=1)
+        self.normas_panel.grid_rowconfigure(1, weight=1)
 
-            # Columna 3: Panel de normas (columna separada para ejecutivos)
-            self.normas_panel = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=22)
-            self.normas_panel.grid(row=0, column=2, sticky="nsew", padx=(0, 0), pady=12)
-            self.normas_panel.grid_columnconfigure(0, weight=1)
-            self.normas_panel.grid_rowconfigure(1, weight=1)
+        self.accept_visit_button = ctk.CTkButton(
+            self.bottom_button_frame, text="Aceptar visita", command=self._accept_visit_action,
+            fg_color="#ECD925", text_color="#282828", hover_color="#D8C220", state="disabled",
+        )
+        self.accept_visit_button.grid(row=0, column=0, padx=18, pady=(0, 0), sticky="ew")
 
-            self.accept_visit_button = ctk.CTkButton(
-                self.bottom_button_frame,
-                text="Aceptar visita",
-                command=self._accept_visit_action,
-                fg_color="#ECD925",
-                text_color="#282828",
-                hover_color="#D8C220",
-                state="disabled",
-            )
-            self.accept_visit_button.grid(row=0, column=0, padx=18, pady=(0, 0), sticky="ew")
+        ctk.CTkLabel(
+            self.normas_panel, text="Normas aplicadas",
+            font=self.fonts["label_bold"], text_color=self.style["texto_oscuro"],
+        ).grid(row=0, column=0, padx=12, pady=(16, 8), sticky="w")
 
-            ctk.CTkLabel(
-                self.normas_panel,
-                text="Normas aplicadas",
-                font=self.fonts["label_bold"],
-                text_color=self.style["texto_oscuro"],
-            ).grid(row=0, column=0, padx=12, pady=(16, 8), sticky="w")
+        self.visit_norm_check_frame = ctk.CTkScrollableFrame(
+            self.normas_panel, fg_color=self.style["fondo"], corner_radius=12,
+            scrollbar_button_color=None, scrollbar_button_hover_color=None,
+        )
+        self.visit_norm_check_frame.grid(row=1, column=0, padx=12, pady=(0, 8), sticky="nsew")
+        self.visit_norm_check_frame.grid_columnconfigure(0, weight=1)
 
-            self.visit_norm_check_frame = ctk.CTkScrollableFrame(
-                self.normas_panel,
-                fg_color=self.style["fondo"],
-                corner_radius=12,
-                scrollbar_button_color=None,
-                scrollbar_button_hover_color=None,
-            )
-            self.visit_norm_check_frame.grid(row=1, column=0, padx=12, pady=(0, 8), sticky="nsew")
-            self.visit_norm_check_frame.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            self.normas_panel, textvariable=self.norm_report_status_var,
+            font=self.fonts["small"], text_color="#6D7480", justify="left", wraplength=160,
+        ).grid(row=2, column=0, padx=12, pady=(0, 8), sticky="w")
 
-            ctk.CTkLabel(
-                self.normas_panel,
-                textvariable=self.norm_report_status_var,
-                font=self.fonts["small"],
-                text_color="#6D7480",
-                justify="left",
-                wraplength=160,
-            ).grid(row=2, column=0, padx=12, pady=(0, 8), sticky="w")
-
-            self.save_norm_report_button = ctk.CTkButton(
-                self.normas_panel,
-                text="Finalizar visita",
-                command=self._save_visit_norm_report,
-                fg_color=self.style["secundario"],
-                hover_color="#1D1D1D",
-                state="disabled",
-            )
-            self.save_norm_report_button.grid(row=3, column=0, padx=12, pady=(0, 12), sticky="ew")
+        self.save_norm_report_button = ctk.CTkButton(
+            self.normas_panel, text="Finalizar visita", command=self._save_visit_norm_report,
+            fg_color=self.style["secundario"], hover_color="#1D1D1D", state="disabled",
+        )
+        self.save_norm_report_button.grid(row=3, column=0, padx=12, pady=(0, 12), sticky="ew")
 
     def _build_visits_tab(self, tab) -> None:
         tab.grid_columnconfigure(0, weight=1)
@@ -1367,51 +1350,11 @@ class CalendarView(ctk.CTkFrame):
         self._viewing_past = is_past
         self.date_var.set(iso_date)
         self._render_month_grid()
-        self._refresh_exec_options()
 
         if self.can_edit:
-            visits_on_date = [
-                v for v in self.controller.list_visits()
-                if self._normalize_date(v.get("visit_date", "")) == iso_date
-            ]
-            if visits_on_date:
-                visit = self._pick_visit_for_date(visits_on_date, is_past)
-                self.selected_visit_id = visit["id"]
-                inspectors = list(visit.get("inspectors", []))
-                # Write to notes_box before locking it
-                if self.notes_box is not None:
-                    self.notes_box.configure(state="normal")
-                    self.notes_box.delete("1.0", "end")
-                    self.notes_box.insert("1.0", visit.get("notes", ""))
-                self.inspector_var.set(inspectors[0] if inspectors else "")
-                self.exec2_var.set(inspectors[1] if len(inspectors) > 1 else self._NO_EXEC2)
-                self.client_var.set(visit.get("client", ""))
-                self._on_client_change(visit.get("client", ""))
-                self.address_var.set(visit.get("address", ""))
-                self._sync_address_metadata()
-                self.assignment_time_var.set(visit.get("assignment_time", ""))
-                self.departure_time_var.set(visit.get("departure_time", ""))
-                self.status_var.set(visit.get("status", "Programada"))
-                self._update_acceptance_details(visit)
-                # Show agreement banner for admin if this client has recorded agreements
-                if self._agreement_banner is not None:
-                    try:
-                        client_name = visit.get("client", "").strip()
-                        has_agreements = bool(
-                            client_name and self.controller.get_client_agreements(client_name)
-                        )
-                        if has_agreements:
-                            self._agreement_banner.grid()
-                        else:
-                            self._agreement_banner.grid_remove()
-                    except Exception:
-                        self._agreement_banner.grid_remove()
-            else:
-                self.selected_visit_id = None
-                self._update_acceptance_details(None)
-                if self._agreement_banner is not None:
-                    self._agreement_banner.grid_remove()
+            self._open_day_popup(iso_date)
         elif not self.can_edit:
+            self._refresh_exec_options()
             visits_on_date = [
                 v for v in self.controller.list_visits()
                 if self._normalize_date(v.get("visit_date", "")) == iso_date
@@ -1424,13 +1367,12 @@ class CalendarView(ctk.CTkFrame):
                 self.selected_visit_id = None
                 self._show_readonly_visit_details(None)
 
-        self._set_form_editable(not is_past)
-        # Scroll form panel to top so fields are immediately visible
-        if self.side_panel is not None:
-            try:
-                self.side_panel._parent_canvas.yview_moveto(0)
-            except TclError:
-                pass
+            self._set_form_editable(not is_past)
+            if self.side_panel is not None:
+                try:
+                    self.side_panel._parent_canvas.yview_moveto(0)
+                except TclError:
+                    pass
 
     @staticmethod
     def _pick_visit_for_date(visits_on_date: list[dict], is_past: bool) -> dict:
@@ -1547,6 +1489,628 @@ class CalendarView(ctk.CTkFrame):
         self._refresh_exec_options()
         if not self.can_edit:
             self._render_visit_norm_checklist(None)
+
+    # ─── Day popup (admin) ──────────────────────────────────────────────────
+
+    def _open_day_popup(self, iso_date: str) -> None:
+        visits_on_date = [
+            v for v in self.controller.list_visits()
+            if self._normalize_date(v.get("visit_date", "")) == iso_date
+        ]
+        vacations_on_date = self.controller.get_vacations_for_date(iso_date)
+        workshops_on_date = self.controller.get_workshops_for_date(iso_date)
+
+        popup = ctk.CTkToplevel(self)
+        popup.title(f"Dia {iso_date}")
+        popup.geometry("700x600")
+        popup.resizable(True, True)
+        popup.transient(self.winfo_toplevel())
+        popup.grab_set()
+        popup.after(10, popup.focus_force)
+
+        popup.grid_columnconfigure(0, weight=1)
+        popup.grid_rowconfigure(1, weight=1)
+
+        # Header
+        header = ctk.CTkFrame(popup, fg_color="transparent")
+        header.grid(row=0, column=0, padx=20, pady=(16, 8), sticky="ew")
+        header.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(header, text=iso_date, font=self.fonts["subtitle"],
+                     text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w")
+
+        btn_row = ctk.CTkFrame(header, fg_color="transparent")
+        btn_row.grid(row=0, column=1, sticky="e")
+
+        is_past = iso_date < date.today().strftime("%Y-%m-%d")
+        if not is_past:
+            ctk.CTkButton(btn_row, text="+ Visita", width=110, fg_color=self.style["primario"],
+                           text_color=self.style["texto_oscuro"], hover_color="#D8C220",
+                           command=lambda: self._open_visit_dialog(iso_date, None, popup)).pack(side="left", padx=(0, 6))
+            ctk.CTkButton(btn_row, text="+ Vacaciones", width=120, fg_color="#FFE0B2",
+                           text_color="#BF6C00", hover_color="#FFD18C",
+                           command=lambda: self._open_vacation_dialog(iso_date, popup)).pack(side="left", padx=(0, 6))
+            ctk.CTkButton(btn_row, text="+ Taller", width=100, fg_color="#D4EDFC",
+                           text_color="#1A6FA0", hover_color="#B8DFFA",
+                           command=lambda: self._open_workshop_dialog(iso_date, popup)).pack(side="left")
+
+        # Scrollable content
+        content = ctk.CTkScrollableFrame(popup, fg_color="transparent")
+        content.grid(row=1, column=0, padx=20, pady=(0, 16), sticky="nsew")
+        content.grid_columnconfigure(0, weight=1)
+
+        row_idx = 0
+
+        # Visits section
+        if visits_on_date:
+            ctk.CTkLabel(content, text=f"Visitas ({len(visits_on_date)})", font=self.fonts["label_bold"],
+                         text_color=self.style["texto_oscuro"]).grid(row=row_idx, column=0, sticky="w", pady=(0, 6))
+            row_idx += 1
+            for visit in visits_on_date:
+                card = self._build_visit_card(content, visit, iso_date, popup)
+                card.grid(row=row_idx, column=0, sticky="ew", pady=(0, 6))
+                row_idx += 1
+
+        # Vacations section
+        if vacations_on_date:
+            ctk.CTkLabel(content, text=f"Vacaciones ({len(vacations_on_date)})", font=self.fonts["label_bold"],
+                         text_color="#BF6C00").grid(row=row_idx, column=0, sticky="w", pady=(8, 6))
+            row_idx += 1
+            for vac in vacations_on_date:
+                vcard = ctk.CTkFrame(content, fg_color="#FFE0B2", corner_radius=12)
+                vcard.grid(row=row_idx, column=0, sticky="ew", pady=(0, 4))
+                vcard.grid_columnconfigure(0, weight=1)
+                ctk.CTkLabel(vcard, text=f"🏖  {vac.get('executive', '')}   |   {vac.get('start_date', '')} → {vac.get('end_date', '')}",
+                             font=self.fonts["small"], text_color="#7A4A00").grid(row=0, column=0, padx=12, pady=8, sticky="w")
+                if not is_past:
+                    ctk.CTkButton(vcard, text="✕", width=30, height=26, fg_color="#E8A040", hover_color="#D08020",
+                                   text_color="#FFFFFF", command=lambda vid=vac["id"], p=popup: self._popup_delete_vacation(vid, iso_date, p)
+                                   ).grid(row=0, column=1, padx=(0, 8), pady=8)
+                row_idx += 1
+
+        # Workshops section
+        if workshops_on_date:
+            ctk.CTkLabel(content, text=f"Talleres ({len(workshops_on_date)})", font=self.fonts["label_bold"],
+                         text_color="#1A6FA0").grid(row=row_idx, column=0, sticky="w", pady=(8, 6))
+            row_idx += 1
+            for ws in workshops_on_date:
+                wcard = ctk.CTkFrame(content, fg_color="#D4EDFC", corner_radius=12)
+                wcard.grid(row=row_idx, column=0, sticky="ew", pady=(0, 4))
+                wcard.grid_columnconfigure(0, weight=1)
+                desc = f"  —  {ws.get('description', '')}" if ws.get("description") else ""
+                ctk.CTkLabel(wcard, text=f"📋  {ws.get('title', '')}{desc}",
+                             font=self.fonts["small"], text_color="#0E4A6F").grid(row=0, column=0, padx=12, pady=8, sticky="w")
+                if not is_past:
+                    ctk.CTkButton(wcard, text="✕", width=30, height=26, fg_color="#7CBEE0", hover_color="#5AA0C8",
+                                   text_color="#FFFFFF", command=lambda wid=ws["id"], p=popup: self._popup_delete_workshop(wid, iso_date, p)
+                                   ).grid(row=0, column=1, padx=(0, 8), pady=8)
+                row_idx += 1
+
+        if not visits_on_date and not vacations_on_date and not workshops_on_date:
+            ctk.CTkLabel(content, text="Sin eventos para este dia.", font=self.fonts["small"],
+                         text_color="#9AA0A8").grid(row=0, column=0, pady=20)
+
+    def _build_visit_card(self, parent, visit: dict, iso_date: str, popup) -> ctk.CTkFrame:
+        status = str(visit.get("acceptance_status", "asignada")).lower()
+        bg_map = {"cancelada": "#F7D1D1", "finalizada": "#D1F7D1", "aceptada": "#FFF8CC",
+                  "reasignada": "#E4E7EB", "asignada": "#FFFFFF",
+                  "reprogramada": "#E4E7EB"}
+        bg = bg_map.get(status, "#FFFFFF")
+
+        card = ctk.CTkFrame(parent, fg_color=bg, corner_radius=12, border_width=1, border_color="#E3E6EA")
+        card.grid_columnconfigure(1, weight=1)
+
+        inspectors = ", ".join(visit.get("inspectors", []))
+        client = visit.get("client", "")
+        times = f"{visit.get('assignment_time', '--')} - {visit.get('departure_time', '--')}"
+        address = visit.get("address", "")
+
+        info_frame = ctk.CTkFrame(card, fg_color="transparent")
+        info_frame.grid(row=0, column=0, columnspan=2, padx=12, pady=(10, 4), sticky="ew")
+        info_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(info_frame, text=f"⏰ {times}", font=self.fonts["small_bold"],
+                     text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w", padx=(0, 16))
+        ctk.CTkLabel(info_frame, text=f"👤 {inspectors}", font=self.fonts["small"],
+                     text_color=self.style["texto_oscuro"]).grid(row=0, column=1, sticky="w")
+        ctk.CTkLabel(info_frame, text=status.capitalize(), font=self.fonts["small_bold"],
+                     text_color="#6D7480").grid(row=0, column=2, sticky="e")
+
+        ctk.CTkLabel(card, text=f"🏢 {client}  —  {address}", font=self.fonts["small"],
+                     text_color="#4A5568", wraplength=580, justify="left").grid(
+            row=1, column=0, columnspan=2, padx=12, pady=(0, 4), sticky="w")
+
+        notes = visit.get("notes", "").strip()
+        if notes:
+            ctk.CTkLabel(card, text=f"📝 {notes}", font=self.fonts["small"],
+                         text_color="#6D7480", wraplength=580, justify="left").grid(
+                row=2, column=0, columnspan=2, padx=12, pady=(0, 6), sticky="w")
+
+        is_past = iso_date < date.today().strftime("%Y-%m-%d")
+        if not is_past and status not in ("cancelada", "finalizada"):
+            btn_frame = ctk.CTkFrame(card, fg_color="transparent")
+            btn_frame.grid(row=3, column=0, columnspan=2, padx=12, pady=(0, 8), sticky="ew")
+
+            ctk.CTkButton(btn_frame, text="Editar", width=70, height=28,
+                           fg_color=self.style["primario"], text_color=self.style["texto_oscuro"],
+                           hover_color="#D8C220",
+                           command=lambda v=visit: self._open_visit_dialog(iso_date, v, popup)).pack(side="left", padx=(0, 6))
+            ctk.CTkButton(btn_frame, text="Reasignar", width=80, height=28,
+                           fg_color="#E4E7EB", text_color=self.style["texto_oscuro"],
+                           hover_color="#D0D4DA",
+                           command=lambda v=visit, p=popup: self._popup_reassign_visit(v, iso_date, p)).pack(side="left", padx=(0, 6))
+            ctk.CTkButton(btn_frame, text="Cancelar", width=70, height=28,
+                           fg_color="#F7D1D1", text_color="#D1534E", hover_color="#F0B8B4",
+                           command=lambda v=visit, p=popup: self._popup_cancel_visit(v, iso_date, p)).pack(side="left", padx=(0, 6))
+            ctk.CTkButton(btn_frame, text="Eliminar", width=70, height=28,
+                           fg_color=self.style["peligro"], hover_color="#B43C31",
+                           command=lambda v=visit, p=popup: self._popup_delete_visit(v, iso_date, p)).pack(side="left")
+
+        return card
+
+    def _popup_reassign_visit(self, visit: dict, iso_date: str, popup) -> None:
+        popup.destroy()
+
+        dlg = ctk.CTkToplevel(self)
+        dlg.title("Reasignar visita")
+        dlg.geometry("380x260")
+        dlg.resizable(False, False)
+        dlg.transient(self.winfo_toplevel())
+        dlg.grab_set()
+        dlg.after(10, dlg.focus_force)
+
+        dlg.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(dlg, text="Reasignar visita", font=self.fonts["label_bold"],
+                     text_color=self.style["texto_oscuro"]).grid(row=0, column=0, padx=24, pady=(20, 6), sticky="w")
+        ctk.CTkLabel(dlg, text="La visita actual sera cancelada y se creara una nueva en la fecha seleccionada.",
+                     font=self.fonts["small"], text_color="#6D7480", wraplength=340, justify="left"
+                     ).grid(row=1, column=0, padx=24, pady=(0, 12), sticky="w")
+
+        form = ctk.CTkFrame(dlg, fg_color="transparent")
+        form.grid(row=2, column=0, padx=24, sticky="ew")
+        form.grid_columnconfigure(1, weight=1)
+
+        d_date_parsed = datetime.strptime(iso_date, "%Y-%m-%d").date()
+        ctk.CTkLabel(form, text="Nueva fecha", font=self.fonts["small"],
+                     text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w", padx=(0, 10), pady=4)
+        new_date_entry = DateEntry(form, date_pattern="yyyy-mm-dd",
+                                    font=("Segoe UI", 11), year=d_date_parsed.year,
+                                    month=d_date_parsed.month, day=d_date_parsed.day,
+                                    background=self.style["primario"], foreground="#282828",
+                                    borderwidth=1, relief="flat")
+        new_date_entry.grid(row=0, column=1, sticky="ew", pady=4, ipady=4)
+
+        btn_frame = ctk.CTkFrame(dlg, fg_color="transparent")
+        btn_frame.grid(row=3, column=0, padx=24, pady=(16, 20), sticky="ew")
+        btn_frame.grid_columnconfigure(0, weight=1)
+        btn_frame.grid_columnconfigure(1, weight=1)
+
+        def _do_reassign():
+            new_date = new_date_entry.get_date().strftime("%Y-%m-%d")
+            if new_date == iso_date:
+                messagebox.showwarning("Reasignar", "Selecciona una fecha diferente a la actual.", parent=dlg)
+                return
+            if new_date < date.today().strftime("%Y-%m-%d"):
+                messagebox.showerror("Reasignar", "No puedes reasignar a una fecha pasada.", parent=dlg)
+                return
+            # Mark original as reasignada
+            self.controller.mark_visit_reasignada(visit["id"], new_date)
+            # Create new visit with same data
+            new_payload = {
+                "client": visit.get("client", ""),
+                "address": visit.get("address", ""),
+                "service": visit.get("service", ""),
+                "visit_date": new_date,
+                "assignment_time": visit.get("assignment_time", ""),
+                "departure_time": visit.get("departure_time", ""),
+                "status": "Reprogramada",
+                "notes": visit.get("notes", ""),
+                "inspectors": list(visit.get("inspectors", [])),
+            }
+            try:
+                self.controller.save_visit(new_payload, None)
+            except ValueError as e:
+                messagebox.showerror("Reasignar", str(e), parent=dlg)
+                return
+            self.refresh()
+            dlg.destroy()
+            self._open_day_popup(new_date)
+
+        ctk.CTkButton(btn_frame, text="Cancelar", fg_color=self.style["fondo"],
+                       text_color=self.style["texto_oscuro"], hover_color="#E9ECEF",
+                       command=lambda: (dlg.destroy(), self._open_day_popup(iso_date))).grid(row=0, column=0, padx=(0, 6), sticky="ew")
+        ctk.CTkButton(btn_frame, text="Reasignar", fg_color="#E4E7EB",
+                       text_color=self.style["texto_oscuro"], hover_color="#D0D4DA",
+                       command=_do_reassign).grid(row=0, column=1, padx=(6, 0), sticky="ew")
+
+    def _popup_cancel_visit(self, visit: dict, iso_date: str, popup) -> None:
+        if not messagebox.askyesno("Visitas", "Deseas cancelar esta visita?", parent=popup):
+            return
+        self.controller.cancel_visit(visit["id"])
+        self.refresh()
+        popup.destroy()
+        self._open_day_popup(iso_date)
+
+    def _popup_delete_visit(self, visit: dict, iso_date: str, popup) -> None:
+        if not messagebox.askyesno("Visitas", "Deseas eliminar esta visita?", parent=popup):
+            return
+        self.controller.delete_visit(visit["id"])
+        self.refresh()
+        popup.destroy()
+        self._open_day_popup(iso_date)
+
+    def _popup_delete_vacation(self, vacation_id: str, iso_date: str, popup) -> None:
+        if not messagebox.askyesno("Vacaciones", "Deseas eliminar esta vacacion?", parent=popup):
+            return
+        self.controller.delete_vacation(vacation_id)
+        self.refresh()
+        popup.destroy()
+        self._open_day_popup(iso_date)
+
+    def _popup_delete_workshop(self, workshop_id: str, iso_date: str, popup) -> None:
+        if not messagebox.askyesno("Talleres", "Deseas eliminar este taller?", parent=popup):
+            return
+        self.controller.delete_workshop(workshop_id)
+        self.refresh()
+        popup.destroy()
+        self._open_day_popup(iso_date)
+
+    # ─── Visit dialog ───────────────────────────────────────────────────────
+
+    def _open_visit_dialog(self, iso_date: str, visit: dict | None, parent_popup) -> None:
+        parent_popup.destroy()
+
+        dlg = ctk.CTkToplevel(self)
+        dlg.title("Editar visita" if visit else "Nueva visita")
+        dlg.geometry("520x680")
+        dlg.resizable(True, True)
+        dlg.transient(self.winfo_toplevel())
+        dlg.grab_set()
+        dlg.after(10, dlg.focus_force)
+
+        dlg.grid_columnconfigure(0, weight=1)
+        dlg.grid_rowconfigure(0, weight=1)
+
+        scroll = ctk.CTkScrollableFrame(dlg, fg_color="transparent")
+        scroll.grid(row=0, column=0, padx=20, pady=(16, 0), sticky="nsew")
+        scroll.grid_columnconfigure(1, weight=1)
+
+        # Variables
+        d_exec1 = ctk.StringVar(value="")
+        d_exec2 = ctk.StringVar(value=self._NO_EXEC2)
+        d_client = ctk.StringVar(value="")
+        d_address = ctk.StringVar(value="")
+        d_date_val = datetime.strptime(iso_date, "%Y-%m-%d").date()
+        d_hour_start = ctk.StringVar(value="08")
+        d_min_start = ctk.StringVar(value="00")
+        d_hour_end = ctk.StringVar(value="18")
+        d_min_end = ctk.StringVar(value="00")
+        d_status = ctk.StringVar(value="Programada")
+        d_address_options: list[dict[str, str]] = []
+
+        if visit:
+            inspectors = list(visit.get("inspectors", []))
+            d_exec1.set(inspectors[0] if inspectors else "")
+            d_exec2.set(inspectors[1] if len(inspectors) > 1 else self._NO_EXEC2)
+            d_client.set(visit.get("client", ""))
+            d_address.set(visit.get("address", ""))
+            vd = self._normalize_date(visit.get("visit_date", iso_date))
+            if vd:
+                d_date_val = datetime.strptime(vd, "%Y-%m-%d").date()
+            d_status.set(visit.get("status", "Programada"))
+            at = visit.get("assignment_time", "08:00")
+            dt = visit.get("departure_time", "18:00")
+            if ":" in str(at):
+                parts = str(at).split(":")
+                d_hour_start.set(parts[0])
+                d_min_start.set(parts[1])
+            if ":" in str(dt):
+                parts = str(dt).split(":")
+                d_hour_end.set(parts[0])
+                d_min_end.set(parts[1])
+
+        r = 0
+        all_execs = self.controller.get_assignable_inspectors()
+        hours = [f"{h:02d}" for h in range(24)]
+        minutes = [f"{m:02d}" for m in range(0, 60, 5)]
+
+        def _lbl(text, row):
+            ctk.CTkLabel(scroll, text=text, font=self.fonts["label"],
+                         text_color=self.style["texto_oscuro"]).grid(row=row, column=0, columnspan=2, sticky="w", pady=(8, 4))
+
+        _lbl("Ejecutivo Tecnico 1", r); r += 1
+        ctk.CTkComboBox(scroll, variable=d_exec1, values=all_execs or ["Sin ejecutivos"],
+                         height=36, fg_color="#FFFFFF", border_color="#D5D8DC",
+                         button_color=self.style["primario"], dropdown_hover_color=self.style["primario"],
+                         ).grid(row=r, column=0, columnspan=2, sticky="ew"); r += 1
+
+        _lbl("Ejecutivo Tecnico 2 (opcional)", r); r += 1
+        ctk.CTkComboBox(scroll, variable=d_exec2, values=[self._NO_EXEC2] + all_execs,
+                         height=36, fg_color="#FFFFFF", border_color="#D5D8DC",
+                         button_color=self.style["primario"], dropdown_hover_color=self.style["primario"],
+                         ).grid(row=r, column=0, columnspan=2, sticky="ew"); r += 1
+
+        _lbl("Cliente", r); r += 1
+        client_names = self.controller.get_client_names()
+        address_combo = [None]  # mutable reference
+
+        def _on_dlg_client_change(_val: str = ""):
+            nonlocal d_address_options
+            d_address_options = self.controller.get_client_addresses(d_client.get())
+            labels = [a["address"] for a in d_address_options] or ["Sin direcciones"]
+            if address_combo[0] is not None:
+                try:
+                    address_combo[0].configure(values=labels)
+                except TclError:
+                    pass
+            if d_address_options:
+                d_address.set(d_address_options[0]["address"])
+
+        ctk.CTkComboBox(scroll, variable=d_client, values=client_names or ["Sin clientes"],
+                         height=36, fg_color="#FFFFFF", border_color="#D5D8DC",
+                         button_color=self.style["primario"], dropdown_hover_color=self.style["primario"],
+                         command=_on_dlg_client_change).grid(row=r, column=0, columnspan=2, sticky="ew"); r += 1
+
+        _lbl("Direccion", r); r += 1
+        address_combo[0] = ctk.CTkComboBox(scroll, variable=d_address, values=["Selecciona un cliente"],
+                         height=36, fg_color="#FFFFFF", border_color="#D5D8DC",
+                         button_color=self.style["primario"], dropdown_hover_color=self.style["primario"])
+        address_combo[0].grid(row=r, column=0, columnspan=2, sticky="ew"); r += 1
+        if visit and visit.get("client"):
+            _on_dlg_client_change()
+            d_address.set(visit.get("address", ""))
+
+        _lbl("Fecha de visita", r); r += 1
+        d_date_entry = DateEntry(scroll, date_pattern="yyyy-mm-dd",
+                                  font=("Segoe UI", 12), year=d_date_val.year,
+                                  month=d_date_val.month, day=d_date_val.day,
+                                  background=self.style["primario"], foreground="#282828",
+                                  borderwidth=1, relief="flat")
+        d_date_entry.grid(row=r, column=0, columnspan=2, sticky="ew", ipady=6); r += 1
+
+        # ── Dynamic time pickers ──
+        _lbl("Hora de asignacion al almacen", r); r += 1
+        time_start_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        time_start_frame.grid(row=r, column=0, columnspan=2, sticky="ew"); r += 1
+        time_start_frame.grid_columnconfigure(0, weight=1)
+        time_start_frame.grid_columnconfigure(2, weight=1)
+        ctk.CTkComboBox(time_start_frame, variable=d_hour_start, values=hours, width=80, height=36,
+                         fg_color="#FFFFFF", border_color="#D5D8DC", button_color=self.style["primario"],
+                         dropdown_hover_color=self.style["primario"]).grid(row=0, column=0, sticky="ew")
+        ctk.CTkLabel(time_start_frame, text=":", font=self.fonts["label_bold"],
+                     text_color=self.style["texto_oscuro"]).grid(row=0, column=1, padx=4)
+        ctk.CTkComboBox(time_start_frame, variable=d_min_start, values=minutes, width=80, height=36,
+                         fg_color="#FFFFFF", border_color="#D5D8DC", button_color=self.style["primario"],
+                         dropdown_hover_color=self.style["primario"]).grid(row=0, column=2, sticky="ew")
+
+        _lbl("Hora de salida", r); r += 1
+        time_end_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        time_end_frame.grid(row=r, column=0, columnspan=2, sticky="ew"); r += 1
+        time_end_frame.grid_columnconfigure(0, weight=1)
+        time_end_frame.grid_columnconfigure(2, weight=1)
+        ctk.CTkComboBox(time_end_frame, variable=d_hour_end, values=hours, width=80, height=36,
+                         fg_color="#FFFFFF", border_color="#D5D8DC", button_color=self.style["primario"],
+                         dropdown_hover_color=self.style["primario"]).grid(row=0, column=0, sticky="ew")
+        ctk.CTkLabel(time_end_frame, text=":", font=self.fonts["label_bold"],
+                     text_color=self.style["texto_oscuro"]).grid(row=0, column=1, padx=4)
+        ctk.CTkComboBox(time_end_frame, variable=d_min_end, values=minutes, width=80, height=36,
+                         fg_color="#FFFFFF", border_color="#D5D8DC", button_color=self.style["primario"],
+                         dropdown_hover_color=self.style["primario"]).grid(row=0, column=2, sticky="ew")
+
+        _lbl("Estado", r); r += 1
+        ctk.CTkComboBox(scroll, variable=d_status, values=["Programada", "Realizada", "Reprogramada"],
+                         height=36, fg_color="#FFFFFF", border_color="#D5D8DC",
+                         button_color=self.style["primario"], dropdown_hover_color=self.style["primario"],
+                         ).grid(row=r, column=0, columnspan=2, sticky="ew"); r += 1
+
+        _lbl("Notas", r); r += 1
+        notes_tb = ctk.CTkTextbox(scroll, height=80, corner_radius=12)
+        notes_tb.grid(row=r, column=0, columnspan=2, sticky="ew"); r += 1
+        if visit:
+            notes_tb.insert("1.0", visit.get("notes", ""))
+
+        # ── Buttons ──
+        btn_frame = ctk.CTkFrame(dlg, fg_color="transparent")
+        btn_frame.grid(row=1, column=0, padx=20, pady=(12, 16), sticky="ew")
+        btn_frame.grid_columnconfigure(0, weight=1)
+        btn_frame.grid_columnconfigure(1, weight=1)
+
+        def _save():
+            exec1 = d_exec1.get().strip()
+            exec2_raw = d_exec2.get().strip()
+            exec2 = exec2_raw if exec2_raw and exec2_raw != self._NO_EXEC2 else ""
+            inspectors = [exec1] if exec1 else []
+            if exec2 and exec2 != exec1:
+                inspectors.append(exec2)
+            if not inspectors:
+                messagebox.showerror("Visitas", "Selecciona al menos un ejecutivo.", parent=dlg)
+                return
+
+            assignment_time = f"{d_hour_start.get()}:{d_min_start.get()}"
+            departure_time = f"{d_hour_end.get()}:{d_min_end.get()}"
+            normalized_date = d_date_entry.get_date().strftime("%Y-%m-%d")
+
+            # Determine service from address
+            service = "Sin servicio"
+            for opt in d_address_options:
+                if opt.get("address") == d_address.get():
+                    service = opt.get("service", "Sin servicio")
+                    break
+
+            payload = {
+                "client": d_client.get(),
+                "address": d_address.get(),
+                "service": service,
+                "visit_date": normalized_date,
+                "assignment_time": assignment_time,
+                "departure_time": departure_time,
+                "status": d_status.get(),
+                "notes": notes_tb.get("1.0", "end").strip(),
+                "inspectors": inspectors,
+            }
+            try:
+                self.controller.save_visit(payload, visit["id"] if visit else None)
+            except ValueError as e:
+                messagebox.showerror("Visitas", str(e), parent=dlg)
+                return
+            self.refresh()
+            dlg.destroy()
+            self._open_day_popup(iso_date)
+
+        ctk.CTkButton(btn_frame, text="Cancelar", fg_color=self.style["fondo"],
+                       text_color=self.style["texto_oscuro"], hover_color="#E9ECEF",
+                       command=lambda: (dlg.destroy(), self._open_day_popup(iso_date))).grid(row=0, column=0, padx=(0, 6), sticky="ew")
+        ctk.CTkButton(btn_frame, text="Guardar visita", fg_color=self.style["secundario"],
+                       hover_color="#1D1D1D",
+                       command=_save).grid(row=0, column=1, padx=(6, 0), sticky="ew")
+
+    # ─── Vacation dialog ────────────────────────────────────────────────────
+
+    def _open_vacation_dialog(self, iso_date: str, parent_popup) -> None:
+        parent_popup.destroy()
+
+        dlg = ctk.CTkToplevel(self)
+        dlg.title("Agregar vacaciones")
+        dlg.geometry("420x320")
+        dlg.resizable(False, False)
+        dlg.transient(self.winfo_toplevel())
+        dlg.grab_set()
+        dlg.after(10, dlg.focus_force)
+
+        dlg.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(dlg, text="Registrar vacaciones", font=self.fonts["label_bold"],
+                     text_color=self.style["texto_oscuro"]).grid(row=0, column=0, padx=24, pady=(20, 12), sticky="w")
+
+        form = ctk.CTkFrame(dlg, fg_color="transparent")
+        form.grid(row=1, column=0, padx=24, sticky="ew")
+        form.grid_columnconfigure(1, weight=1)
+
+        d_exec = ctk.StringVar()
+        d_date_parsed = datetime.strptime(iso_date, "%Y-%m-%d").date()
+
+        ctk.CTkLabel(form, text="Ejecutivo", font=self.fonts["small"],
+                     text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w", padx=(0, 10), pady=4)
+        ctk.CTkComboBox(form, variable=d_exec, values=self.controller.get_assignable_inspectors() or ["Sin ejecutivos"],
+                         height=34, fg_color="#FFFFFF", border_color="#D5D8DC",
+                         button_color=self.style["primario"], dropdown_hover_color=self.style["primario"],
+                         ).grid(row=0, column=1, sticky="ew", pady=4)
+
+        ctk.CTkLabel(form, text="Inicio", font=self.fonts["small"],
+                     text_color=self.style["texto_oscuro"]).grid(row=1, column=0, sticky="w", padx=(0, 10), pady=4)
+        d_start_entry = DateEntry(form, date_pattern="yyyy-mm-dd",
+                                   font=("Segoe UI", 11), year=d_date_parsed.year,
+                                   month=d_date_parsed.month, day=d_date_parsed.day,
+                                   background=self.style["primario"], foreground="#282828",
+                                   borderwidth=1, relief="flat")
+        d_start_entry.grid(row=1, column=1, sticky="ew", pady=4, ipady=4)
+
+        ctk.CTkLabel(form, text="Fin", font=self.fonts["small"],
+                     text_color=self.style["texto_oscuro"]).grid(row=2, column=0, sticky="w", padx=(0, 10), pady=4)
+        d_end_entry = DateEntry(form, date_pattern="yyyy-mm-dd",
+                                 font=("Segoe UI", 11), year=d_date_parsed.year,
+                                 month=d_date_parsed.month, day=d_date_parsed.day,
+                                 background=self.style["primario"], foreground="#282828",
+                                 borderwidth=1, relief="flat")
+        d_end_entry.grid(row=2, column=1, sticky="ew", pady=4, ipady=4)
+
+        btn_frame = ctk.CTkFrame(dlg, fg_color="transparent")
+        btn_frame.grid(row=2, column=0, padx=24, pady=(16, 20), sticky="ew")
+        btn_frame.grid_columnconfigure(0, weight=1)
+        btn_frame.grid_columnconfigure(1, weight=1)
+
+        def _save_vac():
+            start = d_start_entry.get_date().strftime("%Y-%m-%d")
+            end = d_end_entry.get_date().strftime("%Y-%m-%d")
+            if not d_exec.get().strip() or not start or not end:
+                messagebox.showerror("Vacaciones", "Completa todos los campos.", parent=dlg)
+                return
+            try:
+                self.controller.save_vacation(d_exec.get().strip(), start, end)
+            except ValueError as e:
+                messagebox.showerror("Vacaciones", str(e), parent=dlg)
+                return
+            self.refresh()
+            dlg.destroy()
+            self._open_day_popup(iso_date)
+
+        ctk.CTkButton(btn_frame, text="Cancelar", fg_color=self.style["fondo"],
+                       text_color=self.style["texto_oscuro"], hover_color="#E9ECEF",
+                       command=lambda: (dlg.destroy(), self._open_day_popup(iso_date))).grid(row=0, column=0, padx=(0, 6), sticky="ew")
+        ctk.CTkButton(btn_frame, text="Guardar", fg_color="#FFE0B2", text_color="#7A4A00",
+                       hover_color="#FFD18C", command=_save_vac).grid(row=0, column=1, padx=(6, 0), sticky="ew")
+
+    # ─── Workshop dialog ────────────────────────────────────────────────────
+
+    def _open_workshop_dialog(self, iso_date: str, parent_popup) -> None:
+        parent_popup.destroy()
+
+        dlg = ctk.CTkToplevel(self)
+        dlg.title("Agregar taller")
+        dlg.geometry("420x350")
+        dlg.resizable(False, False)
+        dlg.transient(self.winfo_toplevel())
+        dlg.grab_set()
+        dlg.after(10, dlg.focus_force)
+
+        dlg.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(dlg, text="Registrar taller", font=self.fonts["label_bold"],
+                     text_color=self.style["texto_oscuro"]).grid(row=0, column=0, padx=24, pady=(20, 12), sticky="w")
+
+        form = ctk.CTkFrame(dlg, fg_color="transparent")
+        form.grid(row=1, column=0, padx=24, sticky="ew")
+        form.grid_columnconfigure(1, weight=1)
+
+        d_title = ctk.StringVar()
+        d_desc = ctk.StringVar()
+        d_date_parsed = datetime.strptime(iso_date, "%Y-%m-%d").date()
+
+        ctk.CTkLabel(form, text="Titulo", font=self.fonts["small"],
+                     text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w", padx=(0, 10), pady=4)
+        ctk.CTkEntry(form, textvariable=d_title, height=34, border_color="#D5D8DC",
+                     placeholder_text="Nombre del taller").grid(row=0, column=1, sticky="ew", pady=4)
+
+        ctk.CTkLabel(form, text="Fecha", font=self.fonts["small"],
+                     text_color=self.style["texto_oscuro"]).grid(row=1, column=0, sticky="w", padx=(0, 10), pady=4)
+        d_date_entry = DateEntry(form, date_pattern="yyyy-mm-dd",
+                                  font=("Segoe UI", 11), year=d_date_parsed.year,
+                                  month=d_date_parsed.month, day=d_date_parsed.day,
+                                  background=self.style["primario"], foreground="#282828",
+                                  borderwidth=1, relief="flat")
+        d_date_entry.grid(row=1, column=1, sticky="ew", pady=4, ipady=4)
+
+        ctk.CTkLabel(form, text="Descripcion", font=self.fonts["small"],
+                     text_color=self.style["texto_oscuro"]).grid(row=2, column=0, sticky="w", padx=(0, 10), pady=4)
+        ctk.CTkEntry(form, textvariable=d_desc, height=34, border_color="#D5D8DC",
+                     placeholder_text="Opcional").grid(row=2, column=1, sticky="ew", pady=4)
+
+        btn_frame = ctk.CTkFrame(dlg, fg_color="transparent")
+        btn_frame.grid(row=2, column=0, padx=24, pady=(16, 20), sticky="ew")
+        btn_frame.grid_columnconfigure(0, weight=1)
+        btn_frame.grid_columnconfigure(1, weight=1)
+
+        def _save_ws():
+            title = d_title.get().strip()
+            ws_date = d_date_entry.get_date().strftime("%Y-%m-%d")
+            if not title or not ws_date:
+                messagebox.showerror("Talleres", "Titulo y fecha son obligatorios.", parent=dlg)
+                return
+            try:
+                self.controller.save_workshop(title, ws_date, d_desc.get().strip())
+            except ValueError as e:
+                messagebox.showerror("Talleres", str(e), parent=dlg)
+                return
+            self.refresh()
+            dlg.destroy()
+            self._open_day_popup(iso_date)
+
+        ctk.CTkButton(btn_frame, text="Cancelar", fg_color=self.style["fondo"],
+                       text_color=self.style["texto_oscuro"], hover_color="#E9ECEF",
+                       command=lambda: (dlg.destroy(), self._open_day_popup(iso_date))).grid(row=0, column=0, padx=(0, 6), sticky="ew")
+        ctk.CTkButton(btn_frame, text="Guardar", fg_color="#D4EDFC", text_color="#0E4A6F",
+                       hover_color="#B8DFFA", command=_save_ws).grid(row=0, column=1, padx=(6, 0), sticky="ew")
 
     def _collect_executives(self) -> list[str]:
         exec1 = self.inspector_var.get().strip()
@@ -2005,37 +2569,9 @@ class CalendarView(ctk.CTkFrame):
 
         self.selected_visit_id = visit_id
         if self.can_edit:
-            inspectors = list(visit.get("inspectors", []))
-            self.inspector_var.set(inspectors[0] if inspectors else "")
-            self.exec2_var.set(inspectors[1] if len(inspectors) > 1 else self._NO_EXEC2)
-            self.client_var.set(visit.get("client", ""))
-            self._on_client_change(visit.get("client", ""))
-            self.address_var.set(visit.get("address", ""))
-            self._sync_address_metadata()
-            self.date_var.set(normalized_date or visit.get("visit_date", ""))
-            self.assignment_time_var.set(visit.get("assignment_time", ""))
-            self.departure_time_var.set(visit.get("departure_time", ""))
-            self.status_var.set(visit.get("status", "Programada"))
-            if self.notes_box is not None:
-                self.notes_box.configure(state="normal")
-                self.notes_box.delete("1.0", "end")
-                self.notes_box.insert("1.0", visit.get("notes", ""))
-            self._update_acceptance_details(visit)
-            self._refresh_exec_options()
-            self._set_form_editable(not is_past)
-            # Show agreement banner for admin if this client has recorded agreements
-            if self._agreement_banner is not None:
-                try:
-                    client_name = visit.get("client", "").strip()
-                    has_agreements = bool(
-                        client_name and self.controller.get_client_agreements(client_name)
-                    )
-                    if has_agreements:
-                        self._agreement_banner.grid()
-                    else:
-                        self._agreement_banner.grid_remove()
-                except Exception:
-                    self._agreement_banner.grid_remove()
+            # Admin: open day popup instead of filling removed side panel
+            if normalized_date:
+                self._open_day_popup(normalized_date)
         elif self.notes_box is not None:
             self._show_readonly_visit_details(visit)
 
