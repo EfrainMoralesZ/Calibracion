@@ -666,6 +666,8 @@ class CalibrationController:
 		self.app_state.setdefault("evaluations", {})
 		self.app_state.setdefault("document_counters", {"criterio_evaluacion_tecnica": 0})
 		self.app_state.setdefault("criteria_documents", [])
+		self.app_state.setdefault("vacations", [])
+		self.app_state.setdefault("workshops", [])
 		HISTORY_DIR.mkdir(parents=True, exist_ok=True)
 		VISITS_DIR.mkdir(parents=True, exist_ok=True)
 		TRIMESTRAL_DIR.mkdir(parents=True, exist_ok=True)
@@ -2816,6 +2818,76 @@ class CalibrationController:
 
 	def _history_file(self, inspector_name: str) -> Path:
 		return self._history_dir(inspector_name) / "historico.json"
+
+	# ─── Vacaciones ─────────────────────────────────────────────────────────
+
+	def list_vacations(self) -> list[dict[str, Any]]:
+		return list(self.app_state.get("vacations", []))
+
+	def save_vacation(self, executive: str, start_date: str, end_date: str) -> dict[str, Any]:
+		if not executive or not start_date or not end_date:
+			raise ValueError("Ejecutivo, fecha inicio y fecha fin son obligatorios.")
+		if end_date < start_date:
+			raise ValueError("La fecha fin no puede ser anterior a la fecha inicio.")
+		entry = {
+			"id": datetime.now().strftime("%Y%m%d%H%M%S%f"),
+			"executive": executive.strip(),
+			"start_date": start_date,
+			"end_date": end_date,
+			"created_at": datetime.now().isoformat(),
+		}
+		vacations = self.app_state.setdefault("vacations", [])
+		vacations.append(entry)
+		_write_json(STATE_FILE, self.app_state)
+		return entry
+
+	def delete_vacation(self, vacation_id: str) -> bool:
+		vacations = self.app_state.get("vacations", [])
+		idx = next((i for i, v in enumerate(vacations) if v.get("id") == vacation_id), None)
+		if idx is None:
+			return False
+		del vacations[idx]
+		_write_json(STATE_FILE, self.app_state)
+		return True
+
+	def get_vacations_for_date(self, iso_date: str) -> list[dict[str, Any]]:
+		result = []
+		for v in self.app_state.get("vacations", []):
+			if v.get("start_date", "") <= iso_date <= v.get("end_date", ""):
+				result.append(v)
+		return result
+
+	# ─── Talleres ───────────────────────────────────────────────────────────
+
+	def list_workshops(self) -> list[dict[str, Any]]:
+		return list(self.app_state.get("workshops", []))
+
+	def save_workshop(self, title: str, workshop_date: str, description: str = "") -> dict[str, Any]:
+		if not title or not workshop_date:
+			raise ValueError("Titulo y fecha del taller son obligatorios.")
+		entry = {
+			"id": datetime.now().strftime("%Y%m%d%H%M%S%f"),
+			"title": title.strip(),
+			"date": workshop_date,
+			"description": description.strip(),
+			"created_at": datetime.now().isoformat(),
+		}
+		workshops = self.app_state.setdefault("workshops", [])
+		workshops.append(entry)
+		_write_json(STATE_FILE, self.app_state)
+		return entry
+
+	def delete_workshop(self, workshop_id: str) -> bool:
+		workshops = self.app_state.get("workshops", [])
+		idx = next((i for i, w in enumerate(workshops) if w.get("id") == workshop_id), None)
+		if idx is None:
+			return False
+		del workshops[idx]
+		_write_json(STATE_FILE, self.app_state)
+		return True
+
+	def get_workshops_for_date(self, iso_date: str) -> list[dict[str, Any]]:
+		return [w for w in self.app_state.get("workshops", []) if w.get("date") == iso_date]
 
 	def _visits_file(self, inspector_name: str) -> Path:
 		return self._history_dir(inspector_name) / "visitas.json"

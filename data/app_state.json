@@ -390,5 +390,23 @@
   "document_counters": {
     "criterio_evaluacion_tecnica": 0
   },
-  "criteria_documents": []
+  "criteria_documents": [],
+  "vacations": [
+    {
+      "id": "20260402122829520018",
+      "executive": "Aitana Yolitzin Sanchez Tenorio",
+      "start_date": "2026-04-03",
+      "end_date": "2026-04-20",
+      "created_at": "2026-04-02T12:28:29.520018"
+    }
+  ],
+  "workshops": [
+    {
+      "id": "20260402122929709110",
+      "title": "taller de induccion",
+      "date": "2026-04-18",
+      "description": "Habilidades de comunicación",
+      "created_at": "2026-04-02T12:29:29.709110"
+    }
+  ]
 }

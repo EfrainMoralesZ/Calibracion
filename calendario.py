@@ -79,6 +79,15 @@ class CalendarView(ctk.CTkFrame):
         self.saturday_year_var = ctk.StringVar(value=str(date.today().year))
         self.saturday_status_var = ctk.StringVar(value="")
 
+        self.vac_exec_var = ctk.StringVar()
+        self.vac_start_var = ctk.StringVar()
+        self.vac_end_var = ctk.StringVar()
+        self.ws_title_var = ctk.StringVar()
+        self.ws_date_var = ctk.StringVar()
+        self.ws_desc_var = ctk.StringVar()
+        self.vacation_tree: ttk.Treeview | None = None
+        self.workshop_tree: ttk.Treeview | None = None
+
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
         self._build_ui()
@@ -119,6 +128,10 @@ class CalendarView(ctk.CTkFrame):
         if not self.controller.is_executive_role(self.controller.current_user or {}):
             tabs.add("Reporte Sábado")
             self._build_saturday_report_tab(tabs.tab("Reporte Sábado"))
+
+        if self.can_edit:
+            tabs.add("Vacaciones y Talleres")
+            self._build_vacations_workshops_tab(tabs.tab("Vacaciones y Talleres"))
 
     def _build_calendar_tab(self, tab) -> None:
         # Para ejecutivos: 3 columnas (calendario grande, detalle, normas compactas)
@@ -211,6 +224,8 @@ class CalendarView(ctk.CTkFrame):
             ("Reasignada", "#E4E7EB"),
             ("Finalizada", "#D1F7D1"),
             ("Cancelada", "#F7D1D1"),
+            ("Vacaciones", "#FFE0B2"),
+            ("Taller", "#D4EDFC"),
         ]):
             legend_item = ctk.CTkFrame(legend, fg_color=color, corner_radius=6, border_width=1, border_color="#D5D8DC")
             legend_item.grid(row=0, column=col, padx=(0 if col == 0 else 8, 0), sticky="w")
@@ -1233,10 +1248,24 @@ class CalendarView(ctk.CTkFrame):
 
                 day_iso = date(self.current_month.year, self.current_month.month, day).strftime("%Y-%m-%d")
                 count = self.visible_date_counts.get(day_iso, 0)
-                label = f"{day}\n{count} visita(s)" if count else str(day)
                 is_past_day = day_iso < today_iso
                 has_past_visits = is_past_day and count > 0
                 is_sunday = (col == 6)
+
+                # Check vacation / workshop events for this date
+                day_vacations = self.controller.get_vacations_for_date(day_iso)
+                day_workshops = self.controller.get_workshops_for_date(day_iso)
+
+                # Build label with event info
+                label_parts = [str(day)]
+                if count:
+                    label_parts.append(f"{count} visita(s)")
+                if day_vacations:
+                    vac_names = ", ".join(sorted({v.get("executive", "") for v in day_vacations}))
+                    label_parts.append(f"🏖 {vac_names}" if len(vac_names) <= 12 else "🏖 Vacaciones")
+                if day_workshops:
+                    label_parts.append(f"📋 Taller")
+                label = "\n".join(label_parts)
                 
                 # Determine color based on acceptance status of visits on this date
                 day_visits = visits_by_date.get(day_iso, [])
@@ -1250,11 +1279,26 @@ class CalendarView(ctk.CTkFrame):
                 )
                 has_assigned = any(v.get("acceptance_status") == "asignada" for v in day_visits)
 
-                if (is_past_day and not has_past_visits) or (is_sunday and not count):
+                if (is_past_day and not has_past_visits and not day_vacations and not day_workshops) or (is_sunday and not count and not day_vacations and not day_workshops):
                     fg_color = "#EEF0F2"
                     text_color = "#9AA0A8"
                     state = "disabled"
                     hover_color = "#EEF0F2"
+                elif day_workshops and day_vacations:
+                    fg_color = "#E0D4F5"
+                    text_color = "#5B3A8C"
+                    state = "normal"
+                    hover_color = "#D0C0EB"
+                elif day_workshops:
+                    fg_color = "#D4EDFC"
+                    text_color = "#1A6FA0"
+                    state = "normal"
+                    hover_color = "#B8DFFA"
+                elif day_vacations:
+                    fg_color = "#FFE0B2"
+                    text_color = "#BF6C00"
+                    state = "normal"
+                    hover_color = "#FFD18C"
                 elif has_cancelled:
                     fg_color = "#F7D1D1"
                     text_color = "#D1534E"
@@ -2108,6 +2152,202 @@ class CalendarView(ctk.CTkFrame):
             self.saturday_tree.column(col, width=widths[col], anchor="w")
 
         self._refresh_saturday_report()
+
+    # ─── Vacaciones y Talleres ──────────────────────────────────────────────
+
+    def _build_vacations_workshops_tab(self, tab) -> None:
+        tab.grid_columnconfigure(0, weight=1)
+        tab.grid_columnconfigure(1, weight=1)
+        tab.grid_rowconfigure(1, weight=1)
+
+        # ── Vacaciones (izquierda) ────────────────────────────────────────
+        vac_frame = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=18)
+        vac_frame.grid(row=0, column=0, rowspan=2, sticky="nsew", padx=(18, 8), pady=12)
+        vac_frame.grid_columnconfigure(0, weight=1)
+        vac_frame.grid_rowconfigure(3, weight=1)
+
+        ctk.CTkLabel(vac_frame, text="Vacaciones de ejecutivos", font=self.fonts["label_bold"],
+                     text_color=self.style["texto_oscuro"]).grid(row=0, column=0, padx=14, pady=(14, 8), sticky="w")
+
+        vac_form = ctk.CTkFrame(vac_frame, fg_color="transparent")
+        vac_form.grid(row=1, column=0, padx=14, pady=(0, 8), sticky="ew")
+        vac_form.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(vac_form, text="Ejecutivo", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w", padx=(0, 8), pady=2)
+        vac_exec_combo = ctk.CTkComboBox(vac_form, variable=self.vac_exec_var,
+                                          values=self.controller.get_assignable_inspectors() or ["Sin ejecutivos"],
+                                          height=34, fg_color="#FFFFFF", border_color="#D5D8DC",
+                                          button_color=self.style["primario"], dropdown_hover_color=self.style["primario"])
+        vac_exec_combo.grid(row=0, column=1, sticky="ew", pady=2)
+
+        ctk.CTkLabel(vac_form, text="Inicio", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=1, column=0, sticky="w", padx=(0, 8), pady=2)
+        ctk.CTkEntry(vac_form, textvariable=self.vac_start_var, height=34, border_color="#D5D8DC",
+                     placeholder_text="YYYY-MM-DD").grid(row=1, column=1, sticky="ew", pady=2)
+
+        ctk.CTkLabel(vac_form, text="Fin", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=2, column=0, sticky="w", padx=(0, 8), pady=2)
+        ctk.CTkEntry(vac_form, textvariable=self.vac_end_var, height=34, border_color="#D5D8DC",
+                     placeholder_text="YYYY-MM-DD").grid(row=2, column=1, sticky="ew", pady=2)
+
+        vac_btn_row = ctk.CTkFrame(vac_frame, fg_color="transparent")
+        vac_btn_row.grid(row=2, column=0, padx=14, pady=(0, 8), sticky="ew")
+        vac_btn_row.grid_columnconfigure(0, weight=1)
+        vac_btn_row.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(vac_btn_row, text="Agregar vacacion", fg_color=self.style["primario"],
+                       text_color=self.style["texto_oscuro"], hover_color="#D8C220",
+                       command=self._add_vacation).grid(row=0, column=0, padx=(0, 4), sticky="ew")
+        ctk.CTkButton(vac_btn_row, text="Eliminar seleccion", fg_color=self.style["peligro"],
+                       hover_color="#B43C31", command=self._delete_vacation).grid(row=0, column=1, padx=(4, 0), sticky="ew")
+
+        vac_tree_container = ctk.CTkFrame(vac_frame, fg_color="transparent")
+        vac_tree_container.grid(row=3, column=0, padx=14, pady=(0, 14), sticky="nsew")
+        vac_tree_container.grid_columnconfigure(0, weight=1)
+        vac_tree_container.grid_rowconfigure(0, weight=1)
+
+        vac_cols = ("ejecutivo", "inicio", "fin")
+        self.vacation_tree = ttk.Treeview(vac_tree_container, columns=vac_cols, show="headings", height=10)
+        self.vacation_tree.grid(row=0, column=0, sticky="nsew")
+        vac_sb = ttk.Scrollbar(vac_tree_container, orient="vertical", command=self.vacation_tree.yview)
+        vac_sb.grid(row=0, column=1, sticky="ns")
+        self.vacation_tree.configure(yscrollcommand=vac_sb.set)
+        for col, heading, w in [("ejecutivo", "Ejecutivo", 200), ("inicio", "Inicio", 110), ("fin", "Fin", 110)]:
+            self.vacation_tree.heading(col, text=heading)
+            self.vacation_tree.column(col, width=w, anchor="w")
+
+        # ── Talleres (derecha) ────────────────────────────────────────────
+        ws_frame = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=18)
+        ws_frame.grid(row=0, column=1, rowspan=2, sticky="nsew", padx=(8, 18), pady=12)
+        ws_frame.grid_columnconfigure(0, weight=1)
+        ws_frame.grid_rowconfigure(3, weight=1)
+
+        ctk.CTkLabel(ws_frame, text="Talleres para ejecutivos", font=self.fonts["label_bold"],
+                     text_color=self.style["texto_oscuro"]).grid(row=0, column=0, padx=14, pady=(14, 8), sticky="w")
+
+        ws_form = ctk.CTkFrame(ws_frame, fg_color="transparent")
+        ws_form.grid(row=1, column=0, padx=14, pady=(0, 8), sticky="ew")
+        ws_form.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(ws_form, text="Titulo", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w", padx=(0, 8), pady=2)
+        ctk.CTkEntry(ws_form, textvariable=self.ws_title_var, height=34, border_color="#D5D8DC",
+                     placeholder_text="Nombre del taller").grid(row=0, column=1, sticky="ew", pady=2)
+
+        ctk.CTkLabel(ws_form, text="Fecha", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=1, column=0, sticky="w", padx=(0, 8), pady=2)
+        ctk.CTkEntry(ws_form, textvariable=self.ws_date_var, height=34, border_color="#D5D8DC",
+                     placeholder_text="YYYY-MM-DD").grid(row=1, column=1, sticky="ew", pady=2)
+
+        ctk.CTkLabel(ws_form, text="Descripcion", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=2, column=0, sticky="w", padx=(0, 8), pady=2)
+        ctk.CTkEntry(ws_form, textvariable=self.ws_desc_var, height=34, border_color="#D5D8DC",
+                     placeholder_text="Descripcion breve (opcional)").grid(row=2, column=1, sticky="ew", pady=2)
+
+        ws_btn_row = ctk.CTkFrame(ws_frame, fg_color="transparent")
+        ws_btn_row.grid(row=2, column=0, padx=14, pady=(0, 8), sticky="ew")
+        ws_btn_row.grid_columnconfigure(0, weight=1)
+        ws_btn_row.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(ws_btn_row, text="Agregar taller", fg_color=self.style["primario"],
+                       text_color=self.style["texto_oscuro"], hover_color="#D8C220",
+                       command=self._add_workshop).grid(row=0, column=0, padx=(0, 4), sticky="ew")
+        ctk.CTkButton(ws_btn_row, text="Eliminar seleccion", fg_color=self.style["peligro"],
+                       hover_color="#B43C31", command=self._delete_workshop).grid(row=0, column=1, padx=(4, 0), sticky="ew")
+
+        ws_tree_container = ctk.CTkFrame(ws_frame, fg_color="transparent")
+        ws_tree_container.grid(row=3, column=0, padx=14, pady=(0, 14), sticky="nsew")
+        ws_tree_container.grid_columnconfigure(0, weight=1)
+        ws_tree_container.grid_rowconfigure(0, weight=1)
+
+        ws_cols = ("titulo", "fecha", "descripcion")
+        self.workshop_tree = ttk.Treeview(ws_tree_container, columns=ws_cols, show="headings", height=10)
+        self.workshop_tree.grid(row=0, column=0, sticky="nsew")
+        ws_sb = ttk.Scrollbar(ws_tree_container, orient="vertical", command=self.workshop_tree.yview)
+        ws_sb.grid(row=0, column=1, sticky="ns")
+        self.workshop_tree.configure(yscrollcommand=ws_sb.set)
+        for col, heading, w in [("titulo", "Titulo", 200), ("fecha", "Fecha", 110), ("descripcion", "Descripcion", 260)]:
+            self.workshop_tree.heading(col, text=heading)
+            self.workshop_tree.column(col, width=w, anchor="w")
+
+        self._refresh_vacations_table()
+        self._refresh_workshops_table()
+
+    def _refresh_vacations_table(self) -> None:
+        if self.vacation_tree is None:
+            return
+        for row in self.vacation_tree.get_children():
+            self.vacation_tree.delete(row)
+        for v in self.controller.list_vacations():
+            self.vacation_tree.insert("", "end", iid=v["id"], values=(
+                v.get("executive", ""), v.get("start_date", ""), v.get("end_date", "")))
+
+    def _refresh_workshops_table(self) -> None:
+        if self.workshop_tree is None:
+            return
+        for row in self.workshop_tree.get_children():
+            self.workshop_tree.delete(row)
+        for w in self.controller.list_workshops():
+            self.workshop_tree.insert("", "end", iid=w["id"], values=(
+                w.get("title", ""), w.get("date", ""), w.get("description", "")))
+
+    def _add_vacation(self) -> None:
+        executive = self.vac_exec_var.get().strip()
+        start = self._normalize_date(self.vac_start_var.get())
+        end = self._normalize_date(self.vac_end_var.get())
+        if not executive or not start or not end:
+            messagebox.showerror("Vacaciones", "Completa ejecutivo, fecha inicio y fecha fin (YYYY-MM-DD).")
+            return
+        try:
+            self.controller.save_vacation(executive, start, end)
+        except ValueError as e:
+            messagebox.showerror("Vacaciones", str(e))
+            return
+        self.vac_start_var.set("")
+        self.vac_end_var.set("")
+        self._refresh_vacations_table()
+        self._render_month_grid()
+        messagebox.showinfo("Vacaciones", f"Vacaciones registradas para {executive}.")
+
+    def _delete_vacation(self) -> None:
+        if self.vacation_tree is None:
+            return
+        selected = self.vacation_tree.selection()
+        if not selected:
+            messagebox.showinfo("Vacaciones", "Selecciona una vacacion para eliminar.")
+            return
+        if not messagebox.askyesno("Vacaciones", "Deseas eliminar la vacacion seleccionada?"):
+            return
+        self.controller.delete_vacation(selected[0])
+        self._refresh_vacations_table()
+        self._render_month_grid()
+
+    def _add_workshop(self) -> None:
+        title = self.ws_title_var.get().strip()
+        ws_date = self._normalize_date(self.ws_date_var.get())
+        desc = self.ws_desc_var.get().strip()
+        if not title or not ws_date:
+            messagebox.showerror("Talleres", "Completa titulo y fecha del taller (YYYY-MM-DD).")
+            return
+        try:
+            self.controller.save_workshop(title, ws_date, desc)
+        except ValueError as e:
+            messagebox.showerror("Talleres", str(e))
+            return
+        self.ws_title_var.set("")
+        self.ws_date_var.set("")
+        self.ws_desc_var.set("")
+        self._refresh_workshops_table()
+        self._render_month_grid()
+        messagebox.showinfo("Talleres", f"Taller '{title}' registrado.")
+
+    def _delete_workshop(self) -> None:
+        if self.workshop_tree is None:
+            return
+        selected = self.workshop_tree.selection()
+        if not selected:
+            messagebox.showinfo("Talleres", "Selecciona un taller para eliminar.")
+            return
+        if not messagebox.askyesno("Talleres", "Deseas eliminar el taller seleccionado?"):
+            return
+        self.controller.delete_workshop(selected[0])
+        self._refresh_workshops_table()
+        self._render_month_grid()
 
     def _get_saturday_visits(self) -> list[dict]:
         """Devuelve todas las visitas cuya fecha cae en sábado para el año seleccionado."""
