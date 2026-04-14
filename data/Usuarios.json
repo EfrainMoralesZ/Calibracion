@@ -32,9 +32,15 @@
     },
     {
       "name": "Efrain Morales Zamarrón",
-      "username": "emorales",
+      "username": "admin",
       "password": "wocem",
       "role": "admin"
+    },
+    {
+      "name": "Efrain Morales Zamarrón",
+      "username": "emorales",
+      "password": "wocem",
+      "role": "ejecutivo"
     },
     {
       "name": "Aitana Yolitzin Sanchez Tenorio",

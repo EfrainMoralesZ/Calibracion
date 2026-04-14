@@ -883,7 +883,7 @@ class CalendarView(ctk.CTkFrame):
 
         # Mejor formato para el detalle de visita
         info = []
-        info.append("[b]INFORMACIÓN PRINCIPAL[/b]")
+        info.append("[b]INFORMACION PRINCIPAL[/b]")
         info.append(f"• Ejecutivos técnicos: {', '.join(visit.get('inspectors', [])) or 'Sin asignar'}")
         info.append(f"• Cliente: {visit.get('client', 'Sin cliente')}")
         info.append(f"• Fecha: {visit.get('date', 'Sin fecha')}")
@@ -1257,7 +1257,7 @@ class CalendarView(ctk.CTkFrame):
                 all_workshops = self.controller.get_workshops_for_date(day_iso)
                 if is_exec:
                     # Mostrar solo talleres para el usuario o para todos
-                    day_workshops = [w for w in all_workshops if w.get("executives") == "ALL" or (user_name and user_name in (w.get("executives") or []))]
+                    day_workshops = [w for w in all_workshops if (w.get("executives") == "ALL" or user_name in w.get("executives", []))]
                 else:
                     day_workshops = all_workshops
 
@@ -1600,12 +1600,45 @@ class CalendarView(ctk.CTkFrame):
                 wcard.grid(row=row_idx, column=0, sticky="ew", pady=(0, 4))
                 wcard.grid_columnconfigure(0, weight=1)
                 desc = f"  —  {ws.get('description', '')}" if ws.get("description") else ""
-                ctk.CTkLabel(wcard, text=f"📋  {ws.get('title', '')}{desc}",
-                             font=self.fonts["small"], text_color="#0E4A6F").grid(row=0, column=0, padx=12, pady=8, sticky="w")
+                place = ws.get('place', '')
+                time = ws.get('time', '')
+                asistentes = ws.get('executives', [])
+                if asistentes == "ALL":
+                    asistentes_text = "Todos los ejecutivos"
+                else:
+                    asistentes_text = ", ".join(asistentes) if asistentes else "Sin asignar"
+                taller_label = f"📋  {ws.get('title', '')}{desc}\nLugar: {place}  |  Hora: {time}  |  Asisten: {asistentes_text}"
+                ctk.CTkLabel(wcard, text=taller_label, font=self.fonts["small"], text_color="#0E4A6F", justify="left", wraplength=540).grid(row=0, column=0, padx=12, pady=8, sticky="w")
                 if not is_past:
                     ctk.CTkButton(wcard, text="✕", width=30, height=26, fg_color="#7CBEE0", hover_color="#5AA0C8",
                                    text_color="#FFFFFF", command=lambda wid=ws["id"], p=popup: self._popup_delete_workshop(wid, iso_date, p)
                                    ).grid(row=0, column=1, padx=(0, 8), pady=8)
+                # Si el usuario es ejecutivo/especialista, mostrar detalle simple al hacer clic
+                current_user = getattr(self.controller, "current_user", None)
+                if self.controller.is_executive_role(current_user):
+                    def show_ws_detail(event=None, ws=ws):
+                        detail_popup = ctk.CTkToplevel(self)
+                        detail_popup.title("Detalle del taller")
+                        detail_popup.geometry("420x260")
+                        detail_popup.resizable(False, False)
+                        detail_popup.transient(self.winfo_toplevel())
+                        detail_popup.grab_set()
+                        detail_popup.after(10, detail_popup.focus_force)
+                        ctk.CTkLabel(detail_popup, text=ws.get("title", ""), font=self.fonts["subtitle"], text_color="#1A6FA0").pack(padx=24, pady=(24, 8), anchor="w")
+                        ctk.CTkLabel(detail_popup, text=f"Fecha: {ws.get('date', '')}", font=self.fonts["small_bold"], text_color="#0E4A6F").pack(padx=24, pady=(0, 8), anchor="w")
+                        ctk.CTkLabel(detail_popup, text=f"Lugar: {ws.get('place', '')}", font=self.fonts["small_bold"], text_color="#0E4A6F").pack(padx=24, pady=(0, 8), anchor="w")
+                        ctk.CTkLabel(detail_popup, text=f"Hora: {ws.get('time', '')}", font=self.fonts["small_bold"], text_color="#0E4A6F").pack(padx=24, pady=(0, 8), anchor="w")
+                        asistentes = ws.get('executives', [])
+                        if asistentes == "ALL":
+                            asistentes_text = "Todos los ejecutivos"
+                        else:
+                            asistentes_text = ", ".join(asistentes) if asistentes else "Sin asignar"
+                        ctk.CTkLabel(detail_popup, text=f"Asisten: {asistentes_text}", font=self.fonts["small_bold"], text_color="#0E4A6F").pack(padx=24, pady=(0, 8), anchor="w")
+                        ctk.CTkLabel(detail_popup, text=ws.get("description", "Sin descripción"), font=self.fonts["small"], text_color="#282828", wraplength=360, justify="left").pack(padx=24, pady=(0, 18), anchor="w")
+                        ctk.CTkButton(detail_popup, text="Cerrar", command=detail_popup.destroy, fg_color="#D4EDFC", text_color="#1A6FA0").pack(pady=(0, 18))
+                    wcard.bind("<Button-1>", show_ws_detail)
+                    for child in wcard.winfo_children():
+                        child.bind("<Button-1>", show_ws_detail)
                 row_idx += 1
 
         if not visits_on_date and not vacations_on_date and not workshops_on_date:
@@ -2076,29 +2109,67 @@ class CalendarView(ctk.CTkFrame):
         dlg.grab_set()
         dlg.after(10, dlg.focus_force)
 
+
         dlg.grid_columnconfigure(0, weight=1)
+        dlg.grid_rowconfigure(0, weight=1)
 
-        ctk.CTkLabel(dlg, text="Registrar taller", font=self.fonts["label_bold"],
-                     text_color=self.style["texto_oscuro"]).grid(row=0, column=0, padx=24, pady=(20, 12), sticky="w")
+        # Scrollable content
+        scroll_frame = ctk.CTkScrollableFrame(dlg, fg_color="transparent")
+        scroll_frame.grid(row=0, column=0, padx=0, pady=0, sticky="nsew")
+        scroll_frame.grid_columnconfigure(0, weight=1)
 
-        form = ctk.CTkFrame(dlg, fg_color="transparent")
+        ctk.CTkLabel(scroll_frame, text="Registrar taller", font=self.fonts["label_bold"],
+                 text_color=self.style["texto_oscuro"]).grid(row=0, column=0, padx=24, pady=(20, 12), sticky="w")
+
+        form = ctk.CTkFrame(scroll_frame, fg_color="transparent")
         form.grid(row=1, column=0, padx=24, sticky="ew")
         form.grid_columnconfigure(1, weight=1)
 
+        # --- Variables ---
         d_title = ctk.StringVar()
         d_desc = ctk.StringVar()
+        d_start_time = ctk.StringVar()
+        d_end_time = ctk.StringVar()
+        d_place = ctk.StringVar()
         d_date_parsed = datetime.strptime(iso_date, "%Y-%m-%d").date()
         d_all_execs = tk.BooleanVar(value=True)
         d_selected_execs = []
-        # Checkbox para aplicar a todos los ejecutivos
-        ctk.CTkCheckBox(form, text="Aplicar a todos los ejecutivos", variable=d_all_execs, onvalue=True, offvalue=False).grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 4))
 
-        # Selector múltiple de ejecutivos (solo visible si no es para todos)
+        # --- Titulo ---
+        ctk.CTkLabel(form, text="Titulo", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w", padx=(0, 10), pady=4)
+        ctk.CTkEntry(form, textvariable=d_title, height=34, border_color="#D5D8DC", placeholder_text="Nombre del taller").grid(row=0, column=1, sticky="ew", pady=4)
+
+        # --- Fecha ---
+        ctk.CTkLabel(form, text="Fecha", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=1, column=0, sticky="w", padx=(0, 10), pady=4)
+        d_date_entry = DateEntry(form, date_pattern="yyyy-mm-dd",
+                                  font=("Segoe UI", 11), year=d_date_parsed.year,
+                                  month=d_date_parsed.month, day=d_date_parsed.day,
+                                  background=self.style["primario"], foreground="#282828",
+                                  borderwidth=1, relief="flat")
+        d_date_entry.grid(row=1, column=1, sticky="ew", pady=4, ipady=4)
+
+
+        # --- Hora de inicio ---
+        ctk.CTkLabel(form, text="Hora de inicio (HH:MM)", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=2, column=0, sticky="w", padx=(0, 10), pady=4)
+        ctk.CTkEntry(form, textvariable=d_start_time, height=34, border_color="#D5D8DC", placeholder_text="Ejemplo: 09:00").grid(row=2, column=1, sticky="ew", pady=4)
+
+        # --- Hora final ---
+        ctk.CTkLabel(form, text="Hora final (HH:MM)", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=3, column=0, sticky="w", padx=(0, 10), pady=4)
+        ctk.CTkEntry(form, textvariable=d_end_time, height=34, border_color="#D5D8DC", placeholder_text="Ejemplo: 11:00").grid(row=3, column=1, sticky="ew", pady=4)
+
+        # --- Lugar ---
+        ctk.CTkLabel(form, text="Lugar", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=4, column=0, sticky="w", padx=(0, 10), pady=4)
+        ctk.CTkEntry(form, textvariable=d_place, height=34, border_color="#D5D8DC", placeholder_text="Lugar del taller").grid(row=4, column=1, sticky="ew", pady=4)
+
+        # --- Checkbox para aplicar a todos los ejecutivos ---
+        ctk.CTkCheckBox(form, text="Aplicar a todos los ejecutivos", variable=d_all_execs, onvalue=True, offvalue=False).grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 4))
+
+        # --- Selector múltiple de ejecutivos (solo visible si no es para todos) ---
         exec_names = self.controller.get_assignable_inspectors()
         exec_listbox = tk.Listbox(form, selectmode=tk.MULTIPLE, exportselection=False, height=6)
         for name in exec_names:
             exec_listbox.insert(tk.END, name)
-        exec_listbox.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(0, 4))
+        exec_listbox.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(0, 4))
         def toggle_exec_listbox(*_):
             if d_all_execs.get():
                 exec_listbox.configure(state="disabled")
@@ -2107,35 +2178,33 @@ class CalendarView(ctk.CTkFrame):
         d_all_execs.trace_add("write", lambda *_: toggle_exec_listbox())
         toggle_exec_listbox()
 
-        ctk.CTkLabel(form, text="Titulo", font=self.fonts["small"],
-                     text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w", padx=(0, 10), pady=4)
-        ctk.CTkEntry(form, textvariable=d_title, height=34, border_color="#D5D8DC",
-                     placeholder_text="Nombre del taller").grid(row=0, column=1, sticky="ew", pady=4)
+        # --- Descripcion ---
+        ctk.CTkLabel(form, text="Descripcion", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=7, column=0, sticky="w", padx=(0, 10), pady=4)
+        desc_frame = ctk.CTkFrame(form, fg_color="transparent")
+        desc_frame.grid(row=7, column=1, sticky="ew", pady=4)
+        desc_frame.grid_columnconfigure(0, weight=1)
+        desc_box = ctk.CTkTextbox(desc_frame, height=80, border_color="#D5D8DC", corner_radius=8)
+        desc_box.grid(row=0, column=0, sticky="nsew")
+        desc_scroll = tk.Scrollbar(desc_frame, orient="vertical", command=desc_box.yview)
+        desc_scroll.grid(row=0, column=1, sticky="ns")
+        desc_box.configure(yscrollcommand=desc_scroll.set)
 
-        ctk.CTkLabel(form, text="Fecha", font=self.fonts["small"],
-                     text_color=self.style["texto_oscuro"]).grid(row=1, column=0, sticky="w", padx=(0, 10), pady=4)
-        d_date_entry = DateEntry(form, date_pattern="yyyy-mm-dd",
-                                  font=("Segoe UI", 11), year=d_date_parsed.year,
-                                  month=d_date_parsed.month, day=d_date_parsed.day,
-                                  background=self.style["primario"], foreground="#282828",
-                                  borderwidth=1, relief="flat")
-        d_date_entry.grid(row=1, column=1, sticky="ew", pady=4, ipady=4)
-
-        ctk.CTkLabel(form, text="Descripcion", font=self.fonts["small"],
-                     text_color=self.style["texto_oscuro"]).grid(row=2, column=0, sticky="w", padx=(0, 10), pady=4)
-        ctk.CTkEntry(form, textvariable=d_desc, height=34, border_color="#D5D8DC",
-                     placeholder_text="Opcional").grid(row=2, column=1, sticky="ew", pady=4)
-
+        # Botones siempre visibles abajo
         btn_frame = ctk.CTkFrame(dlg, fg_color="transparent")
-        btn_frame.grid(row=2, column=0, padx=24, pady=(16, 20), sticky="ew")
+        btn_frame.grid(row=1, column=0, padx=24, pady=(8, 20), sticky="ew")
         btn_frame.grid_columnconfigure(0, weight=1)
         btn_frame.grid_columnconfigure(1, weight=1)
 
         def _save_ws():
             title = d_title.get().strip()
             ws_date = d_date_entry.get_date().strftime("%Y-%m-%d")
-            if not title or not ws_date:
-                messagebox.showerror("Talleres", "Titulo y fecha son obligatorios.", parent=dlg)
+            ws_start_time = d_start_time.get().strip()
+            ws_end_time = d_end_time.get().strip()
+            ws_place = d_place.get().strip()
+            ws_desc = desc_box.get("1.0", "end").strip()
+            # Validar todos los campos obligatorios
+            if not title or not ws_date or not ws_start_time or not ws_end_time or not ws_place or not ws_desc:
+                messagebox.showerror("Talleres", "Todos los campos son obligatorios.", parent=dlg)
                 return
             try:
                 if d_all_execs.get():
@@ -2146,7 +2215,7 @@ class CalendarView(ctk.CTkFrame):
                     if not executives:
                         messagebox.showerror("Talleres", "Selecciona al menos un ejecutivo.", parent=dlg)
                         return
-                self.controller.save_workshop(title, ws_date, d_desc.get().strip(), executives)
+                self.controller.save_workshop(title, ws_date, ws_desc, executives, ws_place, ws_start_time, ws_end_time)
             except ValueError as e:
                 messagebox.showerror("Talleres", str(e), parent=dlg)
                 return
@@ -2172,7 +2241,7 @@ class CalendarView(ctk.CTkFrame):
             names.append(exec2)
 
         if not names:
-            raise ValueError("Debes seleccionar al menos un ejecutivo tecnico.")
+            raise ValueError("Debes seleccionar al menos un ejecutivo.")
 
         valid = {value.lower(): value for value in self.controller.get_assignable_inspectors()}
         invalid = [name for name in names if name.lower() not in valid]
@@ -2802,55 +2871,6 @@ class CalendarView(ctk.CTkFrame):
         ws_frame = ctk.CTkFrame(tab, fg_color=self.style["surface"], corner_radius=18)
         ws_frame.grid(row=0, column=1, rowspan=2, sticky="nsew", padx=(8, 18), pady=12)
         ws_frame.grid_columnconfigure(0, weight=1)
-        ws_frame.grid_rowconfigure(3, weight=1)
-
-        ctk.CTkLabel(ws_frame, text="Talleres para ejecutivos", font=self.fonts["label_bold"],
-                     text_color=self.style["texto_oscuro"]).grid(row=0, column=0, padx=14, pady=(14, 8), sticky="w")
-
-        ws_form = ctk.CTkFrame(ws_frame, fg_color="transparent")
-        ws_form.grid(row=1, column=0, padx=14, pady=(0, 8), sticky="ew")
-        ws_form.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(ws_form, text="Titulo", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w", padx=(0, 8), pady=2)
-        ctk.CTkEntry(ws_form, textvariable=self.ws_title_var, height=34, border_color="#D5D8DC",
-                     placeholder_text="Nombre del taller").grid(row=0, column=1, sticky="ew", pady=2)
-
-        ctk.CTkLabel(ws_form, text="Fecha", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=1, column=0, sticky="w", padx=(0, 8), pady=2)
-        ctk.CTkEntry(ws_form, textvariable=self.ws_date_var, height=34, border_color="#D5D8DC",
-                     placeholder_text="YYYY-MM-DD").grid(row=1, column=1, sticky="ew", pady=2)
-
-        ctk.CTkLabel(ws_form, text="Descripcion", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=2, column=0, sticky="w", padx=(0, 8), pady=2)
-        ctk.CTkEntry(ws_form, textvariable=self.ws_desc_var, height=34, border_color="#D5D8DC",
-                     placeholder_text="Descripcion breve (opcional)").grid(row=2, column=1, sticky="ew", pady=2)
-
-        ws_btn_row = ctk.CTkFrame(ws_frame, fg_color="transparent")
-        ws_btn_row.grid(row=2, column=0, padx=14, pady=(0, 8), sticky="ew")
-        ws_btn_row.grid_columnconfigure(0, weight=1)
-        ws_btn_row.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkButton(ws_btn_row, text="Agregar taller", fg_color=self.style["primario"],
-                       text_color=self.style["texto_oscuro"], hover_color="#D8C220",
-                       command=self._add_workshop).grid(row=0, column=0, padx=(0, 4), sticky="ew")
-        ctk.CTkButton(ws_btn_row, text="Eliminar seleccion", fg_color=self.style["peligro"],
-                       hover_color="#B43C31", command=self._delete_workshop).grid(row=0, column=1, padx=(4, 0), sticky="ew")
-
-        ws_tree_container = ctk.CTkFrame(ws_frame, fg_color="transparent")
-        ws_tree_container.grid(row=3, column=0, padx=14, pady=(0, 14), sticky="nsew")
-        ws_tree_container.grid_columnconfigure(0, weight=1)
-        ws_tree_container.grid_rowconfigure(0, weight=1)
-
-        ws_cols = ("titulo", "fecha", "descripcion")
-        self.workshop_tree = ttk.Treeview(ws_tree_container, columns=ws_cols, show="headings", height=10)
-        self.workshop_tree.grid(row=0, column=0, sticky="nsew")
-        ws_sb = ttk.Scrollbar(ws_tree_container, orient="vertical", command=self.workshop_tree.yview)
-        ws_sb.grid(row=0, column=1, sticky="ns")
-        self.workshop_tree.configure(yscrollcommand=ws_sb.set)
-        for col, heading, w in [("titulo", "Titulo", 200), ("fecha", "Fecha", 110), ("descripcion", "Descripcion", 260)]:
-            self.workshop_tree.heading(col, text=heading)
-            self.workshop_tree.column(col, width=w, anchor="w")
-
-        self._refresh_vacations_table()
-        self._refresh_workshops_table()
 
     def _refresh_vacations_table(self) -> None:
         if self.vacation_tree is None:
