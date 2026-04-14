@@ -2170,30 +2170,31 @@ class PrincipalView(ctk.CTkFrame):
             text_color="#6D7480",
         ).grid(row=3, column=0, columnspan=3, padx=12, pady=(0, 4), sticky="w")
 
-        # Mostrar solo historial para ejecutivos técnicos y especialistas
+        # Mostrar solo historial para ejecutivos técnicos, especialistas y talento humano
         current_user = getattr(self.controller, "current_user", None)
-        if current_user and self.controller.is_executive_role(current_user):
-            ctk.CTkButton(
-                card,
-                text="📊  Ver historial",
-                height=34,
-                font=FONTS["small_bold"],
-                fg_color=STYLE["primario"],
-                text_color=STYLE["texto_oscuro"],
-                hover_color="#D8C220",
-                command=lambda: self._open_personal_score_history(row["name"]),
-            ).grid(row=4, column=0, columnspan=3, padx=12, pady=(0, 12), sticky="ew")
-        else:
-            ctk.CTkButton(
-                card,
-                text="📋  Supervisar",
-                height=34,
-                font=FONTS["small_bold"],
-                fg_color=STYLE["primario"],
-                text_color=STYLE["texto_oscuro"],
-                hover_color="#D8C220",
-                command=lambda current=row_id, current_row=row: self._open_row_actions(current, current_row),
-            ).grid(row=4, column=0, columnspan=3, padx=12, pady=(0, 12), sticky="ew")
+        if current_user:
+            if self.controller.is_executive_role(current_user) or self.controller._role_name(current_user) == "talento humano":
+                ctk.CTkButton(
+                    card,
+                    text="📊  Ver historial",
+                    height=34,
+                    font=FONTS["small_bold"],
+                    fg_color=STYLE["primario"],
+                    text_color=STYLE["texto_oscuro"],
+                    hover_color="#D8C220",
+                    command=lambda: self._open_personal_score_history(row["name"]),
+                ).grid(row=4, column=0, columnspan=3, padx=12, pady=(0, 12), sticky="ew")
+            else:
+                ctk.CTkButton(
+                    card,
+                    text="📋  Supervisar",
+                    height=34,
+                    font=FONTS["small_bold"],
+                    fg_color=STYLE["primario"],
+                    text_color=STYLE["texto_oscuro"],
+                    hover_color="#D8C220",
+                    command=lambda current=row_id, current_row=row: self._open_row_actions(current, current_row),
+                ).grid(row=4, column=0, columnspan=3, padx=12, pady=(0, 12), sticky="ew")
 
     def _open_personal_score_history(self, inspector_name: str) -> None:
         dialog = ctk.CTkToplevel(self)
