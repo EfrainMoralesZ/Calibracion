@@ -462,9 +462,11 @@ class NormSelectionDialog(ctk.CTkToplevel):
                         pdf_path = str(_docs_candidate)
             def _abrir_archivo(path=pdf_path):
                 if path and os.path.exists(path):
+                    print(f"[DEBUG] Abriendo PDF en: {path}")
                     os.startfile(path)
                 else:
-                    messagebox.showinfo("Archivo", "No se encontró el PDF asociado.")
+                    print(f"[DEBUG] PDF no encontrado en: {path}")
+                    messagebox.showinfo("Archivo", f"No se encontró el PDF asociado.\nRuta buscada: {path}")
             ctk.CTkButton(
                 parent,
                 text="Abrir",

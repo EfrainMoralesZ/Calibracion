@@ -1201,10 +1201,21 @@ class CalendarView(ctk.CTkFrame):
 
         selected_normalized = self._normalize_date(self.date_var.get())
         today_iso = date.today().strftime("%Y-%m-%d")
-        
+
+        # Determinar el usuario actual y su rol
+        current_user = getattr(self.controller, "current_user", None)
+        is_exec = self.controller.is_executive_role(current_user)
+        has_full_access = self.controller.has_full_access(current_user)
+        user_name = (current_user or {}).get("name", "") if is_exec else None
+
         # Build map of visit statuses by date for coloring
+        if is_exec:
+            # Solo visitas del usuario actual
+            user_visits = [v for v in self.controller.list_visits() if user_name in v.get("inspectors", [])]
+        else:
+            user_visits = self.controller.list_visits()
         visits_by_date = {}
-        for visit in self.controller.list_visits():
+        for visit in user_visits:
             v_date = self._normalize_date(visit.get("visit_date", ""))
             if v_date:
                 if v_date not in visits_by_date:
@@ -1230,13 +1241,19 @@ class CalendarView(ctk.CTkFrame):
                     continue
 
                 day_iso = date(self.current_month.year, self.current_month.month, day).strftime("%Y-%m-%d")
-                count = self.visible_date_counts.get(day_iso, 0)
+                count = sum(1 for v in visits_by_date.get(day_iso, []))
                 is_past_day = day_iso < today_iso
                 has_past_visits = is_past_day and count > 0
                 is_sunday = (col == 6)
 
-                # Check vacation / workshop events for this date
-                day_vacations = self.controller.get_vacations_for_date(day_iso)
+                # Vacaciones: solo las del usuario si es ejecutivo/especialista, todas si admin/supervisión/coordinación
+                all_vacations = self.controller.get_vacations_for_date(day_iso)
+                if is_exec:
+                    day_vacations = [v for v in all_vacations if v.get("executive", "") == user_name]
+                else:
+                    day_vacations = all_vacations
+
+                # Talleres: todos los pueden ver
                 day_workshops = self.controller.get_workshops_for_date(day_iso)
 
                 # Build label with event info
