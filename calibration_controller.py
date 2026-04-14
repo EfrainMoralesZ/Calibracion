@@ -958,7 +958,7 @@ class CalibrationController:
 			return ["Supervisión", "Criterios", "Dashboard", "Calendario", "Trimestral", "Configuraciones"]
 		role_name = self._role_name(user)
 		if role_name == "talento humano":
-			return ["Supervisión", "Dashboard"]
+			return ["Supervisión", "Dashboard", "Calendario"]
 		if role_name == "supervisor":
 			return ["Supervisión", "Calendario"]
 		if self.is_executive_role(user):
@@ -2894,7 +2894,23 @@ class CalibrationController:
 		workshops = self.app_state.setdefault("workshops", [])
 		workshops.append(entry)
 		_write_json(STATE_FILE, self.app_state)
+		self._notify_all_users_about_workshop(entry)
 		return entry
+
+	def _notify_all_users_about_workshop(self, workshop_entry):
+		# Cargar usuarios desde el archivo USERS_FILE
+		users_data = _read_json(USERS_FILE, {"users": []})
+		users = users_data.get("users", [])
+		# Cargar notificaciones actuales
+		notifications = self.app_state.setdefault("notifications", [])
+		for user in users:
+			notifications.append({
+				"username": user.get("username"),
+				"message": f"Nuevo taller: {workshop_entry['title']} el {workshop_entry['date']}",
+				"created_at": datetime.now().isoformat(),
+				"type": "workshop"
+			})
+		_write_json(STATE_FILE, self.app_state)
 
 	def delete_workshop(self, workshop_id: str) -> bool:
 		workshops = self.app_state.get("workshops", [])

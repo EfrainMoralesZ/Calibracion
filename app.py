@@ -952,7 +952,8 @@ class CalibrationApp(ctk.CTk):
         self.content_frame.grid_columnconfigure(0, weight=1)
         self.content_frame.grid_rowconfigure(0, weight=1)
 
-        can_edit = self.controller.is_admin()
+        # Permitir edición completa en calendario para talento humano
+        can_edit = self.controller.is_admin() or self.controller._role_name() == "talento humano"
         self.pages = {}
         self.page_factories = self._build_page_factories(can_edit)
         self.page_dirty = {name: True for name in self.page_factories}
