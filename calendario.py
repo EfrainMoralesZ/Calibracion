@@ -122,11 +122,16 @@ class CalendarView(ctk.CTkFrame):
         tabs.add("Calendario")
         self._build_calendar_tab(tabs.tab("Calendario"))
 
-        if self.can_edit:
+        # Detectar si el usuario es talento humano
+        is_talento_humano = self.controller._role_name(self.controller.current_user or {}) == "talento humano"
+
+        # Solo mostrar "Visitas asignadas" si NO es talento humano
+        if self.can_edit and not is_talento_humano:
             tabs.add("Visitas asignadas")
             self._build_visits_tab(tabs.tab("Visitas asignadas"))
 
-        if not self.controller.is_executive_role(self.controller.current_user or {}):
+        # Solo mostrar "Reporte Sábado" si NO es ejecutivo ni talento humano
+        if not self.controller.is_executive_role(self.controller.current_user or {}) and not is_talento_humano:
             tabs.add("Reporte Sábado")
             self._build_saturday_report_tab(tabs.tab("Reporte Sábado"))
 
