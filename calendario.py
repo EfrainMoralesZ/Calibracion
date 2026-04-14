@@ -1253,8 +1253,13 @@ class CalendarView(ctk.CTkFrame):
                 else:
                     day_vacations = all_vacations
 
-                # Talleres: todos los pueden ver
-                day_workshops = self.controller.get_workshops_for_date(day_iso)
+                # Talleres: solo los que aplican al usuario actual si es ejecutivo/especialista
+                all_workshops = self.controller.get_workshops_for_date(day_iso)
+                if is_exec:
+                    # Mostrar solo talleres para el usuario o para todos
+                    day_workshops = [w for w in all_workshops if w.get("executives") == "ALL" or (user_name and user_name in (w.get("executives") or []))]
+                else:
+                    day_workshops = all_workshops
 
                 # Build label with event info
                 label_parts = [str(day)]
@@ -2065,7 +2070,7 @@ class CalendarView(ctk.CTkFrame):
 
         dlg = ctk.CTkToplevel(self)
         dlg.title("Agregar taller")
-        dlg.geometry("420x350")
+        dlg.geometry("620x550")
         dlg.resizable(False, False)
         dlg.transient(self.winfo_toplevel())
         dlg.grab_set()
@@ -2083,6 +2088,24 @@ class CalendarView(ctk.CTkFrame):
         d_title = ctk.StringVar()
         d_desc = ctk.StringVar()
         d_date_parsed = datetime.strptime(iso_date, "%Y-%m-%d").date()
+        d_all_execs = tk.BooleanVar(value=True)
+        d_selected_execs = []
+        # Checkbox para aplicar a todos los ejecutivos
+        ctk.CTkCheckBox(form, text="Aplicar a todos los ejecutivos", variable=d_all_execs, onvalue=True, offvalue=False).grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 4))
+
+        # Selector múltiple de ejecutivos (solo visible si no es para todos)
+        exec_names = self.controller.get_assignable_inspectors()
+        exec_listbox = tk.Listbox(form, selectmode=tk.MULTIPLE, exportselection=False, height=6)
+        for name in exec_names:
+            exec_listbox.insert(tk.END, name)
+        exec_listbox.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(0, 4))
+        def toggle_exec_listbox(*_):
+            if d_all_execs.get():
+                exec_listbox.configure(state="disabled")
+            else:
+                exec_listbox.configure(state="normal")
+        d_all_execs.trace_add("write", lambda *_: toggle_exec_listbox())
+        toggle_exec_listbox()
 
         ctk.CTkLabel(form, text="Titulo", font=self.fonts["small"],
                      text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w", padx=(0, 10), pady=4)
@@ -2115,7 +2138,15 @@ class CalendarView(ctk.CTkFrame):
                 messagebox.showerror("Talleres", "Titulo y fecha son obligatorios.", parent=dlg)
                 return
             try:
-                self.controller.save_workshop(title, ws_date, d_desc.get().strip())
+                if d_all_execs.get():
+                    executives = "ALL"
+                else:
+                    selected_indices = exec_listbox.curselection()
+                    executives = [exec_names[i] for i in selected_indices]
+                    if not executives:
+                        messagebox.showerror("Talleres", "Selecciona al menos un ejecutivo.", parent=dlg)
+                        return
+                self.controller.save_workshop(title, ws_date, d_desc.get().strip(), executives)
             except ValueError as e:
                 messagebox.showerror("Talleres", str(e), parent=dlg)
                 return

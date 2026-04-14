@@ -2881,15 +2881,18 @@ class CalibrationController:
 	def list_workshops(self) -> list[dict[str, Any]]:
 		return list(self.app_state.get("workshops", []))
 
-	def save_workshop(self, title: str, workshop_date: str, description: str = "") -> dict[str, Any]:
+	def save_workshop(self, title: str, workshop_date: str, description: str = "", executives=None) -> dict[str, Any]:
 		if not title or not workshop_date:
 			raise ValueError("Titulo y fecha del taller son obligatorios.")
+		if executives is None:
+			executives = "ALL"
 		entry = {
 			"id": datetime.now().strftime("%Y%m%d%H%M%S%f"),
 			"title": title.strip(),
 			"date": workshop_date,
 			"description": description.strip(),
 			"created_at": datetime.now().isoformat(),
+			"executives": executives,
 		}
 		workshops = self.app_state.setdefault("workshops", [])
 		workshops.append(entry)
@@ -2901,11 +2904,16 @@ class CalibrationController:
 		# Cargar usuarios desde el archivo USERS_FILE
 		users_data = _read_json(USERS_FILE, {"users": []})
 		users = users_data.get("users", [])
-		# Cargar notificaciones actuales
 		notifications = self.app_state.setdefault("notifications", [])
-		for user in users:
+		# Determinar a quién notificar
+		if workshop_entry.get("executives") == "ALL":
+			notify_usernames = [user.get("username") for user in users if _normalize_role_name(user.get("role")) in {"ejecutivo tecnico", "especialidades"}]
+		else:
+			exec_names = set(workshop_entry.get("executives", []))
+			notify_usernames = [user.get("username") for user in users if user.get("name") in exec_names]
+		for username in notify_usernames:
 			notifications.append({
-				"username": user.get("username"),
+				"username": username,
 				"message": f"Nuevo taller: {workshop_entry['title']} el {workshop_entry['date']}",
 				"created_at": datetime.now().isoformat(),
 				"type": "workshop"
