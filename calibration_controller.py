@@ -2887,7 +2887,7 @@ class CalibrationController:
 	def list_workshops(self) -> list[dict[str, Any]]:
 		return list(self.app_state.get("workshops", []))
 
-	def save_workshop(self, title: str, workshop_date: str, description: str = "", executives=None) -> dict[str, Any]:
+	def save_workshop(self, title: str, workshop_date: str, description: str = "", executives=None, place: str = "", start_time: str = "", end_time: str = "") -> dict[str, Any]:
 		if not title or not workshop_date:
 			raise ValueError("Titulo y fecha del taller son obligatorios.")
 		if executives is None:
@@ -2899,6 +2899,9 @@ class CalibrationController:
 			"description": description.strip(),
 			"created_at": datetime.now().isoformat(),
 			"executives": executives,
+			"place": place.strip() if place else "",
+			"start_time": start_time.strip() if start_time else "",
+			"end_time": end_time.strip() if end_time else "",
 		}
 		workshops = self.app_state.setdefault("workshops", [])
 		workshops.append(entry)
