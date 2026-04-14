@@ -2759,9 +2759,15 @@ class CalibrationController:
 
 		source = Path(source_path)
 		if not source.exists() or not source.is_file():
-			raise ValueError("El archivo de acuerdos no existe o no es valido.")
+			raise ValueError(f"El archivo de acuerdos '{source_path}' no existe o no es válido.")
 
-		target_path = self._agreement_client_dir(clean_client) / "minuta de acuerdos.pdf"
+		# Guardar con el nombre original, si ya existe, agregar sufijo con timestamp
+		target_dir = self._agreement_client_dir(clean_client)
+		base_name = source.name
+		target_path = target_dir / base_name
+		if target_path.exists():
+			timestamp = datetime.now().strftime("_%Y%m%d_%H%M%S")
+			target_path = target_dir / f"{source.stem}{timestamp}{source.suffix}"
 		shutil.copy2(source, target_path)
 		return target_path
 

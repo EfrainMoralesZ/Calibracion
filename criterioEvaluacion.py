@@ -1317,24 +1317,33 @@ class CriteriaEvaluationView(ctk.CTkFrame):
 		if not client_name:
 			return
 
-		source_path = filedialog.askopenfilename(
-			title=f"Selecciona minuta de acuerdos - {client_name}",
+		source_paths = filedialog.askopenfilenames(
+			title=f"Selecciona minutas de acuerdos - {client_name}",
 			filetypes=[("Archivos PDF", "*.pdf")],
 		)
-		if not source_path:
+		if not source_paths:
 			return
 
-		try:
-			saved_path = self.controller.save_client_agreement_pdf(client_name, source_path)
-		except ValueError as error:
-			messagebox.showerror("Acuerdos", str(error), parent=self)
-			return
-
-		messagebox.showinfo(
-			"Acuerdos",
-			f"Se guardo la minuta en:\n{saved_path}",
-			parent=self,
-		)
+		saved_files = []
+		errors = []
+		for source_path in source_paths:
+			try:
+				saved_path = self.controller.save_client_agreement_pdf(client_name, source_path)
+				saved_files.append(saved_path)
+			except ValueError as error:
+				errors.append(str(error))
+		if saved_files:
+			messagebox.showinfo(
+				"Acuerdos",
+				f"Se guardaron las minutas en:\n" + "\n".join(str(p) for p in saved_files),
+				parent=self,
+			)
+		if errors:
+			messagebox.showerror(
+				"Acuerdos",
+				"\n".join(errors),
+				parent=self,
+			)
 
 	def _open_history_for_client(self, client_name: str) -> None:
 		if not client_name:
