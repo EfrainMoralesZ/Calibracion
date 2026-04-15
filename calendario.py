@@ -1550,16 +1550,38 @@ class CalendarView(ctk.CTkFrame):
         btn_row.grid(row=0, column=1, sticky="e")
 
         is_past = iso_date < date.today().strftime("%Y-%m-%d")
+        # Detectar rol
+        current_user = getattr(self.controller, "current_user", None)
+        role = self.controller._role_name(current_user)
+        # Roles con todos los botones
+        show_all = role in {"admin", "coordinador operativo", "coordinadora en fiabilidad"}
+        # Solo +Visita para supervision
+        show_visita = role == "supervisor"
+        # Solo +Vacaciones y +Taller para talento humano
+        show_vac_taller = role == "talento humano"
+
         if not is_past:
-            ctk.CTkButton(btn_row, text="+ Visita", width=110, fg_color=self.style["primario"],
-                           text_color=self.style["texto_oscuro"], hover_color="#D8C220",
-                           command=lambda: self._open_visit_dialog(iso_date, None, popup)).pack(side="left", padx=(0, 6))
-            ctk.CTkButton(btn_row, text="+ Vacaciones", width=120, fg_color="#FFE0B2",
-                           text_color="#BF6C00", hover_color="#FFD18C",
-                           command=lambda: self._open_vacation_dialog(iso_date, popup)).pack(side="left", padx=(0, 6))
-            ctk.CTkButton(btn_row, text="+ Taller", width=100, fg_color="#D4EDFC",
-                           text_color="#1A6FA0", hover_color="#B8DFFA",
-                           command=lambda: self._open_workshop_dialog(iso_date, popup)).pack(side="left")
+            if show_all:
+                ctk.CTkButton(btn_row, text="+ Visita", width=110, fg_color=self.style["primario"],
+                              text_color=self.style["texto_oscuro"], hover_color="#D8C220",
+                              command=lambda: self._open_visit_dialog(iso_date, None, popup)).pack(side="left", padx=(0, 6))
+                ctk.CTkButton(btn_row, text="+ Vacaciones", width=120, fg_color="#FFE0B2",
+                              text_color="#BF6C00", hover_color="#FFD18C",
+                              command=lambda: self._open_vacation_dialog(iso_date, popup)).pack(side="left", padx=(0, 6))
+                ctk.CTkButton(btn_row, text="+ Taller", width=100, fg_color="#D4EDFC",
+                              text_color="#1A6FA0", hover_color="#B8DFFA",
+                              command=lambda: self._open_workshop_dialog(iso_date, popup)).pack(side="left")
+            elif show_visita:
+                ctk.CTkButton(btn_row, text="+ Visita", width=110, fg_color=self.style["primario"],
+                              text_color=self.style["texto_oscuro"], hover_color="#D8C220",
+                              command=lambda: self._open_visit_dialog(iso_date, None, popup)).pack(side="left")
+            elif show_vac_taller:
+                ctk.CTkButton(btn_row, text="+ Vacaciones", width=120, fg_color="#FFE0B2",
+                              text_color="#BF6C00", hover_color="#FFD18C",
+                              command=lambda: self._open_vacation_dialog(iso_date, popup)).pack(side="left", padx=(0, 6))
+                ctk.CTkButton(btn_row, text="+ Taller", width=100, fg_color="#D4EDFC",
+                              text_color="#1A6FA0", hover_color="#B8DFFA",
+                              command=lambda: self._open_workshop_dialog(iso_date, popup)).pack(side="left")
 
         # Scrollable content
         content = ctk.CTkScrollableFrame(popup, fg_color="transparent")
