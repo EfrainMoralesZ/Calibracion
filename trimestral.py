@@ -890,12 +890,12 @@ class TrimestralView(ctk.CTkFrame):
 		if totals["ORO"] > 0:
 			message = (
 				f"{current_name}, llevas {totals['ORO']} medalla(s) Oro. "
-				"Excelente: bono garantizado + extra por alto desempeno."
+				"¡Excelente desempeño!"
 			)
 		elif totals["PLATINO"] > 0:
 			message = (
 				f"{current_name}, llevas {totals['PLATINO']} medalla(s) Platino. "
-				"Optimo: bono garantizado."
+				"¡Óptimo desempeño!"
 			)
 		elif totals["BRONCE"] > 0:
 			message = (
@@ -1913,11 +1913,11 @@ class TrimestralView(ctk.CTkFrame):
 
 		def _medal_message(medal_key: str) -> str:
 			if medal_key == "ORO":
-				return "Felicidades bono asegurado + extra"
+				return "¡Felicidades, excelente desempeño!"
 			if medal_key == "PLATINO":
-				return "Felidades bono asegurado"
+				return "¡Felicidades, óptimo desempeño!"
 			if medal_key == "BRONCE":
-				return "Sigue esforzandote"
+				return "Sigue esforzándote"
 			return "--"
 
 		def _available_quarters() -> list[str]:

@@ -32,8 +32,8 @@ DOCUMENT_MODULE_DIR = resource_path("Documentos PDF.py")
 
 
 TRIMESTRAL_MEDAL_RULES: tuple[tuple[float, str, str, str], ...] = (
-	(100.0, "ORO", "Excelente", "bono garantizado + extra por alto desempeno"),
-	(90.0, "PLATINO", "Optimo", "bono garantizado"),
+	(100.0, "ORO", "Excelente", ""),
+	(90.0, "PLATA", "Optimo", ""),
 	(80.0, "BRONCE", "Aceptable", "favor de reforzar"),
 )
 
@@ -2888,7 +2888,7 @@ class CalibrationController:
 	def list_workshops(self) -> list[dict[str, Any]]:
 		return list(self.app_state.get("workshops", []))
 
-	def save_workshop(self, title: str, workshop_date: str, description: str = "", executives=None, place: str = "", start_time: str = "", end_time: str = "") -> dict[str, Any]:
+	def save_workshop(self, title: str, workshop_date: str, description: str = "", executives=None, place: str = "", start_time: str = "", end_time: str = "", **kwargs) -> dict[str, Any]:
 		if not title or not workshop_date:
 			raise ValueError("Titulo y fecha del taller son obligatorios.")
 		if executives is None:
@@ -2904,6 +2904,8 @@ class CalibrationController:
 			"start_time": start_time.strip() if start_time else "",
 			"end_time": end_time.strip() if end_time else "",
 		}
+		# Permitir campos extra como 'type'
+		entry.update(kwargs)
 		workshops = self.app_state.setdefault("workshops", [])
 		workshops.append(entry)
 		_write_json(STATE_FILE, self.app_state)

@@ -2242,7 +2242,8 @@ class CalendarView(ctk.CTkFrame):
                     if not executives:
                         messagebox.showerror("Talleres", "Selecciona al menos un ejecutivo.", parent=dlg)
                         return
-                self.controller.save_workshop(title, ws_date, ws_desc, executives, ws_place, ws_start_time, ws_end_time)
+                # Guardar el taller con el campo 'type': 'taller'
+                self.controller.save_workshop(title, ws_date, ws_desc, executives, ws_place, ws_start_time, ws_end_time, type="taller")
             except ValueError as e:
                 messagebox.showerror("Talleres", str(e), parent=dlg)
                 return
@@ -2590,6 +2591,15 @@ class CalendarView(ctk.CTkFrame):
         if self.notes_box is None:
             return
 
+        # Cambiar el título del panel si es taller
+        if hasattr(self, 'side_panel'):
+            for widget in self.side_panel.winfo_children():
+                if isinstance(widget, ctk.CTkLabel) and widget.cget("text") in ["Detalle de visita", "Descripción del taller"]:
+                    if visit and visit.get("type") == "taller":
+                        widget.configure(text="Descripción del taller")
+                    else:
+                        widget.configure(text="Detalle de visita")
+
         if visit is None:
             self.notes_box.configure(state="normal")
             self.notes_box.delete("1.0", "end")
@@ -2604,6 +2614,32 @@ class CalendarView(ctk.CTkFrame):
                 self._agreement_banner.grid_remove()
             return
 
+        # Si es taller, mostrar la descripción del taller
+        if visit.get("type") == "taller":
+            desc = visit.get("description", "Sin descripción")
+            title = visit.get("title", "Taller")
+            place = visit.get("place", "")
+            time = visit.get("time", "")
+            asistentes = visit.get("executives", [])
+            if asistentes == "ALL":
+                asistentes_text = "Todos los ejecutivos"
+            else:
+                asistentes_text = ", ".join(asistentes) if asistentes else "Sin asignar"
+            text = (
+                f"Título: {title}\n"
+                f"Descripción: {desc}\n"
+                f"Lugar: {place}\n"
+                f"Hora: {time}\n"
+                f"Asistentes: {asistentes_text}"
+            )
+            self.notes_box.configure(state="normal")
+            self.notes_box.delete("1.0", "end")
+            self.notes_box.insert("1.0", text)
+            self.notes_box.configure(state="disabled")
+            self._set_accept_button_state(visit)
+            return
+
+        # Si no es taller, mostrar detalle normal de visita
         assignment_time = str(visit.get("assignment_time", "")).strip() or "--"
         departure_time = str(visit.get("departure_time", "")).strip() or "--"
         notes_text = str(visit.get("notes", "")).strip() or "Sin observaciones"
