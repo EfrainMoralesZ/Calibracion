@@ -604,7 +604,8 @@ class CalibrationApp(ctk.CTk):
         ).grid(row=0, column=0, sticky="w")
 
         # Para ejecutivos: Cards de estadísticas centradas a nivel del título
-        if is_executive:
+        # Solo mostrar para ejecutivos, no para 'talento humano'
+        if is_executive and self.controller._role_name(current_user) != "talento humano":
             self._build_executive_stats_row(top_row, current_user)
 
         controls_row = ctk.CTkFrame(top_row, fg_color="transparent")
@@ -828,7 +829,8 @@ class CalibrationApp(ctk.CTk):
             self.nav_buttons[section] = button
 
         # Para ejecutivos las cards se muestran en el header, no aqui
-        if is_executive:
+        # No mostrar cards de resumen para 'talento humano'
+        if is_executive or self.controller._role_name(current_user) == "talento humano":
             return
 
         summary_row = ctk.CTkFrame(nav, fg_color="transparent")

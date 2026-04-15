@@ -952,7 +952,8 @@ class CalibrationController:
 
 	def is_executive_role(self, user: dict[str, Any] | None = None) -> bool:
 		return self._role_name(user) in {"ejecutivo tecnico", "especialidades"}
-
+	
+	## --- Roles y control de vistas.
 	def available_sections(self, user: dict[str, Any] | None = None) -> list[str]:
 		if self.has_full_access(user):
 			return ["Supervisión", "Criterios", "Dashboard", "Calendario", "Trimestral", "Configuraciones"]
@@ -960,7 +961,7 @@ class CalibrationController:
 		if role_name == "talento humano":
 			return ["Supervisión", "Dashboard", "Calendario"]
 		if role_name == "supervisor":
-			return ["Supervisión", "Calendario"]
+			return ["Supervisión","Criterios", "Dashboard", "Trimestral", "Calendario"]
 		if self.is_executive_role(user):
 			return ["Calendario", "Criterios", "Trimestral", "Supervisión"]
 		return ["Calendario", "Trimestral"]

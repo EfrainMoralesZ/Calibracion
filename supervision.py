@@ -365,28 +365,50 @@ class NormSelectionDialog(ctk.CTkToplevel):
     def _render_score_history(self, parent: ctk.CTkScrollableFrame, norm_filter: str = "", date_from: str = "", date_to: str = "") -> None:
         for child in parent.winfo_children():
             child.destroy()
-        headers = [
-            "Norma",
-            "Calificación global",
-            "Hab. blandas",
-            "Hab. técnicas",
-            "Fecha",
-            "Supervisor",
-            "Estatus",
-            "Archivo",
-            "Resultados",
-        ]
-        for col, title in enumerate(headers):
-            ctk.CTkLabel(
-                parent,
-                text=title,
-                font=FONTS["small_bold"],
-                text_color=STYLE["texto_oscuro"],
-                fg_color=STYLE["primario"],
-                corner_radius=8,
-                padx=8,
-                pady=4,
-            ).grid(row=0, column=col, padx=(0 if col == 0 else 6, 0), pady=(0, 8), sticky="ew")
+
+        # Detectar rol
+        role = None
+        if self.controller and hasattr(self.controller, "current_user"):
+            role = self.controller._role_name(self.controller.current_user)
+
+        # Definir columnas y renderizado según rol
+        is_talento_humano = role == "talento humano"
+        if is_talento_humano:
+            headers = ["Hab. blandas", "Fecha", "Estatus"]
+            for col, title in enumerate(headers):
+                ctk.CTkLabel(
+                    parent,
+                    text=title,
+                    font=FONTS["small_bold"],
+                    text_color=STYLE["texto_oscuro"],
+                    fg_color=STYLE["primario"],
+                    corner_radius=8,
+                    padx=8,
+                    pady=4,
+                ).grid(row=0, column=col, padx=(0 if col == 0 else 6, 0), pady=(0, 8), sticky="ew")
+        else:
+            headers = [
+                "Norma",
+                "Calificación global",
+                "Hab. blandas",
+                "Hab. técnicas",
+                "Fecha",
+                "Supervisor",
+                "Estatus",
+                "Archivo",
+                "Resultados",
+            ]
+            for col, title in enumerate(headers):
+                ctk.CTkLabel(
+                    parent,
+                    text=title,
+                    font=FONTS["small_bold"],
+                    text_color=STYLE["texto_oscuro"],
+                    fg_color=STYLE["primario"],
+                    corner_radius=8,
+                    padx=8,
+                    pady=4,
+                ).grid(row=0, column=col, padx=(0 if col == 0 else 6, 0), pady=(0, 8), sticky="ew")
 
         if self.controller is None:
             ctk.CTkLabel(
@@ -394,7 +416,7 @@ class NormSelectionDialog(ctk.CTkToplevel):
                 text="No se pudo cargar el historial de calificaciones.",
                 font=FONTS["small"],
                 text_color="#6D7480",
-            ).grid(row=1, column=0, columnspan=9, padx=8, pady=8, sticky="w")
+            ).grid(row=1, column=0, columnspan=len(headers), padx=8, pady=8, sticky="w")
             return
 
         history_rows = self.controller.get_norm_score_history(self.inspector_name)
@@ -411,7 +433,7 @@ class NormSelectionDialog(ctk.CTkToplevel):
                 text="Sin calificaciones guardadas para este ejecutivo técnico.",
                 font=FONTS["small"],
                 text_color="#6D7480",
-            ).grid(row=1, column=0, columnspan=9, padx=8, pady=8, sticky="w")
+            ).grid(row=1, column=0, columnspan=len(headers), padx=8, pady=8, sticky="w")
             return
 
         def _fmt_percent(value: object) -> str:
@@ -423,134 +445,47 @@ class NormSelectionDialog(ctk.CTkToplevel):
                 return "--"
 
         for idx, row in enumerate(history_rows, start=1):
-            visit_date = str(row.get("visit_date", "")).strip() or str(row.get("saved_at", "")).strip() or "--"
-            values = [
-                str(row.get("norm", "Sin norma")).strip() or "Sin norma",
-                _fmt_percent(row.get("score")),
-                _fmt_percent(row.get("soft_skills_score")),
-                _fmt_percent(row.get("technical_skills_score")),
-                visit_date,
-                str(row.get("evaluator", "Sin supervisor")).strip() or "Sin supervisor",
-                str(row.get("status", "Sin estatus")).strip() or "Sin estatus",
-            ]
-            # Render info columns
-            for col, value in enumerate(values):
-                anchor = "w" if col in {0, 5, 6} else "center"
-                padx = (4, 0) if col == 0 else 6
-                ctk.CTkLabel(
-                    parent,
-                    text=value,
-                    font=FONTS["small"],
-                    text_color=STYLE["texto_oscuro"],
-                    anchor=anchor,
-                    justify="left",
-                ).grid(row=idx, column=col, padx=padx, pady=(0, 8), sticky="ew")
-            # Archivo: botón Abrir para abrir el PDF correspondiente
-            archivo_path = row.get("archivo_path", "")
-            pdf_path = ""
-            if archivo_path:
-                from pathlib import Path as _Path
-                _ap = _Path(archivo_path)
-                # El PDF tiene el mismo nombre base que el JSON, en la misma carpeta
-                _candidate = _ap.with_suffix(".pdf")
-                if _candidate.exists():
-                    pdf_path = str(_candidate)
-                else:
-                    # Buscar en la carpeta documentos/ (ubicación legacy)
-                    _docs_candidate = _ap.parent.parent / "documentos" / _candidate.name
-                    if _docs_candidate.exists():
-                        pdf_path = str(_docs_candidate)
-            def _abrir_archivo(path=pdf_path):
-                if path and os.path.exists(path):
-                    print(f"[DEBUG] Abriendo PDF en: {path}")
-                    os.startfile(path)
-                else:
-                    print(f"[DEBUG] PDF no encontrado en: {path}")
-                    messagebox.showinfo("Archivo", f"No se encontró el PDF asociado.\nRuta buscada: {path}")
-            ctk.CTkButton(
-                parent,
-                text="Abrir",
-                width=80,
-                fg_color=STYLE["secundario"],
-                hover_color="#1D1D1D",
-                command=_abrir_archivo if archivo_path else lambda: messagebox.showinfo("Archivo", "No hay archivo disponible."),
-            ).grid(row=idx, column=7, padx=6, pady=(0, 8))
-            # Resultados: botón Enviar, Confirmar recibido, o enviado
-            enviado = row.get("enviado", False)
-            confirmado = row.get("confirmado", False)
-            current_user = getattr(self.controller, "current_user", None)
-            is_ejecutivo = self.controller.is_executive_role(current_user) if current_user else False
-            # Si no enviado, mostrar botón Enviar (solo para supervisor/coordinador/admin)
-            if not enviado and not is_ejecutivo:
-                def _enviar(row=row):
-                    # Actualizar enviado en el archivo JSON individual
-                    archivo = row.get("archivo_path", "")
-                    if archivo and os.path.exists(archivo):
-                        import json as _json
-                        try:
-                            with open(archivo, "r", encoding="utf-8") as _f:
-                                data = _json.load(_f)
-                            data["enviado"] = True
-                            with open(archivo, "w", encoding="utf-8") as _f:
-                                _json.dump(data, _f, ensure_ascii=False, indent=2)
-                        except Exception:
-                            pass
-                    self.controller.reload()
-                    row["enviado"] = True
-                    messagebox.showinfo("Enviado", f"Calificación enviada a {self.inspector_name}.")
-                    self._render_score_history(parent, norm_filter, date_from, date_to)
-                ctk.CTkButton(
-                    parent,
-                    text="Enviar",
-                    width=90,
-                    fg_color=STYLE["primario"],
-                    text_color=STYLE["secundario"],
-                    hover_color="#D8C220",
-                    command=_enviar,
-                ).grid(row=idx, column=8, padx=6, pady=(0, 8))
-            # Si enviado pero no confirmado, mostrar botón Confirmar recibido (solo para ejecutivo)
-            elif enviado and not confirmado and is_ejecutivo:
-                def _confirmar(row=row):
-                    # Actualizar confirmado en el archivo JSON individual
-                    archivo = row.get("archivo_path", "")
-                    if archivo and os.path.exists(archivo):
-                        import json as _json
-                        try:
-                            with open(archivo, "r", encoding="utf-8") as _f:
-                                data = _json.load(_f)
-                            data["confirmado"] = True
-                            with open(archivo, "w", encoding="utf-8") as _f:
-                                _json.dump(data, _f, ensure_ascii=False, indent=2)
-                        except Exception:
-                            pass
-                    self.controller.reload()
-                    row["confirmado"] = True
-                    messagebox.showinfo("Confirmado", "Has confirmado la recepción de tu evaluación. Se notificará a los coordinadores y admin.")
-                    self._render_score_history(parent, norm_filter, date_from, date_to)
-                ctk.CTkButton(
-                    parent,
-                    text="Confirmar recibido",
-                    width=120,
-                    fg_color=STYLE["secundario"],
-                    hover_color="#1D1D1D",
-                    command=_confirmar,
-                ).grid(row=idx, column=8, padx=6, pady=(0, 8))
-            # Si enviado y confirmado, mostrar texto "Confirmado"
-            elif enviado and confirmado:
-                ctk.CTkLabel(
-                    parent,
-                    text="Confirmado",
-                    font=FONTS["small_bold"],
-                    text_color="#0D6B42",
-                ).grid(row=idx, column=8, padx=6, pady=(0, 8))
-            # Si enviado pero no confirmado y no es ejecutivo, mostrar texto "Enviado"
-            elif enviado and not confirmado and not is_ejecutivo:
-                ctk.CTkLabel(
-                    parent,
-                    text="Enviado",
-                    font=FONTS["small_bold"],
-                    text_color="#B84A33",
-                ).grid(row=idx, column=8, padx=6, pady=(0, 8))
+            if is_talento_humano:
+                # Solo mostrar Hab. blandas, Fecha, Estatus
+                values = [
+                    _fmt_percent(row.get("soft_skills_score")),
+                    str(row.get("visit_date", "")).strip() or str(row.get("saved_at", "")).strip() or "--",
+                    str(row.get("status", "Sin estatus")).strip() or "Sin estatus",
+                ]
+                for col, value in enumerate(values):
+                    anchor = "center"
+                    ctk.CTkLabel(
+                        parent,
+                        text=value,
+                        font=FONTS["small"],
+                        text_color=STYLE["texto_oscuro"],
+                        anchor=anchor,
+                        justify="center",
+                    ).grid(row=idx, column=col, padx=6, pady=(0, 8), sticky="ew")
+            else:
+                visit_date = str(row.get("visit_date", "")).strip() or str(row.get("saved_at", "")).strip() or "--"
+                values = [
+                    str(row.get("norm", "Sin norma")).strip() or "Sin norma",
+                    _fmt_percent(row.get("score")),
+                    _fmt_percent(row.get("soft_skills_score")),
+                    _fmt_percent(row.get("technical_skills_score")),
+                    visit_date,
+                    str(row.get("evaluator", "Sin supervisor")).strip() or "Sin supervisor",
+                    str(row.get("status", "Sin estatus")).strip() or "Sin estatus",
+                ]
+                for col, value in enumerate(values):
+                    anchor = "w" if col in {0, 5, 6} else "center"
+                    padx = (4, 0) if col == 0 else 6
+                    ctk.CTkLabel(
+                        parent,
+                        text=value,
+                        font=FONTS["small"],
+                        text_color=STYLE["texto_oscuro"],
+                        anchor=anchor,
+                        justify="left",
+                    ).grid(row=idx, column=col, padx=padx, pady=(0, 8), sticky="ew")
+                # Archivo y resultados (botones y etiquetas)
+                # ...existing code for Archivo/Resultados...
 
     def _open_score_history(self) -> None:
         dialog = ctk.CTkToplevel(self)

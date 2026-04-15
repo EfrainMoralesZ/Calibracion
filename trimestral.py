@@ -1598,23 +1598,24 @@ class TrimestralView(ctk.CTkFrame):
 			).grid(row=0, column=0, padx=(0, 4 if self.can_edit else 3), sticky="ew")
 
 			if self.can_edit:
-				ctk.CTkButton(
-					actions_row,
-					text="Captura",
-					fg_color=self.style["fondo"],
-					text_color=self.style["texto_oscuro"],
-					hover_color="#E9ECEF",
-					command=lambda name=inspector_name: self._open_capture_for_inspector(name),
-				).grid(row=0, column=1, padx=4, sticky="ew")
-				ctk.CTkButton(
-					actions_row,
-					text="Enviar",
-					fg_color=self.style["secundario"],
-					text_color=self.style["texto_claro"],
-					hover_color="#1D1D1D",
-					state="normal" if model["send_ready"] == "1" else "disabled",
-					command=lambda name=inspector_name: self._send_scores_for_inspector(name),
-				).grid(row=0, column=2, padx=(4, 0), sticky="ew")
+				   ctk.CTkButton(
+					   actions_row,
+					   text="Captura",
+					   fg_color=self.style["fondo"],
+					   text_color=self.style["texto_oscuro"],
+					   hover_color="#E9ECEF",
+					   state="normal",
+					   command=lambda name=inspector_name: self._open_capture_for_inspector(name),
+				   ).grid(row=0, column=1, padx=4, sticky="ew")
+				   ctk.CTkButton(
+					   actions_row,
+					   text="Enviar",
+					   fg_color=self.style["secundario"],
+					   text_color=self.style["texto_claro"],
+					   hover_color="#1D1D1D",
+					   state="normal",
+					   command=lambda name=inspector_name: self._send_scores_for_inspector(name),
+				   ).grid(row=0, column=2, padx=(4, 0), sticky="ew")
 			else:
 				ctk.CTkButton(
 					actions_row,
