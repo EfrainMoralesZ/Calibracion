@@ -209,19 +209,14 @@ def _normalize_role_name(value: str | None) -> str:
 	role_aliases = {
 		"admin": "admin",
 		"administrador": "admin",
-		"gerente": "gerente",
 		"subgerente": "sub gerente",
-		"sub_gerente": "sub gerente",
 		"coordinador_operativo": "coordinador operativo",
 		"coordinadora_en_fiabilidad": "coordinadora en fiabilidad",
 		"talento_humano": "talento humano",
 		"supervisor": "supervisor",
 		"ejecutivo": "ejecutivo tecnico",
 		"ejecutivo_tecnico": "ejecutivo tecnico",
-		"ejecutivo_tecnica": "ejecutivo tecnico",
-		"especialista": "especialidades",
-		"especialidad": "especialidades",
-		"especialidades": "especialidades",
+		"especialista": "especialista",
 	}
 	return role_aliases.get(role_key, raw_value.lower())
 

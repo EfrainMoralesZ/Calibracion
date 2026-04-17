@@ -52,7 +52,7 @@ class DashboardView(ctk.CTkFrame):
     def _load_norm_medal_images(self) -> dict[str, ctk.CTkImage | None]:
         files = {
             "ORO": "medalla_oro.png",
-            "PLATINO": "medalla_plata.png",
+            "PLATA": "medalla_plata.png",
             "BRONCE": "medalla_bronce.png",
         }
         images: dict[str, ctk.CTkImage | None] = {}
@@ -242,7 +242,7 @@ class DashboardView(ctk.CTkFrame):
 
     @staticmethod
     def _format_medals(counts: dict[str, int]) -> str:
-        return f"O:{counts.get('ORO', 0)} P:{counts.get('PLATINO', 0)} B:{counts.get('BRONCE', 0)}"
+        return f"O:{counts.get('ORO', 0)} P:{counts.get('PLATA', 0)} B:{counts.get('BRONCE', 0)}"
 
     def _render_cards(self, metrics: list[dict], inspector_mode: bool) -> None:
         if self.cards_frame is None:
@@ -563,13 +563,13 @@ class DashboardView(ctk.CTkFrame):
         average_score = snapshot.get("average_score")
         latest_score = snapshot.get("latest_score")
         latest_medal = self.controller.get_trimestral_medal(latest_score)
-        norm_medals = {"ORO": 0, "PLATINO": 0, "BRONCE": 0}
+        norm_medals = {"ORO": 0, "PLATA": 0, "BRONCE": 0}
         for point in list(snapshot.get("history", [])):
             medal_key = str(self.controller.get_trimestral_medal(point.get("score")).get("key", "")).strip().upper()
             if medal_key in norm_medals:
                 norm_medals[medal_key] += 1
-        medal_emoji = {"ORO": "🥇", "PLATINO": "🥈", "BRONCE": "🥉"}
-        medal_titles = {"ORO": "Oro", "PLATINO": "Platino", "BRONCE": "Bronce"}
+        medal_emoji = {"ORO": "🥇", "PLATA": "🥈", "BRONCE": "🥉"}
+        medal_titles = {"ORO": "Oro", "PLATA": "Plata", "BRONCE": "Bronce"}
         latest_medal_key = str(latest_medal.get("key", "")).strip().upper()
         latest_medal_title = latest_medal.get("title", "Sin medalla")
         latest_medal_display = f"{medal_emoji.get(latest_medal_key, '🏅')} {latest_medal_title}" if latest_medal_key else latest_medal_title
@@ -623,7 +623,7 @@ class DashboardView(ctk.CTkFrame):
             text_color=self.style["texto_oscuro"],
         ).pack(anchor="w", padx=12, pady=(10, 4))
 
-        earned_medals = [(key, norm_medals.get(key, 0)) for key in ["ORO", "PLATINO", "BRONCE"] if norm_medals.get(key, 0) > 0]
+        earned_medals = [(key, norm_medals.get(key, 0)) for key in ["ORO", "PLATA", "BRONCE"] if norm_medals.get(key, 0) > 0]
         if not earned_medals:
             ctk.CTkLabel(
                 info_panel,

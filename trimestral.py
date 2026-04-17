@@ -113,7 +113,7 @@ class TrimestralView(ctk.CTkFrame):
 	def _load_medal_images(self, size: tuple[int, int] = (46, 46)) -> dict[str, ctk.CTkImage | None]:
 		files = {
 			"ORO": "medalla_oro.png",
-			"PLATINO": "medalla_plata.png",
+			"PLATA": "medalla_plata.png",
 			"BRONCE": "medalla_bronce.png",
 		}
 		images: dict[str, ctk.CTkImage | None] = {}
@@ -197,7 +197,7 @@ class TrimestralView(ctk.CTkFrame):
 			self.cards_medal_filter_combo = ctk.CTkComboBox(
 				filter_row,
 				variable=self.cards_medal_filter_var,
-				values=["Todas", "Oro", "Platino", "Bronce", "Sin medalla"],
+				values=["Todas", "Oro", "Plata", "Bronce", "Sin medalla"],
 				width=170,
 				height=34,
 				fg_color="#FFFFFF",
@@ -209,7 +209,7 @@ class TrimestralView(ctk.CTkFrame):
 			self.cards_medal_filter_combo.grid(row=0, column=1, sticky="w")
 			ctk.CTkLabel(
 				filter_row,
-				text="Rangos: 80 Bronce | 90 Platino | 100 Oro",
+				text="Rangos: 80 Bronce | 90 Plata | 100 Oro",
 				font=self.fonts["small"],
 				text_color="#6D7480",
 			).grid(row=0, column=2, padx=(12, 0), sticky="w")
@@ -892,9 +892,9 @@ class TrimestralView(ctk.CTkFrame):
 				f"{current_name}, llevas {totals['ORO']} medalla(s) Oro. "
 				"¡Excelente desempeño!"
 			)
-		elif totals["PLATINO"] > 0:
+		elif totals["PLATA"] > 0:
 			message = (
-				f"{current_name}, llevas {totals['PLATINO']} medalla(s) Platino. "
+				f"{current_name}, llevas {totals['PLATA']} medalla(s) Plata. "
 				"¡Óptimo desempeño!"
 			)
 		elif totals["BRONCE"] > 0:
@@ -917,7 +917,7 @@ class TrimestralView(ctk.CTkFrame):
 		color = "#6D7480"
 		if key == "ORO":
 			color = "#B98500"
-		elif key == "PLATINO":
+		elif key == "PLATA":
 			color = "#4F5D73"
 		elif key == "BRONCE":
 			color = "#8C4B20"
@@ -930,7 +930,7 @@ class TrimestralView(ctk.CTkFrame):
 		}
 
 	def _accumulated_medals(self, scores: list[dict]) -> dict[str, int]:
-		totals = {"ORO": 0, "PLATINO": 0, "BRONCE": 0}
+		totals = {"ORO": 0, "PLATA": 0, "BRONCE": 0}
 		for item in scores:
 			medal_key = self._score_medal(item).get("key", "")
 			if medal_key in totals:
@@ -942,8 +942,8 @@ class TrimestralView(ctk.CTkFrame):
 		parts = []
 		if totals["ORO"]:
 			parts.append(f"Oro x{totals['ORO']}")
-		if totals["PLATINO"]:
-			parts.append(f"Platino x{totals['PLATINO']}")
+		if totals["PLATA"]:
+			parts.append(f"Plata x{totals['PLATA']}")
 		if totals["BRONCE"]:
 			parts.append(f"Bronce x{totals['BRONCE']}")
 		return " | ".join(parts) if parts else "Sin medallas acumuladas"
@@ -955,8 +955,8 @@ class TrimestralView(ctk.CTkFrame):
 		totals = self._accumulated_medals(scores)
 		if selected == "oro":
 			return totals["ORO"] > 0
-		if selected == "platino":
-			return totals["PLATINO"] > 0
+		if selected == "plata":
+			return totals["PLATA"] > 0
 		if selected == "bronce":
 			return totals["BRONCE"] > 0
 		if selected == "sin medalla":
@@ -1395,7 +1395,7 @@ class TrimestralView(ctk.CTkFrame):
 					"califications_hint": summary["califications_hint"],
 					"medal_summary": self._medal_summary_text(assigned_scores),
 					"medal_oro": str(medals["ORO"]),
-					"medal_platino": str(medals["PLATINO"]),
+					"medal_plata": str(medals["PLATA"]),
 					"medal_bronce": str(medals["BRONCE"]),
 					"send_ready": "1" if summary["send_ready"] else "0",
 					"confirm_ready": "1" if summary["confirm_ready"] else "0",
@@ -1415,7 +1415,7 @@ class TrimestralView(ctk.CTkFrame):
 				model["workshop_alert"],
 				model["medal_summary"],
 				model["medal_oro"],
-				model["medal_platino"],
+				model["medal_plata"],
 				model["medal_bronce"],
 				model["send_ready"],
 				model["confirm_ready"],
@@ -1544,7 +1544,7 @@ class TrimestralView(ctk.CTkFrame):
 			achieved = []
 			for key, count_key, color, emoji in [
 				("ORO", "medal_oro", "#B98500", "🥇"),
-				("PLATINO", "medal_platino", "#4F5D73", "🥈"),
+				("PLATA", "medal_plata", "#4F5D73", "🥈"),
 				("BRONCE", "medal_bronce", "#8C4B20", "🥉"),
 			]:
 				try:
@@ -1598,24 +1598,24 @@ class TrimestralView(ctk.CTkFrame):
 			).grid(row=0, column=0, padx=(0, 4 if self.can_edit else 3), sticky="ew")
 
 			if self.can_edit:
-				   ctk.CTkButton(
-					   actions_row,
-					   text="Captura",
-					   fg_color=self.style["fondo"],
-					   text_color=self.style["texto_oscuro"],
-					   hover_color="#E9ECEF",
-					   state="normal",
-					   command=lambda name=inspector_name: self._open_capture_for_inspector(name),
-				   ).grid(row=0, column=1, padx=4, sticky="ew")
-				   ctk.CTkButton(
-					   actions_row,
-					   text="Enviar",
-					   fg_color=self.style["secundario"],
-					   text_color=self.style["texto_claro"],
-					   hover_color="#1D1D1D",
-					   state="normal",
-					   command=lambda name=inspector_name: self._send_scores_for_inspector(name),
-				   ).grid(row=0, column=2, padx=(4, 0), sticky="ew")
+				ctk.CTkButton(
+					actions_row,
+					text="Captura",
+					fg_color=self.style["fondo"],
+					text_color=self.style["texto_oscuro"],
+					hover_color="#E9ECEF",
+					state="normal",
+					command=lambda name=inspector_name: self._open_capture_for_inspector(name),
+				).grid(row=0, column=1, padx=4, sticky="ew")
+				ctk.CTkButton(
+					actions_row,
+					text="Enviar",
+					fg_color=self.style["secundario"],
+					text_color=self.style["texto_claro"],
+					hover_color="#1D1D1D",
+					state="normal",
+					command=lambda name=inspector_name: self._send_scores_for_inspector(name),
+				).grid(row=0, column=2, padx=(4, 0), sticky="ew")
 			else:
 				ctk.CTkButton(
 					actions_row,
@@ -1838,7 +1838,7 @@ class TrimestralView(ctk.CTkFrame):
 		medal_selector = ctk.CTkComboBox(
 			filters,
 			variable=medal_var,
-			values=["Todas", "Oro", "Platino", "Bronce", "Sin medalla"],
+			values=["Todas", "Oro", "Plata", "Bronce", "Sin medalla"],
 			width=140,
 			height=34,
 			fg_color="#FFFFFF",
@@ -1914,7 +1914,7 @@ class TrimestralView(ctk.CTkFrame):
 		def _medal_message(medal_key: str) -> str:
 			if medal_key == "ORO":
 				return "¡Felicidades, excelente desempeño!"
-			if medal_key == "PLATINO":
+			if medal_key == "PLATA":
 				return "¡Felicidades, óptimo desempeño!"
 			if medal_key == "BRONCE":
 				return "Sigue esforzándote"
@@ -1948,8 +1948,8 @@ class TrimestralView(ctk.CTkFrame):
 				medal_key = ""
 				if selected_medal == "oro":
 					medal_key = "ORO"
-				elif selected_medal == "platino":
-					medal_key = "PLATINO"
+				elif selected_medal == "plata":
+					medal_key = "PLATA"
 				elif selected_medal == "bronce":
 					medal_key = "BRONCE"
 				if selected_medal == "sin medalla":

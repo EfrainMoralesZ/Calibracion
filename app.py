@@ -265,7 +265,7 @@ class CalibrationApp(ctk.CTk):
 
     @staticmethod
     def _format_medals_text(counts: dict[str, int]) -> str:
-        return f"O:{counts.get('ORO', 0)} P:{counts.get('PLATINO', 0)} B:{counts.get('BRONCE', 0)}"
+        return f"O:{counts.get('ORO', 0)} S:{counts.get('PLATINO', 0)} B:{counts.get('BRONCE', 0)}"
 
     @staticmethod
     def _build_yearly_phrase_catalog(openings: list[str], focuses: list[str]) -> list[str]:
