@@ -1125,7 +1125,7 @@ class CalibrationController:
 		executives = sorted(
 			str(user.get("name", "")).strip()
 			for user in self.users_catalog
-			if _normalize_role_name(user.get("role")) in {"ejecutivo tecnico", "especialidades"}
+			if _normalize_role_name(user.get("role")) in {"ejecutivo tecnico", "especialista"}
 			and str(user.get("name", "")).strip()
 		)
 		self._assignable_inspectors_cache = executives or self.get_dashboard_people()
