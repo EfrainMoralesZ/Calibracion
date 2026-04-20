@@ -907,13 +907,43 @@ class TrimestralView(ctk.CTkFrame):
 
 		return greeting_text, message
 
-	def _score_medal(self, score_row_or_value) -> dict[str, str]:
-		if isinstance(score_row_or_value, dict):
-			score_value = score_row_or_value.get("score")
+	def _score_medal(self, scores_or_value) -> dict[str, str]:
+		# Ahora espera una lista de scores para calcular el promedio general
+		if isinstance(scores_or_value, list):
+			# Lista de dicts (todas las normas del inspector)
+			califs = []
+			for item in scores_or_value:
+				try:
+					val = float(item.get("score", 0))
+					califs.append(val)
+				except Exception:
+					pass
+			if not califs:
+				key = ""
+			else:
+				promedio = sum(califs) / len(califs)
+				if promedio >= 100:
+					key = "ORO"
+				elif promedio >= 90:
+					key = "PLATA"
+				elif promedio >= 80:
+					key = "BRONCE"
+				else:
+					key = ""
 		else:
-			score_value = score_row_or_value
-		medal = self.controller.get_trimestral_medal(score_value)
-		key = str(medal.get("key", "")).strip().upper()
+			# Para compatibilidad, si recibe un valor individual
+			try:
+				score_value = float(scores_or_value)
+			except Exception:
+				score_value = 0
+			if score_value >= 100:
+				key = "ORO"
+			elif score_value >= 90:
+				key = "PLATA"
+			elif score_value >= 80:
+				key = "BRONCE"
+			else:
+				key = ""
 		color = "#6D7480"
 		if key == "ORO":
 			color = "#B98500"
@@ -921,20 +951,44 @@ class TrimestralView(ctk.CTkFrame):
 			color = "#4F5D73"
 		elif key == "BRONCE":
 			color = "#8C4B20"
+		label = {"ORO": "Oro", "PLATA": "Plata", "BRONCE": "Bronce"}.get(key, "Sin medalla")
+		title = label
+		message = {
+			"ORO": "¡Excelente desempeño!",
+			"PLATA": "¡Óptimo desempeño!",
+			"BRONCE": "Vas bien: favor de reforzar para subir al siguiente nivel."
+		}.get(key, "Sin medalla")
 		return {
 			"key": key,
-			"label": str(medal.get("label", "Sin medalla")),
-			"title": str(medal.get("title", "Sin medalla")),
-			"message": str(medal.get("message", "")),
+			"label": label,
+			"title": title,
+			"message": message,
 			"color": color,
 		}
 
 	def _accumulated_medals(self, scores: list[dict]) -> dict[str, int]:
+		# Solo se asigna UNA medalla basada en el promedio general
 		totals = {"ORO": 0, "PLATA": 0, "BRONCE": 0}
+		if not scores:
+			return totals
+		# Calcular el promedio general de las calificaciones
+		califs = []
 		for item in scores:
-			medal_key = self._score_medal(item).get("key", "")
-			if medal_key in totals:
-				totals[medal_key] += 1
+			try:
+				val = float(item.get("score", 0))
+				califs.append(val)
+			except Exception:
+				pass
+		if not califs:
+			return totals
+		promedio = sum(califs) / len(califs)
+		# Asignar medalla según el promedio
+		if promedio >= 100:
+			totals["ORO"] = 1
+		elif promedio >= 90:
+			totals["PLATA"] = 1
+		elif promedio >= 80:
+			totals["BRONCE"] = 1
 		return totals
 
 	def _medal_summary_text(self, scores: list[dict]) -> str:
