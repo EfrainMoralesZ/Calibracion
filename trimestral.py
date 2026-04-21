@@ -1503,6 +1503,20 @@ class TrimestralView(ctk.CTkFrame):
 		start_index = self.current_cards_page * self.cards_page_size
 		page_models = card_models[start_index:start_index + self.cards_page_size]
 
+		# DEBUG: Mostrar en la UI los inspectores y modelos de card generados
+		debug_info = "\n".join([
+			f"{i+1}. {m['inspector_name']} | send_ready={m['send_ready']} | confirm_ready={m['confirm_ready']} | pending_text={m['pending_text']} | medals: ORO={m['medal_oro']} PLATA={m['medal_plata']} BRONCE={m['medal_bronce']}"
+			for i, m in enumerate(page_models)
+		])
+		ctk.CTkLabel(
+			self.cards_frame,
+			text=f"[DEBUG] Inspectores cards generados en página actual:\n{debug_info}",
+			font=self.fonts["small"],
+			text_color="#B22222",
+			anchor="w",
+			justify="left",
+		).grid(row=99, column=0, columnspan=3, padx=10, pady=2, sticky="w")
+
 		for index, model in enumerate(page_models):
 			inspector_name = model["inspector_name"]
 			card_host = ctk.CTkFrame(self.cards_frame, fg_color="transparent")
@@ -1839,7 +1853,7 @@ class TrimestralView(ctk.CTkFrame):
 
 		year_var = ctk.StringVar(value="Todos")
 		quarter_var = ctk.StringVar(value="Todos")
-		medal_var = ctk.StringVar(value="Todas")
+		# Quitar filtro de medalla
 		norm_var = ctk.StringVar(value="Todas")
 
 		norm_tokens = sorted({self._norm_key(item) for item in scores if self._norm_key(item)})
@@ -1883,24 +1897,7 @@ class TrimestralView(ctk.CTkFrame):
 		)
 		quarter_selector.grid(row=0, column=3, padx=(0, 16), sticky="w")
 
-		ctk.CTkLabel(
-			filters,
-			text="Medalla",
-			font=self.fonts["small_bold"],
-			text_color="#6D7480",
-		).grid(row=0, column=4, padx=(0, 8), sticky="w")
-		medal_selector = ctk.CTkComboBox(
-			filters,
-			variable=medal_var,
-			values=["Todas", "Oro", "Plata", "Bronce", "Sin medalla"],
-			width=140,
-			height=34,
-			fg_color="#FFFFFF",
-			border_color="#D5D8DC",
-			button_color=self.style["primario"],
-			dropdown_hover_color=self.style["primario"],
-		)
-		medal_selector.grid(row=0, column=5, padx=(0, 12), sticky="w")
+		# Eliminado filtro de medalla
 
 		ctk.CTkLabel(
 			filters,
@@ -1989,7 +1986,6 @@ class TrimestralView(ctk.CTkFrame):
 		def _filtered_scores() -> list[dict]:
 			selected_year = year_var.get().strip()
 			selected_quarter = quarter_var.get().strip().upper()
-			selected_medal = medal_var.get().strip().lower()
 			selected_norm = norm_var.get().strip()
 			filtered = list(scores)
 			if selected_year != "Todos":
@@ -1998,19 +1994,6 @@ class TrimestralView(ctk.CTkFrame):
 				filtered = [item for item in filtered if str(item.get("quarter", "")).strip().upper() == selected_quarter]
 			if selected_norm != "Todas":
 				filtered = [item for item in filtered if self._norm_key(item) == selected_norm]
-			if selected_medal != "todas":
-				medal_key = ""
-				if selected_medal == "oro":
-					medal_key = "ORO"
-				elif selected_medal == "plata":
-					medal_key = "PLATA"
-				elif selected_medal == "bronce":
-					medal_key = "BRONCE"
-				if selected_medal == "sin medalla":
-					filtered = [item for item in filtered if not self._score_medal(item).get("key")]
-				else:
-					filtered = [item for item in filtered if self._score_medal(item).get("key") == medal_key]
-			# Mostrar todas las calificaciones, no solo críticas
 			filtered.sort(
 				key=lambda item: (
 					int(item.get("year", 0)),
@@ -2023,13 +2006,16 @@ class TrimestralView(ctk.CTkFrame):
 			return filtered
 
 		def _render_preview(_value=None) -> None:
+			# Calcular promedio general
+			filtered_scores = _filtered_scores()
+			score_values = [self._coerce_score(item.get("score")) for item in filtered_scores if self._coerce_score(item.get("score")) is not None]
+			avg_score = sum(score_values) / len(score_values) if score_values else None
 			for child in results_frame.winfo_children():
 				child.destroy()
 
 			selected_year = year_var.get().strip()
 			selected_quarter = quarter_var.get().strip().upper()
-			selected_medal = medal_var.get().strip()
-			filtered_scores = _filtered_scores()
+			# selected_medal = medal_var.get().strip()  # Eliminado
 
 			period_label = selected_year if selected_year != "Todos" else "todos los años"
 			quarter_label = selected_quarter if selected_quarter != "TODOS" else "todos los trimestres"
@@ -2058,9 +2044,9 @@ class TrimestralView(ctk.CTkFrame):
 			if not filtered_scores:
 				summary_label.configure(
 					text=(
-						f"Sin calificaciones criticas (<90%) para {period_label}, {quarter_label}, norma {norm_label} y medalla {selected_medal}."
+						f"Sin calificaciones criticas (<90%) para {period_label}, {quarter_label}, norma {norm_label}."
 						if self.can_edit
-						else f"Sin registros para {period_label}, {quarter_label}, norma {norm_label} y medalla {selected_medal}."
+						else f"Sin registros para {period_label}, {quarter_label}, norma {norm_label}."
 					)
 				)
 				ctk.CTkLabel(
@@ -2080,13 +2066,14 @@ class TrimestralView(ctk.CTkFrame):
 				for item in filtered_scores
 			}
 			norms = {self._norm_key(item) for item in filtered_scores}
+			promedio_text = f" | Promedio general: {avg_score:.1f}%" if avg_score is not None else ""
 			summary_label.configure(
 				text=(
 					f"Mostrando {len(filtered_scores)} calificaciones criticas (<90%) en {len(periods)} periodos | "
-					f"Normas: {len(norms)} | Año: {period_label} | Trimestre: {quarter_label} | Norma: {norm_label}."
+					f"Normas: {len(norms)} | Año: {period_label} | Trimestre: {quarter_label} | Norma: {norm_label}.{promedio_text}"
 					if self.can_edit
 					else f"Mostrando {len(filtered_scores)} calificaciones en {len(periods)} periodos | "
-					f"Normas: {len(norms)} | Año: {period_label} | Trimestre: {quarter_label} | Norma: {norm_label}."
+					f"Normas: {len(norms)} | Año: {period_label} | Trimestre: {quarter_label} | Norma: {norm_label}.{promedio_text}"
 				)
 			)
 
@@ -2246,7 +2233,7 @@ class TrimestralView(ctk.CTkFrame):
 
 		year_selector.configure(command=_on_year_change)
 		quarter_selector.configure(command=_render_preview)
-		medal_selector.configure(command=_render_preview)
+		# medal_selector ya no existe, eliminado
 		norm_selector.configure(command=_render_preview)
 		curve_canvas.bind("<Configure>", _render_preview)
 		_on_year_change()
