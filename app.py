@@ -802,54 +802,268 @@ class CalibrationApp(ctk.CTk):
                 pady=8,
             )
             self.summary_labels[f"medals_{medal_key}"] = count_lbl
+    
+    ## --- Ventana para ver el historial de medallas por trimestre y año --- ##
+    # def _show_medals_detail_popup(self, medal_type=None):
+    #     current_user = self.controller.current_user or {}
+    #     is_admin = self.controller.is_admin(current_user)
+    #     popup = ctk.CTkToplevel(self)
+    #     popup.title("Detalle de medallas por trimestre")
+    #     popup.geometry("560x480")
+    #     popup.resizable(False, False)
+    #     popup.grab_set()
+    #     popup.lift()
+
+    #     ctk.CTkLabel(
+    #         popup,
+    #         text="Desglose de medallas por trimestre",
+    #         font=("Inter", 14, "bold"),
+    #         text_color="#7A6000",
+    #     ).pack(padx=20, pady=(18, 4), anchor="w")
+
+    #     # Obtener resumen de medallas
+    #     if is_admin:
+    #         medal_summary = self.controller.get_trimestral_medals_summary(include_unsent=True)
+    #     else:
+    #         viewer_name = str(current_user.get("name", "")).strip()
+    #         medal_summary = self.controller.get_trimestral_medals_summary(inspector_name=viewer_name, include_unsent=True)
+
+    #     medals_by_period = medal_summary.get("medals_by_period", {})
+
+    #     # Parsear registros: obtener nombre, trimestre y medalla
+    #     rows = []
+    #     for key, medal in medals_by_period.items():
+    #         # key puede ser "inspector|YYYY-Tx" o "YYYY-Tx"
+    #         if "|" in key:
+    #             inspector, period = key.split("|", 1)
+    #         else:
+    #             inspector = str(current_user.get("name", "")).strip()
+    #             period = key
+    #         rows.append({"inspector": inspector, "period": period, "medal": medal})
+
+    #     # Obtener lista de trimestres únicos
+    #     trimestres = sorted(set(row["period"] for row in rows))
+
+    #     # Filtro desplegable
+    #     filter_frame = ctk.CTkFrame(popup, fg_color="transparent")
+    #     filter_frame.pack(padx=20, pady=(0, 0), anchor="w")
+    #     ctk.CTkLabel(filter_frame, text="Filtrar por trimestre:", font=("Inter", 12), text_color="#4F5D73").pack(side="left", padx=(0, 8))
+    #     trimestre_var = ctk.StringVar(value="Todos")
+    #     trimestre_options = ["Todos"] + trimestres
+    #     filter_menu = ctk.CTkOptionMenu(filter_frame, variable=trimestre_var, values=trimestre_options)
+    #     filter_menu.pack(side="left")
+
+    #     # Frame de tabla
+    #     table_frame = ctk.CTkFrame(popup, fg_color="#F7F8FA", corner_radius=10)
+    #     table_frame.pack(padx=20, pady=(10, 16), fill="both", expand=True)
+    #     table_frame.grid_columnconfigure(0, weight=2)
+    #     table_frame.grid_columnconfigure(1, weight=1)
+    #     table_frame.grid_columnconfigure(2, weight=1)
+
+    #     ctk.CTkLabel(table_frame, text="Nombre", font=("Inter", 12, "bold"), text_color="#4F5D73").grid(row=0, column=0, padx=8, pady=6)
+    #     ctk.CTkLabel(table_frame, text="Trimestre", font=("Inter", 12, "bold"), text_color="#4F5D73").grid(row=0, column=1, padx=8, pady=6)
+    #     ctk.CTkLabel(table_frame, text="Medalla", font=("Inter", 12, "bold"), text_color="#4F5D73").grid(row=0, column=2, padx=8, pady=6)
+
+    #     # Cargar imágenes de medallas
+    #     medal_images = self._kpi_medal_images if self._kpi_medal_images else self._load_kpi_medal_images(size=(26, 26))
+    #     medal_img_map = {
+    #         "ORO": medal_images.get("ORO"),
+    #         "PLATA": medal_images.get("PLATA"),
+    #         "BRONCE": medal_images.get("BRONCE"),
+    #         "SIN_MEDALLA": None,
+    #     }
+
+    #     # Función para renderizar la tabla
+    #     def render_table():
+    #         # Limpiar filas previas
+    #         for widget in table_frame.winfo_children():
+    #             info = widget.grid_info()
+    #             if info["row"] > 0:
+    #                 widget.destroy()
+    #         # Filtrar por trimestre
+    #         selected = trimestre_var.get()
+    #         filtered = [row for row in rows if selected == "Todos" or row["period"] == selected]
+    #         if not filtered:
+    #             ctk.CTkLabel(table_frame, text="No hay registros para este trimestre.", font=("Inter", 12), text_color="#6D7480").grid(row=1, column=0, columnspan=3, padx=8, pady=10)
+    #             return
+    #         for idx, row in enumerate(filtered, start=1):
+    #             ctk.CTkLabel(table_frame, text=row["inspector"], font=("Inter", 12), text_color="#222").grid(row=idx, column=0, padx=8, pady=4, sticky="w")
+    #             ctk.CTkLabel(table_frame, text=row["period"], font=("Inter", 12), text_color="#222").grid(row=idx, column=1, padx=8, pady=4)
+    #             img = medal_img_map.get(row["medal"], None)
+    #             if img:
+    #                 ctk.CTkLabel(table_frame, image=img, text="").grid(row=idx, column=2, padx=8, pady=4)
+    #             else:
+    #                 ctk.CTkLabel(table_frame, text="Sin medalla", font=("Inter", 12), text_color="#888").grid(row=idx, column=2, padx=8, pady=4)
+
+    #     # Evento para actualizar tabla al cambiar filtro
+    #     def on_filter_change(*_):
+    #         render_table()
+    #     trimestre_var.trace_add("write", on_filter_change)
+
+    #     render_table()
     def _show_medals_detail_popup(self, medal_type=None):
         current_user = self.controller.current_user or {}
         is_admin = self.controller.is_admin(current_user)
+
         popup = ctk.CTkToplevel(self)
         popup.title("Detalle de medallas por trimestre")
-        popup.geometry("480x420")
+        popup.geometry("620x520")
         popup.resizable(False, False)
         popup.grab_set()
-        popup.lift()
+
+        # 🌟 HEADER
+        header = ctk.CTkFrame(popup, fg_color="transparent")
+        header.pack(fill="x", padx=20, pady=(15, 5))
 
         ctk.CTkLabel(
-            popup,
-            text="Desglose de medallas por trimestre",
-            font=("Inter", 14, "bold"),
-            text_color="#7A6000",
-        ).pack(padx=20, pady=(18, 4), anchor="w")
+            header,
+            text="🏅 Medallas por Trimestre",
+            font=("Inter", 18, "bold"),
+            text_color="#282828",
+        ).pack(anchor="w")
 
+        # 🎛️ FILTRO
+        filter_frame = ctk.CTkFrame(popup, fg_color="#F4F4F4", corner_radius=10)
+        filter_frame.pack(fill="x", padx=20, pady=(5, 10))
+
+        ctk.CTkLabel(
+            filter_frame,
+            text="Filtrar:",
+            font=("Inter", 12, "bold"),
+            text_color="#4d4d4d",
+        ).pack(side="left", padx=(10, 6), pady=8)
+
+        trimestre_var = ctk.StringVar(value="Todos")
+
+        # Obtener datos
         if is_admin:
             medal_summary = self.controller.get_trimestral_medals_summary(include_unsent=True)
         else:
             viewer_name = str(current_user.get("name", "")).strip()
-            medal_summary = self.controller.get_trimestral_medals_summary(inspector_name=viewer_name, include_unsent=True)
+            medal_summary = self.controller.get_trimestral_medals_summary(
+                inspector_name=viewer_name, include_unsent=True
+            )
 
         medals_by_period = medal_summary.get("medals_by_period", {})
-        if medal_type:
-            filtered = {k: v for k, v in medals_by_period.items() if v == medal_type}
-        else:
-            filtered = medals_by_period
 
-        if not filtered:
-            ctk.CTkLabel(
-                popup,
-                text="No hay medallas de este tipo por trimestre.",
-                font=("Inter", 12),
-                text_color="#6D7480",
-            ).pack(padx=20, pady=(10, 10), anchor="w")
-            return
+        rows = []
+        for key, medal in medals_by_period.items():
+            if "|" in key:
+                inspector, period = key.split("|", 1)
+            else:
+                inspector = str(current_user.get("name", "")).strip()
+                period = key
+            rows.append({"inspector": inspector, "period": period, "medal": medal})
 
-        frame = ctk.CTkFrame(popup, fg_color="#F7F8FA", corner_radius=10)
-        frame.pack(padx=20, pady=(10, 16), fill="both", expand=True)
-        frame.grid_columnconfigure(0, weight=1)
-        frame.grid_columnconfigure(1, weight=1)
+        trimestres = sorted(set(row["period"] for row in rows))
+        trimestre_options = ["Todos"] + trimestres
 
-        ctk.CTkLabel(frame, text="Trimestre", font=("Inter", 12, "bold"), text_color="#4F5D73").grid(row=0, column=0, padx=8, pady=6)
-        ctk.CTkLabel(frame, text="Medalla", font=("Inter", 12, "bold"), text_color="#4F5D73").grid(row=0, column=1, padx=8, pady=6)
-        for idx, (period, medal) in enumerate(sorted(filtered.items()), start=1):
-            ctk.CTkLabel(frame, text=period, font=("Inter", 12), text_color="#222").grid(row=idx, column=0, padx=8, pady=4)
-            ctk.CTkLabel(frame, text=medal, font=("Inter", 12), text_color="#222").grid(row=idx, column=1, padx=8, pady=4)
+        filter_menu = ctk.CTkOptionMenu(
+            filter_frame,
+            variable=trimestre_var,
+            values=trimestre_options,
+            fg_color="#ecd925",
+            button_color="#282828",
+            button_hover_color="#4d4d4d",
+            text_color="#000",
+        )
+        filter_menu.pack(side="left", padx=10)
+
+        # 📜 SCROLLABLE FRAME
+        container = ctk.CTkScrollableFrame(
+            popup,
+            fg_color="#FFFFFF",
+            corner_radius=12
+        )
+        container.pack(fill="both", expand=True, padx=20, pady=(0, 15))
+
+        # 🖼️ IMÁGENES
+        medal_images = self._kpi_medal_images if self._kpi_medal_images else self._load_kpi_medal_images(size=(30, 30))
+
+        medal_styles = {
+            "ORO": ("ORO", "#D4AF37"),
+            "PLATA": ("PLATA", "#C0C0C0"),
+            "BRONCE": ("BRONCE", "#CD7F32"),
+            "SIN_MEDALLA": ("Sin medalla", "#999999"),
+        }
+
+        def render_cards():
+            for widget in container.winfo_children():
+                widget.destroy()
+
+            selected = trimestre_var.get()
+            filtered = [r for r in rows if selected == "Todos" or r["period"] == selected]
+
+            if not filtered:
+                ctk.CTkLabel(
+                    container,
+                    text="No hay registros",
+                    font=("Inter", 13),
+                    text_color="#888"
+                ).pack(pady=20)
+                return
+
+            for row in filtered:
+                medal_key = row["medal"]
+                medal_text, color = medal_styles.get(medal_key, ("Sin medalla", "#999"))
+
+                card = ctk.CTkFrame(
+                    container,
+                    fg_color="#F7F8FA",
+                    corner_radius=10
+                )
+                card.pack(fill="x", pady=6, padx=5)
+
+                card.grid_columnconfigure(0, weight=3)
+                card.grid_columnconfigure(1, weight=2)
+                card.grid_columnconfigure(2, weight=1)
+
+                # 👤 Nombre
+                ctk.CTkLabel(
+                    card,
+                    text=row["inspector"],
+                    font=("Inter", 12, "bold"),
+                    text_color="#222",
+                    anchor="w"
+                ).grid(row=0, column=0, padx=10, pady=8, sticky="w")
+
+                # 📅 Trimestre
+                ctk.CTkLabel(
+                    card,
+                    text=row["period"],
+                    font=("Inter", 11),
+                    text_color="#555"
+                ).grid(row=0, column=1, padx=10)
+
+                # 🏅 Medalla
+                medal_frame = ctk.CTkFrame(card, fg_color="transparent")
+                medal_frame.grid(row=0, column=2, padx=10)
+
+                img = medal_images.get(medal_key)
+                if img:
+                    ctk.CTkLabel(medal_frame, image=img, text="").pack(side="left", padx=2)
+
+                ctk.CTkLabel(
+                    medal_frame,
+                    text=medal_text,
+                    font=("Inter", 11, "bold"),
+                    text_color=color
+                ).pack(side="left")
+
+        trimestre_var.trace_add("write", lambda *_: render_cards())
+
+        render_cards()
+
+
+
+
+
+
+
+
+
+
+
 
     def _build_navigation(self, parent) -> None:
         current_user = self.controller.current_user or {}
@@ -922,23 +1136,28 @@ class CalibrationApp(ctk.CTk):
                 )
                 card.grid(row=0, column=index, padx=(0 if index == 0 else 6, 0), sticky="e")
                 card.grid_propagate(False)
-                ctk.CTkLabel(
+                title_lbl = ctk.CTkLabel(
                     card,
                     text=title_map[key],
                     font=FONTS["small_bold"],
                     text_color="#6D7480",
-                ).grid(row=0, column=0, padx=(12, 8), pady=12, sticky="w")
+                )
+                title_lbl.grid(row=0, column=0, padx=(12, 8), pady=12, sticky="w")
+                medal_widgets = [card, title_lbl]
                 for m_idx, medal_key in enumerate(["ORO", "PLATA", "BRONCE"]):
                     col_base = 1 + m_idx * 2
                     image_set = self._kpi_medal_images
                     img = image_set.get(medal_key)
+                    img_label = None
                     if img is not None:
-                        ctk.CTkLabel(card, text="", image=img).grid(
+                        img_label = ctk.CTkLabel(card, text="", image=img)
+                        img_label.grid(
                             row=0,
                             column=col_base,
                             padx=(0, 3),
                             pady=10,
                         )
+                        medal_widgets.append(img_label)
                     count_lbl = ctk.CTkLabel(
                         card,
                         text="0",
@@ -952,6 +1171,11 @@ class CalibrationApp(ctk.CTk):
                         pady=10,
                     )
                     self.summary_labels[f"medals_{medal_key}"] = count_lbl
+                    medal_widgets.append(count_lbl)
+                # Vincular evento de clic a toda la card y sus elementos
+                for widget in medal_widgets:
+                    widget.bind("<Button-1>", lambda _e: self._show_medals_detail_popup())
+                    widget.configure(cursor="hand2")
                 continue
 
             card = ctk.CTkFrame(
