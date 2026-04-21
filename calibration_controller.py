@@ -1669,11 +1669,66 @@ class CalibrationController:
 			current_user=current_user,
 			include_unsent=include_unsent,
 		)
-		counts = {"ORO": 0, "PLATINO": 0, "BRONCE": 0}
-		for row in scores:
-			medal_key = str(row.get("medal", "")).strip().upper()
-			if medal_key in counts:
-				counts[medal_key] += 1
+
+		## --- MEDALLAS TRIMESTRALES: ORO >=100, PLATA >=90, BRONCE >=80 --- ##
+		# Si no se especifica inspector_name, sumar medallas por ejecutivo y periodo (para admin/coordinación)
+		counts = {"ORO": 0, "PLATA": 0, "BRONCE": 0}
+		medals_by_period = {}
+		if inspector_name:
+			# Lógica individual (igual que antes)
+			period_map = {}
+			for row in scores:
+				year = str(row.get("year", "")).strip()
+				quarter = str(row.get("quarter", "")).strip().upper()
+				if not year or not quarter:
+					continue
+				key = f"{year}-{quarter}"
+				period_map.setdefault(key, []).append(row)
+			for period, period_rows in period_map.items():
+				califs = [float(item.get("score", 0)) for item in period_rows if item.get("score") is not None]
+				if not califs:
+					continue
+				promedio = sum(califs) / len(califs)
+				if promedio >= 100:
+					counts["ORO"] += 1
+					medals_by_period[period] = "ORO"
+				elif promedio >= 90:
+					counts["PLATA"] += 1
+					medals_by_period[period] = "PLATA"
+				elif promedio >= 80:
+					counts["BRONCE"] += 1
+					medals_by_period[period] = "BRONCE"
+				else:
+					medals_by_period[period] = "SIN_MEDALLA"
+		else:
+			# Lógica global: agrupar por inspector y periodo
+			inspector_period_map = {}
+			for row in scores:
+				inspector = str(row.get("inspector", "")).strip()
+				year = str(row.get("year", "")).strip()
+				quarter = str(row.get("quarter", "")).strip().upper()
+				if not inspector or not year or not quarter:
+					continue
+				key = f"{inspector}|{year}-{quarter}"
+				inspector_period_map.setdefault(key, []).append(row)
+			for key, period_rows in inspector_period_map.items():
+				# key = "inspector|YYYY-Tx"
+				period = key.split("|", 1)[-1]
+				califs = [float(item.get("score", 0)) for item in period_rows if item.get("score") is not None]
+				if not califs:
+					continue
+				promedio = sum(califs) / len(califs)
+				if promedio >= 100:
+					counts["ORO"] += 1
+					medals_by_period[key] = "ORO"
+				elif promedio >= 90:
+					counts["PLATA"] += 1
+					medals_by_period[key] = "PLATA"
+				elif promedio >= 80:
+					counts["BRONCE"] += 1
+					medals_by_period[key] = "BRONCE"
+				else:
+					medals_by_period[key] = "SIN_MEDALLA"
 
 		latest = None
 		if scores:
@@ -1692,6 +1747,7 @@ class CalibrationController:
 			"total": sum(counts.values()),
 			"latest_medal": latest_medal,
 			"scores_count": len(scores),
+			"medals_by_period": medals_by_period,
 		}
 
 	@staticmethod

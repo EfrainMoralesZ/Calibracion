@@ -234,7 +234,7 @@ class CalibrationApp(ctk.CTk):
     def _load_kpi_medal_images(self, size: tuple[int, int] = (26, 26)) -> dict[str, ctk.CTkImage | None]:
         files = {
             "ORO": "medalla_oro.png",
-            "PLATINO": "medalla_plata.png",
+            "PLATA": "medalla_plata.png",
             "BRONCE": "medalla_bronce.png",
         }
         images: dict[str, ctk.CTkImage | None] = {}
@@ -265,7 +265,7 @@ class CalibrationApp(ctk.CTk):
 
     @staticmethod
     def _format_medals_text(counts: dict[str, int]) -> str:
-        return f"O:{counts.get('ORO', 0)} S:{counts.get('PLATINO', 0)} B:{counts.get('BRONCE', 0)}"
+        return f"O:{counts.get('ORO', 0)} S:{counts.get('PLATA', 0)} B:{counts.get('BRONCE', 0)}"
 
     @staticmethod
     def _build_yearly_phrase_catalog(openings: list[str], focuses: list[str]) -> list[str]:
@@ -674,7 +674,7 @@ class CalibrationApp(ctk.CTk):
         stats_container = ctk.CTkFrame(parent, fg_color="transparent")
         stats_container.grid(row=0, column=1, sticky="nsew", padx=20)
 
-        medal_colors = {"ORO": "#B98500", "PLATINO": "#4F5D73", "BRONCE": "#8C4B20"}
+        medal_colors = {"ORO": "#B98500", "PLATA": "#4F5D73", "BRONCE": "#8C4B20"}
         title_map = {
             "average_score": "Mi promedio",
             "alerts": "Mis alertas",
@@ -777,16 +777,18 @@ class CalibrationApp(ctk.CTk):
             text_color="#7A6000",
         ).grid(row=0, column=0, padx=(14, 12), pady=12, sticky="w")
 
-        for m_idx, medal_key in enumerate(["ORO", "PLATINO", "BRONCE"]):
+        for m_idx, medal_key in enumerate(["ORO", "PLATA", "BRONCE"]):
             col_base = 1 + m_idx * 2
             img = self._kpi_medal_images_exec.get(medal_key)
             if img is not None:
-                ctk.CTkLabel(medals_card, text="", image=img).grid(
+                img_label = ctk.CTkLabel(medals_card, text="", image=img, cursor="hand2")
+                img_label.grid(
                     row=0,
                     column=col_base,
                     padx=(0, 4),
                     pady=8,
                 )
+                img_label.bind("<Button-1>", lambda e, mk=medal_key: self._show_medals_detail_popup(mk))
             count_lbl = ctk.CTkLabel(
                 medals_card,
                 text="0",
@@ -800,6 +802,54 @@ class CalibrationApp(ctk.CTk):
                 pady=8,
             )
             self.summary_labels[f"medals_{medal_key}"] = count_lbl
+    def _show_medals_detail_popup(self, medal_type=None):
+        current_user = self.controller.current_user or {}
+        is_admin = self.controller.is_admin(current_user)
+        popup = ctk.CTkToplevel(self)
+        popup.title("Detalle de medallas por trimestre")
+        popup.geometry("480x420")
+        popup.resizable(False, False)
+        popup.grab_set()
+        popup.lift()
+
+        ctk.CTkLabel(
+            popup,
+            text="Desglose de medallas por trimestre",
+            font=("Inter", 14, "bold"),
+            text_color="#7A6000",
+        ).pack(padx=20, pady=(18, 4), anchor="w")
+
+        if is_admin:
+            medal_summary = self.controller.get_trimestral_medals_summary(include_unsent=True)
+        else:
+            viewer_name = str(current_user.get("name", "")).strip()
+            medal_summary = self.controller.get_trimestral_medals_summary(inspector_name=viewer_name, include_unsent=True)
+
+        medals_by_period = medal_summary.get("medals_by_period", {})
+        if medal_type:
+            filtered = {k: v for k, v in medals_by_period.items() if v == medal_type}
+        else:
+            filtered = medals_by_period
+
+        if not filtered:
+            ctk.CTkLabel(
+                popup,
+                text="No hay medallas de este tipo por trimestre.",
+                font=("Inter", 12),
+                text_color="#6D7480",
+            ).pack(padx=20, pady=(10, 10), anchor="w")
+            return
+
+        frame = ctk.CTkFrame(popup, fg_color="#F7F8FA", corner_radius=10)
+        frame.pack(padx=20, pady=(10, 16), fill="both", expand=True)
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(frame, text="Trimestre", font=("Inter", 12, "bold"), text_color="#4F5D73").grid(row=0, column=0, padx=8, pady=6)
+        ctk.CTkLabel(frame, text="Medalla", font=("Inter", 12, "bold"), text_color="#4F5D73").grid(row=0, column=1, padx=8, pady=6)
+        for idx, (period, medal) in enumerate(sorted(filtered.items()), start=1):
+            ctk.CTkLabel(frame, text=period, font=("Inter", 12), text_color="#222").grid(row=idx, column=0, padx=8, pady=4)
+            ctk.CTkLabel(frame, text=medal, font=("Inter", 12), text_color="#222").grid(row=idx, column=1, padx=8, pady=4)
 
     def _build_navigation(self, parent) -> None:
         current_user = self.controller.current_user or {}
@@ -857,7 +907,7 @@ class CalibrationApp(ctk.CTk):
         if not self._kpi_medal_images_exec:
             self._kpi_medal_images_exec = self._load_kpi_medal_images(size=(38, 38))
 
-        medal_colors = {"ORO": "#B98500", "PLATINO": "#4F5D73", "BRONCE": "#8C4B20"}
+        medal_colors = {"ORO": "#B98500", "PLATA": "#4F5D73", "BRONCE": "#8C4B20"}
 
         for index, key in enumerate(summary_keys):
             if key == "medals":
@@ -878,7 +928,7 @@ class CalibrationApp(ctk.CTk):
                     font=FONTS["small_bold"],
                     text_color="#6D7480",
                 ).grid(row=0, column=0, padx=(12, 8), pady=12, sticky="w")
-                for m_idx, medal_key in enumerate(["ORO", "PLATINO", "BRONCE"]):
+                for m_idx, medal_key in enumerate(["ORO", "PLATA", "BRONCE"]):
                     col_base = 1 + m_idx * 2
                     image_set = self._kpi_medal_images
                     img = image_set.get(medal_key)
@@ -1050,8 +1100,8 @@ class CalibrationApp(ctk.CTk):
             average = metrics.get("average_score")
             self._set_summary_value("average_score", f"{average:.1f}%" if average is not None else "--")
             self._set_summary_value("alerts", str(metrics.get("alerts", 0)))
-            counts = medal_summary.get("counts", {"ORO": 0, "PLATINO": 0, "BRONCE": 0})
-            for medal_key in ["ORO", "PLATINO", "BRONCE"]:
+            counts = medal_summary.get("counts", {"ORO": 0, "PLATA": 0, "BRONCE": 0})
+            for medal_key in ["ORO", "PLATA", "BRONCE"]:
                 self._set_summary_value(f"medals_{medal_key}", str(counts.get(medal_key, 0)))
         else:
             viewer_name = str(current_user.get("name", "")).strip()
@@ -1069,8 +1119,8 @@ class CalibrationApp(ctk.CTk):
             average = profile.get("average_score") if isinstance(profile, dict) else None
             self._set_summary_value("average_score", f"{average:.1f}%" if average is not None else "--")
             self._set_summary_value("alerts", str(own_alerts))
-            own_counts = own_medals.get("counts", {"ORO": 0, "PLATINO": 0, "BRONCE": 0})
-            for medal_key in ["ORO", "PLATINO", "BRONCE"]:
+            own_counts = own_medals.get("counts", {"ORO": 0, "PLATA": 0, "BRONCE": 0})
+            for medal_key in ["ORO", "PLATA", "BRONCE"]:
                 self._set_summary_value(f"medals_{medal_key}", str(own_counts.get(medal_key, 0)))
 
         for section in self.page_factories:
