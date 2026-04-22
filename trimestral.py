@@ -1562,20 +1562,6 @@ class TrimestralView(ctk.CTkFrame):
 		start_index = self.current_cards_page * self.cards_page_size
 		page_models = card_models[start_index:start_index + self.cards_page_size]
 
-		# DEBUG: Mostrar en la UI los inspectores y modelos de card generados
-		debug_info = "\n".join([
-			f"{i+1}. {m['inspector_name']} | send_ready={m['send_ready']} | confirm_ready={m['confirm_ready']} | pending_text={m['pending_text']} | medals: ORO={m['medal_oro']} PLATA={m['medal_plata']} BRONCE={m['medal_bronce']}"
-			for i, m in enumerate(page_models)
-		])
-		ctk.CTkLabel(
-			self.cards_frame,
-			text=f"[DEBUG] Inspectores cards generados en página actual:\n{debug_info}",
-			font=self.fonts["small"],
-			text_color="#B22222",
-			anchor="w",
-			justify="left",
-		).grid(row=99, column=0, columnspan=3, padx=10, pady=2, sticky="w")
-
 		for index, model in enumerate(page_models):
 			inspector_name = model["inspector_name"]
 			card_host = ctk.CTkFrame(self.cards_frame, fg_color="transparent")
@@ -1589,10 +1575,16 @@ class TrimestralView(ctk.CTkFrame):
 				corner_radius=20,
 				border_width=1,
 				border_color="#E3E6EA",
-				height=320,
+				height=280,
 			)
 			card.grid(row=0, column=0, sticky="nsew")
 			card.grid_propagate(False)
+			card.grid_rowconfigure(0, weight=0)
+			card.grid_rowconfigure(1, weight=0)
+			card.grid_rowconfigure(2, weight=0)
+			card.grid_rowconfigure(3, weight=1)
+			card.grid_rowconfigure(4, weight=0)
+			card.grid_rowconfigure(5, weight=0, minsize=45)
 			card.grid_columnconfigure(0, weight=1)
 			card.grid_columnconfigure(1, minsize=178)
 
@@ -1707,7 +1699,7 @@ class TrimestralView(ctk.CTkFrame):
 					).pack(side="left", padx=(0, 2), pady=(12, 0))
 
 			actions_row = ctk.CTkFrame(card, fg_color="transparent")
-			actions_row.grid(row=5, column=0, columnspan=2, padx=12, pady=(2, 10), sticky="ew")
+			actions_row.grid(row=5, column=0, columnspan=2, padx=12, pady=(0, 12), sticky="sew")
 			actions_row.grid_columnconfigure(0, weight=1)
 			if self.can_edit:
 				actions_row.grid_columnconfigure(1, weight=1)
