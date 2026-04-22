@@ -15,6 +15,23 @@ from runtime_paths import resource_path, writable_path
 
 
 class TrimestralView(ctk.CTkFrame):
+	def _clear_capture_vars(self):
+		# Limpia variables asociadas a la ventana de captura para evitar TclError
+		try:
+			if hasattr(self, "score_var") and self.score_var is not None:
+				self.score_var.set("")
+			if hasattr(self, "notes_box") and self.notes_box is not None:
+				self.notes_box.delete("1.0", "end")
+			if hasattr(self, "norm_var") and self.norm_var is not None:
+				self.norm_var.set("")
+			if hasattr(self, "year_var") and self.year_var is not None:
+				self.year_var.set(str(datetime.now().year))
+			if hasattr(self, "quarter_var") and self.quarter_var is not None:
+				self.quarter_var.set("T1")
+		except Exception:
+			pass
+		# Si tienes más variables temporales, agrégalas aquí
+
 	def __init__(self, master, controller, style: dict, fonts: dict, can_edit: bool) -> None:
 		super().__init__(master, fg_color=style["fondo"])
 		self.controller = controller
@@ -309,10 +326,16 @@ class TrimestralView(ctk.CTkFrame):
 		)
 		widget.grid(row=base_row + 1, column=0, padx=18, sticky="ew")
 
+
+
+
+
 	def _build_capture_dialog(self) -> None:
 		if not self.can_edit:
 			return
 
+		# Limpia variables antes de crear la ventana para evitar callbacks a widgets destruidos
+		self._clear_capture_vars()
 		self._close_capture_dialog(reset_state=False)
 
 		self.capture_dialog = ctk.CTkToplevel(self)
@@ -472,6 +495,25 @@ class TrimestralView(ctk.CTkFrame):
 			command=self._delete_selected_temp_score,
 		)
 		self.delete_button.grid(row=0, column=2, padx=(8, 0), sticky="ew")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 	def _delete_selected_temp_score(self):
 		selected = self.temp_table.selection()
@@ -745,11 +787,26 @@ class TrimestralView(ctk.CTkFrame):
 		self._update_capture_title()
 		self._sync_capture_delete_state()
 
+
 	def _close_capture_dialog(self, reset_state: bool = True) -> None:
 		dialog = self.capture_dialog
+		# Limpia traces/callbacks de StringVar antes de destruir widgets
+		for var_name in ["score_var", "norm_var", "year_var", "quarter_var", "inspector_var"]:
+			var = getattr(self, var_name, None)
+			if isinstance(var, tk.Variable):
+				# Elimina todos los traces asociados
+				try:
+					traces = var.trace_info()
+					for trace in traces:
+						if len(trace) >= 2:
+							var.trace_remove(trace[0], trace[1])
+				except Exception:
+					pass
+
 		if reset_state:
 			self.clear_form(full_reset=True)
 
+		# Elimina referencias a widgets y variables
 		self.capture_dialog = None
 		self.capture_title_label = None
 		self.capture_inspector_value_label = None
@@ -1487,6 +1544,8 @@ class TrimestralView(ctk.CTkFrame):
 			return
 		self._cards_signature = render_signature
 
+		# Limpia cualquier variable/callback temporal antes de destruir widgets
+		self._clear_temp_vars_and_callbacks()
 		for child in self.cards_frame.winfo_children():
 			child.destroy()
 
@@ -1785,7 +1844,24 @@ class TrimestralView(ctk.CTkFrame):
 			return
 
 		messagebox.showinfo("Trimestral", f"Se enviaron {sent_count} calificaciones.", parent=self)
+		# Limpia cualquier variable/callback que pueda estar ligada a widgets destruidos
+		self._clear_temp_vars_and_callbacks()
 		self.refresh()
+
+	def _clear_temp_vars_and_callbacks(self):
+		# Limpia variables temporales y callbacks que puedan estar ligados a widgets destruidos
+		# Esto ayuda a evitar TclError por callbacks de widgets ya destruidos
+		# Si tienes variables como StringVar, IntVar, etc. asociadas a widgets temporales, límpialas aquí
+		# Por ejemplo:
+		if hasattr(self, "_temp_vars"):
+			for var in self._temp_vars:
+				try:
+					var.set("")
+				except Exception:
+					pass
+			self._temp_vars.clear()
+		# Si tienes más referencias, agrégalas aquí
+		pass
 
 	def _confirm_scores_for_inspector(self, inspector_name: str) -> None:
 		if self.can_edit:
