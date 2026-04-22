@@ -2129,133 +2129,300 @@ class CalendarView(ctk.CTkFrame):
         parent_popup.destroy()
 
         dlg = ctk.CTkToplevel(self)
-        dlg.title("Agregar taller")
-        dlg.geometry("620x550")
+        dlg.title("Registrar taller")
+        dlg.geometry("550x800")
         dlg.resizable(False, False)
         dlg.transient(self.winfo_toplevel())
         dlg.grab_set()
         dlg.after(10, dlg.focus_force)
 
-
         dlg.grid_columnconfigure(0, weight=1)
-        dlg.grid_rowconfigure(0, weight=1)
+        dlg.grid_rowconfigure(1, weight=1)
 
-        # Scrollable content
-        scroll_frame = ctk.CTkScrollableFrame(dlg, fg_color="transparent")
-        scroll_frame.grid(row=0, column=0, padx=0, pady=0, sticky="nsew")
-        scroll_frame.grid_columnconfigure(0, weight=1)
+        # ================= HEADER =================
+        header = ctk.CTkFrame(dlg, fg_color=self.style["primario"], height=70)
+        header.grid(row=0, column=0, sticky="ew")
+        header.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(scroll_frame, text="Registrar taller", font=self.fonts["label_bold"],
-                 text_color=self.style["texto_oscuro"]).grid(row=0, column=0, padx=24, pady=(20, 12), sticky="w")
+        header_text = f"📚 Registrar taller · {iso_date}"
+        ctk.CTkLabel(
+            header,
+            text=header_text,
+            font=("Inter", 18, "bold"),
+            text_color=self.style["texto_oscuro"]
+        ).grid(row=0, column=0, padx=20, pady=20, sticky="w")
 
-        form = ctk.CTkFrame(scroll_frame, fg_color="transparent")
-        form.grid(row=1, column=0, padx=24, sticky="ew")
-        form.grid_columnconfigure(1, weight=1)
+        # Botón para cambiar fecha (opcional, abre calendario)
+        def cambiar_fecha():
+            # Podrías implementar un CTkCalendar para seleccionar otra fecha
+            pass
 
-        # --- Variables ---
+        # ================= SCROLL =================
+        scroll = ctk.CTkScrollableFrame(dlg, fg_color="transparent")
+        scroll.grid(row=1, column=0, sticky="nsew", padx=15, pady=10)
+        scroll.grid_columnconfigure(0, weight=1)
+
+        # Variables
         d_title = ctk.StringVar()
-        d_desc = ctk.StringVar()
-        d_start_time = ctk.StringVar()
-        d_end_time = ctk.StringVar()
         d_place = ctk.StringVar()
-        d_date_parsed = datetime.strptime(iso_date, "%Y-%m-%d").date()
+        d_start_hour = ctk.StringVar(value="09:00")
+        d_end_hour = ctk.StringVar(value="11:00")
         d_all_execs = tk.BooleanVar(value=True)
-        d_selected_execs = []
 
-        # --- Titulo ---
-        ctk.CTkLabel(form, text="Titulo", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=0, column=0, sticky="w", padx=(0, 10), pady=4)
-        ctk.CTkEntry(form, textvariable=d_title, height=34, border_color="#D5D8DC", placeholder_text="Nombre del taller").grid(row=0, column=1, sticky="ew", pady=4)
+        # Opciones de hora (cada 30 min de 7:00 a 21:00)
+        hour_options = [f"{h:02d}:{m:02d}" for h in range(7, 22) for m in (0, 30)]
 
-        # --- Fecha ---
-        ctk.CTkLabel(form, text="Fecha", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=1, column=0, sticky="w", padx=(0, 10), pady=4)
-        d_date_entry = DateEntry(form, date_pattern="yyyy-mm-dd",
-                                  font=("Segoe UI", 11), year=d_date_parsed.year,
-                                  month=d_date_parsed.month, day=d_date_parsed.day,
-                                  background=self.style["primario"], foreground="#282828",
-                                  borderwidth=1, relief="flat")
-        d_date_entry.grid(row=1, column=1, sticky="ew", pady=4, ipady=4)
+        # ================= TARJETA: INFORMACIÓN BÁSICA =================
+        card_info = ctk.CTkFrame(
+            scroll,
+            fg_color="#FFFFFF",
+            corner_radius=12,
+            border_width=1,
+            border_color="#E5E7EB"
+        )
+        card_info.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        card_info.grid_columnconfigure(1, weight=1)
 
+        def add_field(row, label_text, widget, col_span=1):
+            ctk.CTkLabel(
+                card_info,
+                text=label_text,
+                font=self.fonts["small"],
+                text_color=self.style["texto_oscuro"]
+            ).grid(row=row, column=0, sticky="w", padx=15, pady=8)
+            widget.grid(row=row, column=1, columnspan=col_span, sticky="ew", padx=15, pady=8)
 
-        # --- Hora de inicio ---
-        ctk.CTkLabel(form, text="Hora de inicio (HH:MM)", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=2, column=0, sticky="w", padx=(0, 10), pady=4)
-        ctk.CTkEntry(form, textvariable=d_start_time, height=34, border_color="#D5D8DC", placeholder_text="Ejemplo: 09:00").grid(row=2, column=1, sticky="ew", pady=4)
+        # Título
+        entry_title = ctk.CTkEntry(
+            card_info,
+            textvariable=d_title,
+            height=38,
+            corner_radius=8,
+            border_color="#D1D5DB",
+            placeholder_text="Nombre del taller"
+        )
+        add_field(0, "Título", entry_title)
 
-        # --- Hora final ---
-        ctk.CTkLabel(form, text="Hora final (HH:MM)", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=3, column=0, sticky="w", padx=(0, 10), pady=4)
-        ctk.CTkEntry(form, textvariable=d_end_time, height=34, border_color="#D5D8DC", placeholder_text="Ejemplo: 11:00").grid(row=3, column=1, sticky="ew", pady=4)
+        # Lugar
+        entry_place = ctk.CTkEntry(
+            card_info,
+            textvariable=d_place,
+            height=38,
+            corner_radius=8,
+            border_color="#D1D5DB",
+            placeholder_text="Ubicación"
+        )
+        add_field(1, "Lugar", entry_place)
 
-        # --- Lugar ---
-        ctk.CTkLabel(form, text="Lugar", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=4, column=0, sticky="w", padx=(0, 10), pady=4)
-        ctk.CTkEntry(form, textvariable=d_place, height=34, border_color="#D5D8DC", placeholder_text="Lugar del taller").grid(row=4, column=1, sticky="ew", pady=4)
+        # Horario (dos columnas: inicio / fin)
+        frame_hours = ctk.CTkFrame(card_info, fg_color="transparent")
+        frame_hours.grid(row=2, column=1, sticky="ew", padx=15, pady=8)
+        frame_hours.grid_columnconfigure(0, weight=1)
+        frame_hours.grid_columnconfigure(1, weight=1)
 
-        # --- Checkbox para aplicar a todos los ejecutivos ---
-        ctk.CTkCheckBox(form, text="Aplicar a todos los ejecutivos", variable=d_all_execs, onvalue=True, offvalue=False).grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 4))
+        ctk.CTkLabel(
+            card_info,
+            text="Horario",
+            font=self.fonts["small"],
+            text_color=self.style["texto_oscuro"]
+        ).grid(row=2, column=0, sticky="w", padx=15, pady=8)
 
-        # --- Selector múltiple de ejecutivos (solo visible si no es para todos) ---
+        # Hora inicio
+        combo_start = ctk.CTkComboBox(
+            frame_hours,
+            values=hour_options,
+            variable=d_start_hour,
+            height=38,
+            corner_radius=8,
+            border_color="#D1D5DB",
+            button_color=self.style["primario"],
+            dropdown_fg_color="#FFFFFF"
+        )
+        combo_start.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+
+        # Hora fin
+        combo_end = ctk.CTkComboBox(
+            frame_hours,
+            values=hour_options,
+            variable=d_end_hour,
+            height=38,
+            corner_radius=8,
+            border_color="#D1D5DB",
+            button_color=self.style["primario"],
+            dropdown_fg_color="#FFFFFF"
+        )
+        combo_end.grid(row=0, column=1, sticky="ew", padx=(5, 0))
+
+        # ================= TARJETA: PARTICIPANTES =================
+        card_participants = ctk.CTkFrame(
+            scroll,
+            fg_color="#FFFFFF",
+            corner_radius=12,
+            border_width=1,
+            border_color="#E5E7EB"
+        )
+        card_participants.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+
+        ctk.CTkLabel(
+            card_participants,
+            text="👥 Participantes",
+            font=self.fonts["label_bold"],
+            text_color=self.style["texto_oscuro"]
+        ).pack(anchor="w", padx=15, pady=(15, 5))
+
+        # Checkbox "Todos los ejecutivos"
+        chk_all = ctk.CTkCheckBox(
+            card_participants,
+            text="Aplicar a todos los ejecutivos",
+            variable=d_all_execs,
+            font=self.fonts["small"],
+            border_color="#D1D5DB"
+        )
+        chk_all.pack(anchor="w", padx=15, pady=(0, 10))
+
+        # Lista de ejecutivos con checkboxes (usando scrollable frame)
         exec_names = self.controller.get_assignable_inspectors()
-        exec_listbox = tk.Listbox(form, selectmode=tk.MULTIPLE, exportselection=False, height=6)
+        exec_vars = {}  # nombre -> BooleanVar
+
+        # Marco desplazable para checkboxes
+        exec_scroll = ctk.CTkScrollableFrame(
+            card_participants,
+            height=160,
+            fg_color="#F9FAFB",
+            corner_radius=8,
+            border_width=1,
+            border_color="#E5E7EB"
+        )
+        exec_scroll.pack(fill="x", padx=15, pady=(0, 15))
+
+        # Crear checkboxes dentro del scroll
         for name in exec_names:
-            exec_listbox.insert(tk.END, name)
-        exec_listbox.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(0, 4))
-        def toggle_exec_listbox(*_):
-            if d_all_execs.get():
-                exec_listbox.configure(state="disabled")
-            else:
-                exec_listbox.configure(state="normal")
-        d_all_execs.trace_add("write", lambda *_: toggle_exec_listbox())
-        toggle_exec_listbox()
+            var = tk.BooleanVar(value=False)
+            exec_vars[name] = var
+            cb = ctk.CTkCheckBox(
+                exec_scroll,
+                text=name,
+                variable=var,
+                font=self.fonts["small"]
+            )
+            cb.pack(anchor="w", padx=10, pady=3)
 
-        # --- Descripcion ---
-        ctk.CTkLabel(form, text="Descripcion", font=self.fonts["small"], text_color=self.style["texto_oscuro"]).grid(row=7, column=0, sticky="w", padx=(0, 10), pady=4)
-        desc_frame = ctk.CTkFrame(form, fg_color="transparent")
-        desc_frame.grid(row=7, column=1, sticky="ew", pady=4)
-        desc_frame.grid_columnconfigure(0, weight=1)
-        desc_box = ctk.CTkTextbox(desc_frame, height=80, border_color="#D5D8DC", corner_radius=8)
-        desc_box.grid(row=0, column=0, sticky="nsew")
-        desc_scroll = tk.Scrollbar(desc_frame, orient="vertical", command=desc_box.yview)
-        desc_scroll.grid(row=0, column=1, sticky="ns")
-        desc_box.configure(yscrollcommand=desc_scroll.set)
+        # Habilitar/deshabilitar según checkbox "todos"
+        def toggle_execs(*_):
+            state = "disabled" if d_all_execs.get() else "normal"
+            for child in exec_scroll.winfo_children():
+                if isinstance(child, ctk.CTkCheckBox):
+                    child.configure(state=state)
 
-        # Botones siempre visibles abajo
+        d_all_execs.trace_add("write", toggle_execs)
+        toggle_execs()
+
+        # ================= TARJETA: DESCRIPCIÓN =================
+        card_desc = ctk.CTkFrame(
+            scroll,
+            fg_color="#FFFFFF",
+            corner_radius=12,
+            border_width=1,
+            border_color="#E5E7EB"
+        )
+        card_desc.grid(row=2, column=0, sticky="ew", padx=5, pady=5)
+
+        ctk.CTkLabel(
+            card_desc,
+            text="📝 Descripción",
+            font=self.fonts["label_bold"],
+            text_color=self.style["texto_oscuro"]
+        ).pack(anchor="w", padx=15, pady=(15, 5))
+
+        desc_box = ctk.CTkTextbox(
+            card_desc,
+            height=100,
+            corner_radius=8,
+            border_color="#D1D5DB",
+            border_width=1,
+            fg_color="#FFFFFF"
+        )
+        desc_box.pack(fill="x", padx=15, pady=(0, 15))
+
+        # ================= BOTONES =================
         btn_frame = ctk.CTkFrame(dlg, fg_color="transparent")
-        btn_frame.grid(row=1, column=0, padx=24, pady=(8, 20), sticky="ew")
+        btn_frame.grid(row=2, column=0, sticky="ew", padx=15, pady=15)
         btn_frame.grid_columnconfigure(0, weight=1)
         btn_frame.grid_columnconfigure(1, weight=1)
 
-        def _save_ws():
+        def _save():
             title = d_title.get().strip()
-            ws_date = d_date_entry.get_date().strftime("%Y-%m-%d")
-            ws_start_time = d_start_time.get().strip()
-            ws_end_time = d_end_time.get().strip()
-            ws_place = d_place.get().strip()
-            ws_desc = desc_box.get("1.0", "end").strip()
-            # Validar todos los campos obligatorios
-            if not title or not ws_date or not ws_start_time or not ws_end_time or not ws_place or not ws_desc:
-                messagebox.showerror("Talleres", "Todos los campos son obligatorios.", parent=dlg)
+            place = d_place.get().strip()
+            start = d_start_hour.get().strip()
+            end = d_end_hour.get().strip()
+            desc = desc_box.get("1.0", "end").strip()
+
+            if not all([title, place, start, end, desc]):
+                messagebox.showerror("Error", "Todos los campos son obligatorios", parent=dlg)
                 return
+
+            # Validar que hora fin sea posterior a inicio
             try:
-                if d_all_execs.get():
-                    executives = "ALL"
-                else:
-                    selected_indices = exec_listbox.curselection()
-                    executives = [exec_names[i] for i in selected_indices]
-                    if not executives:
-                        messagebox.showerror("Talleres", "Selecciona al menos un ejecutivo.", parent=dlg)
-                        return
-                # Guardar el taller con el campo 'type': 'taller'
-                self.controller.save_workshop(title, ws_date, ws_desc, executives, ws_place, ws_start_time, ws_end_time, type="taller")
-            except ValueError as e:
-                messagebox.showerror("Talleres", str(e), parent=dlg)
+                from datetime import datetime
+                t_start = datetime.strptime(start, "%H:%M")
+                t_end = datetime.strptime(end, "%H:%M")
+                if t_end <= t_start:
+                    messagebox.showerror("Error", "La hora de fin debe ser posterior a la de inicio", parent=dlg)
+                    return
+            except ValueError:
+                messagebox.showerror("Error", "Formato de hora inválido", parent=dlg)
                 return
+
+            if d_all_execs.get():
+                executives = "ALL"
+            else:
+                selected = [name for name, var in exec_vars.items() if var.get()]
+                if not selected:
+                    messagebox.showerror("Error", "Selecciona al menos un ejecutivo", parent=dlg)
+                    return
+                executives = selected
+
+            self.controller.save_workshop(
+                title, iso_date, desc, executives, place, start, end, type="taller"
+            )
+
             self.refresh()
             dlg.destroy()
             self._open_day_popup(iso_date)
 
-        ctk.CTkButton(btn_frame, text="Cancelar", fg_color=self.style["fondo"],
-                       text_color=self.style["texto_oscuro"], hover_color="#E9ECEF",
-                       command=lambda: (dlg.destroy(), self._open_day_popup(iso_date))).grid(row=0, column=0, padx=(0, 6), sticky="ew")
-        ctk.CTkButton(btn_frame, text="Guardar", fg_color="#D4EDFC", text_color="#0E4A6F",
-                       hover_color="#B8DFFA", command=_save_ws).grid(row=0, column=1, padx=(6, 0), sticky="ew")
+        # Botón cancelar
+        ctk.CTkButton(
+            btn_frame,
+            text="Cancelar",
+            fg_color="#E5E7EB",
+            text_color="#111",
+            hover_color="#D1D5DB",
+            command=lambda: (dlg.destroy(), self._open_day_popup(iso_date))
+        ).grid(row=0, column=0, padx=5, sticky="ew")
+
+        # Botón guardar
+        ctk.CTkButton(
+            btn_frame,
+            text="Guardar taller",
+            fg_color=self.style["primario"],
+            text_color=self.style["texto_oscuro"],
+            hover_color="#D4C21F",
+            command=_save
+        ).grid(row=0, column=1, padx=5, sticky="ew")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def _collect_executives(self) -> list[str]:
         exec1 = self.inspector_var.get().strip()
