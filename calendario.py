@@ -2130,7 +2130,7 @@ class CalendarView(ctk.CTkFrame):
 
         dlg = ctk.CTkToplevel(self)
         dlg.title("Registrar taller")
-        dlg.geometry("550x800")
+        dlg.geometry("900x650")  # Más grande para dos columnas
         dlg.resizable(False, False)
         dlg.transient(self.winfo_toplevel())
         dlg.grab_set()
@@ -2152,15 +2152,10 @@ class CalendarView(ctk.CTkFrame):
             text_color=self.style["texto_oscuro"]
         ).grid(row=0, column=0, padx=20, pady=20, sticky="w")
 
-        # Botón para cambiar fecha (opcional, abre calendario)
-        def cambiar_fecha():
-            # Podrías implementar un CTkCalendar para seleccionar otra fecha
-            pass
-
         # ================= SCROLL =================
         scroll = ctk.CTkScrollableFrame(dlg, fg_color="transparent")
         scroll.grid(row=1, column=0, sticky="nsew", padx=15, pady=10)
-        scroll.grid_columnconfigure(0, weight=1)
+        scroll.grid_columnconfigure((0, 1), weight=1)  # dos columnas iguales
 
         # Variables
         d_title = ctk.StringVar()
@@ -2169,21 +2164,25 @@ class CalendarView(ctk.CTkFrame):
         d_end_hour = ctk.StringVar(value="11:00")
         d_all_execs = tk.BooleanVar(value=True)
 
-        # Opciones de hora (cada 30 min de 7:00 a 21:00)
         hour_options = [f"{h:02d}:{m:02d}" for h in range(7, 22) for m in (0, 30)]
 
-        # ================= TARJETA: INFORMACIÓN BÁSICA =================
+        # ================= COLUMNA IZQUIERDA =================
+        left_col = ctk.CTkFrame(scroll, fg_color="transparent")
+        left_col.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        left_col.grid_columnconfigure(0, weight=1)
+
+        # Tarjeta: Información básica
         card_info = ctk.CTkFrame(
-            scroll,
+            left_col,
             fg_color="#FFFFFF",
             corner_radius=12,
             border_width=1,
             border_color="#E5E7EB"
         )
-        card_info.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        card_info.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         card_info.grid_columnconfigure(1, weight=1)
 
-        def add_field(row, label_text, widget, col_span=1):
+        def add_left_field(row, label_text, widget, col_span=1):
             ctk.CTkLabel(
                 card_info,
                 text=label_text,
@@ -2201,7 +2200,7 @@ class CalendarView(ctk.CTkFrame):
             border_color="#D1D5DB",
             placeholder_text="Nombre del taller"
         )
-        add_field(0, "Título", entry_title)
+        add_left_field(0, "Título", entry_title)
 
         # Lugar
         entry_place = ctk.CTkEntry(
@@ -2212,9 +2211,9 @@ class CalendarView(ctk.CTkFrame):
             border_color="#D1D5DB",
             placeholder_text="Ubicación"
         )
-        add_field(1, "Lugar", entry_place)
+        add_left_field(1, "Lugar", entry_place)
 
-        # Horario (dos columnas: inicio / fin)
+        # Horario (inicio y fin)
         frame_hours = ctk.CTkFrame(card_info, fg_color="transparent")
         frame_hours.grid(row=2, column=1, sticky="ew", padx=15, pady=8)
         frame_hours.grid_columnconfigure(0, weight=1)
@@ -2227,7 +2226,6 @@ class CalendarView(ctk.CTkFrame):
             text_color=self.style["texto_oscuro"]
         ).grid(row=2, column=0, sticky="w", padx=15, pady=8)
 
-        # Hora inicio
         combo_start = ctk.CTkComboBox(
             frame_hours,
             values=hour_options,
@@ -2240,7 +2238,6 @@ class CalendarView(ctk.CTkFrame):
         )
         combo_start.grid(row=0, column=0, sticky="ew", padx=(0, 5))
 
-        # Hora fin
         combo_end = ctk.CTkComboBox(
             frame_hours,
             values=hour_options,
@@ -2253,15 +2250,49 @@ class CalendarView(ctk.CTkFrame):
         )
         combo_end.grid(row=0, column=1, sticky="ew", padx=(5, 0))
 
-        # ================= TARJETA: PARTICIPANTES =================
-        card_participants = ctk.CTkFrame(
-            scroll,
+        # Tarjeta: Descripción (abajo en columna izquierda)
+        card_desc = ctk.CTkFrame(
+            left_col,
             fg_color="#FFFFFF",
             corner_radius=12,
             border_width=1,
             border_color="#E5E7EB"
         )
-        card_participants.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+        card_desc.grid(row=1, column=0, sticky="ew", pady=(0, 5))
+        card_desc.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            card_desc,
+            text="📝 Descripción",
+            font=self.fonts["label_bold"],
+            text_color=self.style["texto_oscuro"]
+        ).pack(anchor="w", padx=15, pady=(15, 5))
+
+        desc_box = ctk.CTkTextbox(
+            card_desc,
+            height=140,
+            corner_radius=8,
+            border_color="#D1D5DB",
+            border_width=1,
+            fg_color="#FFFFFF"
+        )
+        desc_box.pack(fill="x", padx=15, pady=(0, 15))
+
+        # ================= COLUMNA DERECHA =================
+        right_col = ctk.CTkFrame(scroll, fg_color="transparent")
+        right_col.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        right_col.grid_columnconfigure(0, weight=1)
+
+        # Tarjeta: Participantes
+        card_participants = ctk.CTkFrame(
+            right_col,
+            fg_color="#FFFFFF",
+            corner_radius=12,
+            border_width=1,
+            border_color="#E5E7EB"
+        )
+        card_participants.grid(row=0, column=0, sticky="nsew")
+        card_participants.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             card_participants,
@@ -2270,7 +2301,6 @@ class CalendarView(ctk.CTkFrame):
             text_color=self.style["texto_oscuro"]
         ).pack(anchor="w", padx=15, pady=(15, 5))
 
-        # Checkbox "Todos los ejecutivos"
         chk_all = ctk.CTkCheckBox(
             card_participants,
             text="Aplicar a todos los ejecutivos",
@@ -2280,22 +2310,19 @@ class CalendarView(ctk.CTkFrame):
         )
         chk_all.pack(anchor="w", padx=15, pady=(0, 10))
 
-        # Lista de ejecutivos con checkboxes (usando scrollable frame)
         exec_names = self.controller.get_assignable_inspectors()
-        exec_vars = {}  # nombre -> BooleanVar
+        exec_vars = {}
 
-        # Marco desplazable para checkboxes
         exec_scroll = ctk.CTkScrollableFrame(
             card_participants,
-            height=160,
+            height=280,  # más alto ahora que ocupa columna completa
             fg_color="#F9FAFB",
             corner_radius=8,
             border_width=1,
             border_color="#E5E7EB"
         )
-        exec_scroll.pack(fill="x", padx=15, pady=(0, 15))
+        exec_scroll.pack(fill="both", expand=True, padx=15, pady=(0, 15))
 
-        # Crear checkboxes dentro del scroll
         for name in exec_names:
             var = tk.BooleanVar(value=False)
             exec_vars[name] = var
@@ -2307,7 +2334,6 @@ class CalendarView(ctk.CTkFrame):
             )
             cb.pack(anchor="w", padx=10, pady=3)
 
-        # Habilitar/deshabilitar según checkbox "todos"
         def toggle_execs(*_):
             state = "disabled" if d_all_execs.get() else "normal"
             for child in exec_scroll.winfo_children():
@@ -2316,33 +2342,6 @@ class CalendarView(ctk.CTkFrame):
 
         d_all_execs.trace_add("write", toggle_execs)
         toggle_execs()
-
-        # ================= TARJETA: DESCRIPCIÓN =================
-        card_desc = ctk.CTkFrame(
-            scroll,
-            fg_color="#FFFFFF",
-            corner_radius=12,
-            border_width=1,
-            border_color="#E5E7EB"
-        )
-        card_desc.grid(row=2, column=0, sticky="ew", padx=5, pady=5)
-
-        ctk.CTkLabel(
-            card_desc,
-            text="📝 Descripción",
-            font=self.fonts["label_bold"],
-            text_color=self.style["texto_oscuro"]
-        ).pack(anchor="w", padx=15, pady=(15, 5))
-
-        desc_box = ctk.CTkTextbox(
-            card_desc,
-            height=100,
-            corner_radius=8,
-            border_color="#D1D5DB",
-            border_width=1,
-            fg_color="#FFFFFF"
-        )
-        desc_box.pack(fill="x", padx=15, pady=(0, 15))
 
         # ================= BOTONES =================
         btn_frame = ctk.CTkFrame(dlg, fg_color="transparent")
@@ -2361,9 +2360,8 @@ class CalendarView(ctk.CTkFrame):
                 messagebox.showerror("Error", "Todos los campos son obligatorios", parent=dlg)
                 return
 
-            # Validar que hora fin sea posterior a inicio
+            from datetime import datetime
             try:
-                from datetime import datetime
                 t_start = datetime.strptime(start, "%H:%M")
                 t_end = datetime.strptime(end, "%H:%M")
                 if t_end <= t_start:
@@ -2385,12 +2383,10 @@ class CalendarView(ctk.CTkFrame):
             self.controller.save_workshop(
                 title, iso_date, desc, executives, place, start, end, type="taller"
             )
-
             self.refresh()
             dlg.destroy()
             self._open_day_popup(iso_date)
 
-        # Botón cancelar
         ctk.CTkButton(
             btn_frame,
             text="Cancelar",
@@ -2400,7 +2396,6 @@ class CalendarView(ctk.CTkFrame):
             command=lambda: (dlg.destroy(), self._open_day_popup(iso_date))
         ).grid(row=0, column=0, padx=5, sticky="ew")
 
-        # Botón guardar
         ctk.CTkButton(
             btn_frame,
             text="Guardar taller",
@@ -2409,7 +2404,6 @@ class CalendarView(ctk.CTkFrame):
             hover_color="#D4C21F",
             command=_save
         ).grid(row=0, column=1, padx=5, sticky="ew")
-
 
 
 
