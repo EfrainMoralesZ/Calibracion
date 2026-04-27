@@ -2532,6 +2532,7 @@ class CalibrationController:
 		self.reload()
 
 	def save_user(self, payload: dict[str, Any], original_username: str | None = None) -> dict[str, Any]:
+		import os
 		name = str(payload.get("name", "")).strip()
 		username = str(payload.get("username", "")).strip()
 		password = str(payload.get("password", "")).strip()
@@ -2548,7 +2549,7 @@ class CalibrationController:
 			"talento humano",
 			"supervisor",
 			"ejecutivo tecnico",
-			"especialidades",
+			"especialista",
 		}:
 			raise ValueError("El rol no es valido para este sistema.")
 
@@ -2574,6 +2575,13 @@ class CalibrationController:
 			self.users_catalog[index] = updated
 		else:
 			self.users_catalog.append(updated)
+
+		# Crear carpeta en data/historico/ si es Especialista, Supervisor o Ejecutivo Técnico
+		if role in {"especialista", "supervisor", "ejecutivo tecnico"}:
+			from pathlib import Path
+			folder_name = _safe_folder_name(name)
+			historico_path = HISTORY_DIR / folder_name
+			historico_path.mkdir(parents=True, exist_ok=True)
 
 		_write_json(USERS_FILE, {"users": self.users_catalog})
 		self.reload()
