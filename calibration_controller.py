@@ -1125,13 +1125,16 @@ class CalibrationController:
 		if self._assignable_inspectors_cache is not None:
 			return list(self._assignable_inspectors_cache)
 
-		executives = sorted(
+		# Roles a los que se les asignan visitas
+		# Incluir ejecutivos técnicos, especialistas y supervisores
+		assignable_roles = {"ejecutivo tecnico", "especialista", "supervisor"}
+		assignables = sorted(
 			str(user.get("name", "")).strip()
 			for user in self.users_catalog
-			if _normalize_role_name(user.get("role")) in {"ejecutivo tecnico", "especialista"}
+			if _normalize_role_name(user.get("role")) in assignable_roles
 			and str(user.get("name", "")).strip()
 		)
-		self._assignable_inspectors_cache = executives or self.get_dashboard_people()
+		self._assignable_inspectors_cache = assignables or self.get_dashboard_people()
 		return list(self._assignable_inspectors_cache)
 
 	def get_busy_executives(self, date_iso: str, exclude_visit_id: str | None = None) -> set[str]:
