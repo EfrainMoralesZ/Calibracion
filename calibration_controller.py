@@ -78,14 +78,17 @@ def _safe_slug(value: str) -> str:
 
 
 def _safe_folder_name(value: str) -> str:
+	# Normaliza el nombre para evitar duplicados por acentos, mayúsculas, símbolos, etc.
 	text = str(value or "").strip()
 	if not text:
 		return "sin_nombre"
 
-	text = re.sub(r"[<>:\"/\\|?*]", "", text)
-	text = re.sub(r"\s+", "_", text)
-	text = text.strip("._")
-	return text or "sin_nombre"
+	# Usar la misma lógica que _normalize_person_name para la base del nombre
+	normalized = unicodedata.normalize("NFKD", text)
+	without_accents = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+	without_symbols = re.sub(r"[^a-zA-Z0-9]+", "_", without_accents)
+	folder = without_symbols.strip("._").strip("_")
+	return folder or "sin_nombre"
 
 
 def _folder_identity(value: str) -> str:
@@ -2435,6 +2438,7 @@ class CalibrationController:
 			return
 		visits_path, visits, visit = found
 		visit["status"] = "Finalizada"
+		visit["acceptance_status"] = "finalizada"
 		visit["finalized_at"] = finalized_at
 		visit["updated_at"] = _timestamp()
 		_write_json(visits_path, visits)

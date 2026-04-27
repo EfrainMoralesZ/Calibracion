@@ -1108,8 +1108,12 @@ class CalendarView(ctk.CTkFrame):
 
         filtered_visits: list[dict] = []
         for visit in all_visits:
-            if status_filter != "Todos" and str(visit.get("status", "")).strip() != status_filter:
-                continue
+            # Considerar ambos campos para el filtro de estado
+            visit_status = str(visit.get("status", "")).strip()
+            acceptance_status = str(visit.get("acceptance_status", "")).strip()
+            if status_filter != "Todos":
+                if status_filter != visit_status and status_filter != acceptance_status:
+                    continue
 
             if executive_filter != self._ALL_EXEC_FILTER and executive_filter not in visit.get("inspectors", []):
                 continue
@@ -1128,7 +1132,8 @@ class CalendarView(ctk.CTkFrame):
                         str(visit.get("visit_date", "")),
                         str(visit.get("assignment_time", "")),
                         str(visit.get("departure_time", "")),
-                        str(visit.get("status", "")),
+                        visit_status,
+                        acceptance_status,
                     ]
                 ).lower()
                 if query not in searchable:
@@ -1228,21 +1233,21 @@ class CalendarView(ctk.CTkFrame):
                 visits_by_date[v_date].append(visit)
 
         for row in range(6):
-            self.calendar_grid_frame.grid_rowconfigure(row, weight=1, minsize=44)
+            self.calendar_grid_frame.grid_rowconfigure(row, weight=1, minsize=28)  # antes 44
             for col in range(7):
-                self.calendar_grid_frame.grid_columnconfigure(col, weight=1, minsize=96)
+                self.calendar_grid_frame.grid_columnconfigure(col, weight=1, minsize=48)  # antes 96
                 day = month_matrix[row][col]
                 if day == 0:
                     cell = ctk.CTkButton(
                         self.calendar_grid_frame,
                         text="",
-                        width=96,
-                        height=42,
+                        width=48,   # antes 96
+                        height=28,  # antes 42
                         fg_color="#EEF0F2",
                         hover=False,
                         state="disabled",
                     )
-                    cell.grid(row=row, column=col, padx=2, pady=1, sticky="ew")
+                    cell.grid(row=row, column=col, padx=1, pady=1, sticky="ew")
                     continue
 
                 day_iso = date(self.current_month.year, self.current_month.month, day).strftime("%Y-%m-%d")
@@ -1355,21 +1360,33 @@ class CalendarView(ctk.CTkFrame):
                     state = "normal"
                     hover_color = "#E9ECEF"
 
+                # Usar una fuente más grande para el número del día
+                # Creamos una fuente 2 puntos más grande que "small"
+                import tkinter.font as tkfont
+                if not hasattr(self, "_calendar_day_font"):
+                    base_font = self.fonts["small"]
+                    try:
+                        font_obj = tkfont.nametofont(base_font) if isinstance(base_font, str) else base_font
+                        size = font_obj.cget("size") if hasattr(font_obj, "cget") else 12
+                        self._calendar_day_font = (font_obj.cget("family"), size + 2, "bold")
+                    except Exception:
+                        self._calendar_day_font = base_font
+                        
                 cell = ctk.CTkButton(
                     self.calendar_grid_frame,
                     text=label,
-                    width=96,
-                    height=42,
+                    width=48,   # antes 96
+                    height=28,  # antes 42
                     fg_color=fg_color,
                     text_color=text_color,
                     hover_color=hover_color,
                     state=state,
-                    font=self.fonts["small"],
+                    font=self._calendar_day_font,
                     command=(lambda iso=day_iso: self._select_calendar_date(iso)) if state == "normal" else None,
                 )
                 if state == "disabled":
                     cell.configure(hover=False)
-                cell.grid(row=row, column=col, padx=2, pady=1, sticky="nsew")
+                cell.grid(row=row, column=col, padx=1, pady=1, sticky="nsew")
 
     def _select_calendar_date(self, iso_date: str) -> None:
         today_iso = date.today().strftime("%Y-%m-%d")
